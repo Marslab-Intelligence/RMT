@@ -20,18 +20,30 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [activityLogs, setActivityLogs] = useState([]);
+  const [editedLogs, setEditedLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [statsRes, logsRes] = await Promise.all([
+        const promises = [
           fetch('/api/dashboard/stats', { headers: { 'Authorization': `Bearer ${token}` } }),
           fetch('/api/dashboard/activity-logs?limit=5', { headers: { 'Authorization': `Bearer ${token}` } })
-        ]);
+        ];
 
-        if (statsRes.ok) setStats(await statsRes.json());
-        if (logsRes.ok) setActivityLogs(await logsRes.json());
+        if (user?.role === 'finance') {
+          promises.push(
+            fetch('/api/renewals/edits-history?limit=5', { headers: { 'Authorization': `Bearer ${token}` } })
+          );
+        }
+
+        const results = await Promise.all(promises);
+
+        if (results[0].ok) setStats(await results[0].json());
+        if (results[1].ok) setActivityLogs(await results[1].json());
+        if (user?.role === 'finance' && results[2]?.ok) {
+          setEditedLogs(await results[2].json());
+        }
       } catch (err) {
         console.error('Failed to fetch dashboard data', err);
       } finally {
@@ -39,7 +51,7 @@ export default function Dashboard() {
       }
     };
     fetchData();
-  }, [token]);
+  }, [token, user]);
 
   if (loading) {
     return (
@@ -126,7 +138,7 @@ export default function Dashboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6"
+        className={`mt-8 grid grid-cols-1 ${user?.role === 'finance' ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-6`}
       >
         <div className="card p-6 bg-surface-900 text-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none text-white">
@@ -138,7 +150,7 @@ export default function Dashboard() {
           </p>
           <button 
             onClick={() => navigate('/reports')}
-            className="bg-white text-surface-900 px-4 py-2 rounded-md text-sm font-semibold flex items-center hover:bg-surface-100 transition-colors relative z-10"
+            className="bg-white text-surface-950 px-4 py-2 rounded-md text-sm font-semibold flex items-center hover:bg-surface-100 transition-colors relative z-10"
           >
             View Email Logs <ArrowUpRight className="w-4 h-4 ml-1" />
           </button>
@@ -150,20 +162,68 @@ export default function Dashboard() {
              {activityLogs.length === 0 ? (
                <p className="text-sm text-surface-500">No recent activity.</p>
              ) : (
-               activityLogs.map(log => (
-                 <div key={log.id} className="flex items-center gap-4">
-                    <div className="w-2 h-2 rounded-full bg-brand-500 flex-shrink-0"></div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-surface-900 dark:text-surface-100 font-medium truncate">{log.details}</p>
-                      <p className="text-xs text-surface-500">
-                        {formatDateTime(log.created_at)}
-                      </p>
-                    </div>
-                 </div>
-               ))
+                activityLogs.map(log => (
+                  <div key={log.id} className="flex items-center gap-4">
+                     <div className="w-2 h-2 rounded-full bg-brand-500 flex-shrink-0"></div>
+                     <div className="flex-1 min-w-0">
+                       <p className="text-sm text-surface-900 dark:text-surface-100 font-medium truncate">{log.details}</p>
+                       <p className="text-xs text-surface-500">
+                         {formatDateTime(log.created_at)}
+                       </p>
+                     </div>
+                  </div>
+                ))
              )}
           </div>
         </div>
+
+        {user?.role === 'finance' && (
+          <div className="card p-6 dark:bg-surface-800 dark:border-surface-700">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-surface-900 dark:text-white">Recent Edits (CST & Admin)</h2>
+              <button 
+                onClick={() => navigate('/edits-history')} 
+                className="text-xs text-brand-600 dark:text-brand-400 font-semibold hover:underline"
+              >
+                View All
+              </button>
+            </div>
+            <div className="space-y-4">
+              {editedLogs.length === 0 ? (
+                <p className="text-sm text-surface-500">No recent edits.</p>
+              ) : (
+                editedLogs.map(log => {
+                  let reason = '';
+                  try {
+                    const next = typeof log.new_data === 'string' ? JSON.parse(log.new_data) : log.new_data;
+                    reason = next?.reason || '';
+                  } catch (e) {}
+                  return (
+                    <div key={log.id} className="flex items-start gap-3">
+                      <div className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 flex-shrink-0"></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-surface-900 dark:text-surface-100 font-semibold truncate">
+                          {log.client_name || 'Renewal Record'}
+                        </p>
+                        <p className="text-xs text-surface-500 truncate">
+                          Edited by <span className="font-medium text-surface-700 dark:text-surface-300">{log.performed_by_name}</span> ({log.performed_by_role === 'sales' ? 'CST' : 'Admin'})
+                        </p>
+                        {reason && (
+                          <p className="text-xs text-surface-500 dark:text-surface-400 italic truncate mt-0.5" title={reason}>
+                            "{reason}"
+                          </p>
+                        )}
+                        <p className="text-[10px] text-surface-400 mt-0.5">
+                          {formatDateTime(log.performed_at)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
       </motion.div>
     </div>
   );

@@ -15,7 +15,8 @@ import {
   ShieldCheck,
   Moon,
   Sun,
-  Home
+  Home,
+  History
 } from 'lucide-react';
 
 const getRoleLabel = (role) => {
@@ -119,6 +120,10 @@ export default function Layout({ children }) {
     { name: 'Renewals', path: '/renewals', icon: FileText },
     { name: 'Reports & Logs', path: '/reports', icon: BarChart3 },
   ];
+
+  if (user?.role === 'finance' || user?.role === 'admin') {
+    navItems.push({ name: 'Edits History', path: '/edits-history', icon: History });
+  }
 
   const getInitials = (name) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);

@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import RenewalsList from './pages/RenewalsList';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import EditsHistory from './pages/EditsHistory';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -26,6 +27,7 @@ function App() {
         <Route path="/renewals" element={<ProtectedRoute><RenewalsList /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="/edits-history" element={<ProtectedRoute><EditsHistory /></ProtectedRoute>} />
         
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
