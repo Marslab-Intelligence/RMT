@@ -10,7 +10,7 @@ const router = Router();
 // Get all renewals
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const { search, status, sort, order, page = 1, limit = 50 } = req.query;
+    const { search, status, sort, order, page = 1, limit = 50, dateRange, valueRange } = req.query;
     let query = 'SELECT * FROM renewals WHERE 1=1';
     const params = [];
     let paramIndex = 1;
@@ -26,13 +26,60 @@ router.get('/', authenticateToken, async (req, res) => {
       params.push(status);
     }
 
+    // Date range filter
+    if (dateRange && dateRange !== 'all') {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const today = now.toISOString().split('T')[0];
+      if (dateRange === 'expired') {
+        query += ` AND renewal_date < $${paramIndex++}`;
+        params.push(today);
+      } else if (dateRange === 'today') {
+        query += ` AND renewal_date = $${paramIndex++}`;
+        params.push(today);
+      } else if (dateRange === 'next7') {
+        const end = new Date(now); end.setDate(end.getDate() + 7);
+        query += ` AND renewal_date >= $${paramIndex++} AND renewal_date <= $${paramIndex++}`;
+        params.push(today, end.toISOString().split('T')[0]);
+      } else if (dateRange === 'next30') {
+        const end = new Date(now); end.setDate(end.getDate() + 30);
+        query += ` AND renewal_date >= $${paramIndex++} AND renewal_date <= $${paramIndex++}`;
+        params.push(today, end.toISOString().split('T')[0]);
+      } else if (dateRange === 'next60') {
+        const end = new Date(now); end.setDate(end.getDate() + 60);
+        query += ` AND renewal_date >= $${paramIndex++} AND renewal_date <= $${paramIndex++}`;
+        params.push(today, end.toISOString().split('T')[0]);
+      } else if (dateRange === 'next90') {
+        const end = new Date(now); end.setDate(end.getDate() + 90);
+        query += ` AND renewal_date >= $${paramIndex++} AND renewal_date <= $${paramIndex++}`;
+        params.push(today, end.toISOString().split('T')[0]);
+      }
+    }
+
+    // Value range filter
+    if (valueRange && valueRange !== 'all') {
+      if (valueRange === 'under50k') {
+        query += ` AND value < $${paramIndex++}`;
+        params.push(50000);
+      } else if (valueRange === '50k-1l') {
+        query += ` AND value >= $${paramIndex++} AND value < $${paramIndex++}`;
+        params.push(50000, 100000);
+      } else if (valueRange === '1l-5l') {
+        query += ` AND value >= $${paramIndex++} AND value < $${paramIndex++}`;
+        params.push(100000, 500000);
+      } else if (valueRange === 'above5l') {
+        query += ` AND value >= $${paramIndex++}`;
+        params.push(500000);
+      }
+    }
+
     const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as total');
     const { rows: countRows } = await db.query(countQuery, params);
     const total = parseInt(countRows[0].total);
 
     const validSorts = ['client_name', 'renewal_date', 'value', 'status', 'created_at', 'unique_id'];
     const sortCol = validSorts.includes(sort) ? sort : 'renewal_date';
-    const sortOrder = order ? (order.toLowerCase() === 'desc' ? 'DESC' : 'ASC') : (sort ? 'DESC' : 'ASC');
+    const sortOrder = order ? (order.toLowerCase() === 'desc' ? 'DESC' : 'ASC') : 'ASC';
     
     if (sortCol === 'renewal_date') {
       query += ` ORDER BY ${sortCol} ${sortOrder} NULLS LAST`;

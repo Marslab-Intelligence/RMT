@@ -60,8 +60,12 @@ export default function RenewalsList() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
-  const [sortBy, setSortBy] = useState('renewal_date');
-  const [sortDir, setSortDir] = useState('asc');
+  // Column filters
+  const [dateRangeFilter, setDateRangeFilter] = useState('all');
+  const [valueFilter, setValueFilter] = useState('all');
+  const [statusColFilter, setStatusColFilter] = useState('all');
+  const [openFilterCol, setOpenFilterCol] = useState(null); // which column dropdown is open
+  const filterRef = useRef(null);
   
   // Update URL and local state when status changes
   const handleStatusChange = (newStatus) => {
@@ -91,7 +95,7 @@ export default function RenewalsList() {
   const fetchRenewals = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/renewals?page=${page}&limit=10&search=${search}&status=${statusFilter}&sort=${sortBy}&order=${sortDir}`, {
+      const res = await fetch(`/api/renewals?page=${page}&limit=10&search=${search}&status=${statusColFilter !== 'all' ? statusColFilter : statusFilter}&dateRange=${dateRangeFilter}&valueRange=${valueFilter}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -112,22 +116,84 @@ export default function RenewalsList() {
       fetchRenewals();
     }, 300);
     return () => clearTimeout(delayDebounceFn);
-  }, [page, search, statusFilter, sortBy, sortDir, token]);
+  }, [page, search, statusFilter, dateRangeFilter, valueFilter, statusColFilter, token]);
 
-  const handleSort = (col) => {
-    if (sortBy === col) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(col);
-      setSortDir('asc');
-    }
-    setPage(1);
+  // Close filter dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (filterRef.current && !filterRef.current.contains(e.target)) {
+        setOpenFilterCol(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const toggleFilter = (col) => setOpenFilterCol(prev => prev === col ? null : col);
+
+  const FilterDropdown = ({ col, value, onChange, options }) => {
+    const isActive = value !== 'all';
+    return (
+      <div className="relative inline-block" ref={openFilterCol === col ? filterRef : null}>
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleFilter(col); }}
+          className={`ml-1.5 p-0.5 rounded transition-colors ${
+            isActive
+              ? 'text-brand-500 dark:text-brand-400'
+              : 'text-surface-300 dark:text-surface-600 hover:text-surface-500'
+          }`}
+          title={isActive ? 'Filter active' : 'Filter'}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+        </button>
+        {openFilterCol === col && (
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-lg min-w-[160px] py-1 animate-in fade-in slide-in-from-top-1 duration-150">
+            {options.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => { onChange(opt.value); setOpenFilterCol(null); setPage(1); }}
+                className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                  value === opt.value
+                    ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-semibold'
+                    : 'text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
-  const SortIcon = ({ col }) => {
-    if (sortBy !== col) return <span className="ml-1 text-surface-300 dark:text-surface-600">⇅</span>;
-    return <span className="ml-1 text-brand-500">{sortDir === 'asc' ? '↑' : '↓'}</span>;
-  };
+  const DATE_OPTIONS = [
+    { value: 'all', label: 'All Dates' },
+    { value: 'expired', label: 'Expired' },
+    { value: 'today', label: 'Due Today' },
+    { value: 'next7', label: 'Next 7 Days' },
+    { value: 'next30', label: 'Next 30 Days' },
+    { value: 'next60', label: 'Next 60 Days' },
+    { value: 'next90', label: 'Next 90 Days' },
+  ];
+
+  const VALUE_OPTIONS = [
+    { value: 'all', label: 'All Values' },
+    { value: 'under50k', label: 'Under ₹50K' },
+    { value: '50k-1l', label: '₹50K – ₹1L' },
+    { value: '1l-5l', label: '₹1L – ₹5L' },
+    { value: 'above5l', label: 'Above ₹5L' },
+  ];
+
+  const STATUS_COL_OPTIONS = [
+    { value: 'all', label: 'All Statuses' },
+    { value: 'Active', label: 'Active' },
+    { value: 'Pending Renewal', label: 'Pending Renewal' },
+    { value: 'Expired', label: 'Expired' },
+    { value: '-', label: 'Discontinued' },
+  ];
 
   const handleExportCSV = () => {
     // Simple CSV export logic
@@ -583,23 +649,23 @@ export default function RenewalsList() {
                 <th className="px-4 py-3 font-medium w-[7%]">Unique ID</th>
                 <th className="px-4 py-3 font-medium w-[15%]">Client Info</th>
                 <th className="px-4 py-3 font-medium w-[12%]">Service</th>
-                <th
-                  className="px-4 py-3 font-medium w-[10%] cursor-pointer select-none hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-                  onClick={() => handleSort('renewal_date')}
-                >
-                  Renewal Date<SortIcon col="renewal_date" />
+                <th className="px-4 py-3 font-medium w-[10%]">
+                  <div className="flex items-center">
+                    Renewal Date
+                    <FilterDropdown col="date" value={dateRangeFilter} onChange={setDateRangeFilter} options={DATE_OPTIONS} />
+                  </div>
                 </th>
-                <th
-                  className="px-4 py-3 font-medium text-right w-[8%] cursor-pointer select-none hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-                  onClick={() => handleSort('value')}
-                >
-                  Value<SortIcon col="value" />
+                <th className="px-4 py-3 font-medium text-right w-[8%]">
+                  <div className="flex items-center justify-end">
+                    Value
+                    <FilterDropdown col="value" value={valueFilter} onChange={setValueFilter} options={VALUE_OPTIONS} />
+                  </div>
                 </th>
-                <th
-                  className="px-4 py-3 font-medium text-center w-[9%] cursor-pointer select-none hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
-                  onClick={() => handleSort('status')}
-                >
-                  Status<SortIcon col="status" />
+                <th className="px-4 py-3 font-medium text-center w-[9%]">
+                  <div className="flex items-center justify-center">
+                    Status
+                    <FilterDropdown col="status" value={statusColFilter} onChange={setStatusColFilter} options={STATUS_COL_OPTIONS} />
+                  </div>
                 </th>
                 <th className="px-4 py-3 font-medium text-center w-[9%]">Timeline</th>
                 <th className="px-4 py-3 font-medium text-center w-[13%]">Renewed</th>
