@@ -154,17 +154,17 @@ export default function Layout({ children }) {
         onMouseLeave={handleSidebarMouseLeave}
         className={`fixed inset-y-0 left-0 z-30 w-64 transform transition-transform duration-300 ease-in-out shadow-2xl ${(sidebarOpen || isMobileMenuOpen) ? 'translate-x-0' : '-translate-x-full'}`}
         style={{
-          background: 'rgba(255, 248, 240, 0.55)',
+          background: isDarkMode ? 'rgba(28, 25, 23, 0.70)' : 'rgba(255, 248, 240, 0.55)',
           backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
-          borderRight: '1px solid rgba(255, 255, 255, 0.5)',
+          borderRight: isDarkMode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(255, 255, 255, 0.5)',
         }}
       >
         <div className="flex items-center justify-between h-16 px-6">
           <div className="flex items-center">
             <img src="/logo.png" alt="MarsLab Logo" className="h-8 w-auto object-contain" />
           </div>
-          <button onClick={() => { setSidebarOpen(false); setIsMobileMenuOpen(false); }} className="text-surface-500 hover:text-surface-700 dark:hover:text-surface-300">
+          <button onClick={() => { setSidebarOpen(false); setIsMobileMenuOpen(false); }} className="text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-white">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -180,12 +180,12 @@ export default function Layout({ children }) {
                   to={item.path}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     isActive
-                      ? 'bg-white/50 dark:bg-brand-900/25 text-brand-700 dark:text-brand-400 shadow-sm'
-                      : 'text-surface-600 dark:text-surface-400 hover:bg-white/40 dark:hover:bg-white/10 hover:text-surface-900 dark:hover:text-surface-200'
+                      ? 'bg-brand-600 text-white dark:bg-brand-600 dark:text-white shadow-sm'
+                      : 'text-surface-700 hover:bg-white/40 hover:text-surface-950 dark:text-surface-200 dark:hover:bg-white/10 dark:hover:text-white'
                   }`}
                   onClick={() => { setSidebarOpen(false); setIsMobileMenuOpen(false); }}
                 >
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-brand-600 dark:text-brand-400' : 'text-surface-400 dark:text-surface-500'}`} />
+                  <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-surface-500 dark:text-surface-300'}`} />
                   {item.name}
                 </NavLink>
               );
@@ -195,15 +195,15 @@ export default function Layout({ children }) {
 
         <div className="absolute bottom-0 w-full p-4">
           <div className="text-center mb-3 px-2">
-            <p className="text-sm font-semibold text-surface-700 dark:text-surface-300">{user?.fullName}</p>
-            <p className="text-xs text-surface-500 dark:text-surface-400 capitalize mt-0.5">
+            <p className="text-sm font-semibold text-surface-800 dark:text-white">{user?.fullName}</p>
+            <p className="text-xs text-surface-500 dark:text-surface-300 capitalize mt-0.5 font-medium">
               {user?.role === 'sales' ? 'CST' : user?.role} Team
             </p>
           </div>
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-red-500 dark:text-red-400 hover:bg-red-50/50 dark:hover:bg-red-900/20 transition-colors pt-3"
-            style={{borderTop: '1px solid rgba(255,255,255,0.4)'}}
+            style={{borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.4)'}}
           >
             <LogOut className="w-5 h-5" />
             Sign Out
@@ -216,22 +216,22 @@ export default function Layout({ children }) {
         {/* Top Header */}
         <header className="h-16 flex items-center justify-between px-6 z-20"
           style={{
-            background: 'rgba(255, 248, 240, 0.40)',
+            background: isDarkMode ? 'rgba(28, 25, 23, 0.50)' : 'rgba(255, 248, 240, 0.40)',
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.45)',
+            borderBottom: isDarkMode ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(255, 255, 255, 0.45)',
           }}
         >
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setIsMobileMenuOpen(true)}
-              className="lg:hidden text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200"
+              className="lg:hidden text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-white"
             >
               <Menu className="w-6 h-6" />
             </button>
             <button 
               onClick={() => navigate('/')}
-              className="flex items-center gap-2 px-3 py-2 text-surface-600 hover:text-brand-600 dark:text-surface-400 dark:hover:text-brand-400 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-sm font-medium"
+              className="flex items-center gap-2 px-3 py-2 text-surface-700 hover:text-brand-700 dark:text-surface-200 dark:hover:text-white rounded-lg hover:bg-white/40 dark:hover:bg-white/10 transition-colors text-sm font-medium"
               title="Go to Dashboard"
             >
               <Home className="w-5 h-5" />
@@ -249,12 +249,12 @@ export default function Layout({ children }) {
             {/* Theme Toggle */}
             <button
               onClick={toggleDarkMode}
-              className="p-2.5 text-surface-600 hover:text-surface-800 dark:text-surface-300 dark:hover:text-white rounded-xl transition-colors shadow-sm"
+              className="p-2.5 text-surface-700 hover:text-surface-900 dark:text-surface-200 dark:hover:text-white rounded-xl transition-colors shadow-sm"
               style={{
-                background: 'rgba(255, 255, 255, 0.35)',
+                background: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.35)',
                 backdropFilter: 'blur(8px)',
                 WebkitBackdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255, 255, 255, 0.55)',
+                border: isDarkMode ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid rgba(255, 255, 255, 0.55)',
               }}
             >
               {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
@@ -264,12 +264,12 @@ export default function Layout({ children }) {
             <div className="relative">
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
-                className="relative p-2.5 text-surface-600 hover:text-surface-800 dark:text-surface-300 dark:hover:text-white rounded-xl transition-colors shadow-sm"
+                className="relative p-2.5 text-surface-700 hover:text-surface-900 dark:text-surface-200 dark:hover:text-white rounded-xl transition-colors shadow-sm"
                 style={{
-                  background: 'rgba(255, 255, 255, 0.35)',
+                  background: isDarkMode ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.35)',
                   backdropFilter: 'blur(8px)',
                   WebkitBackdropFilter: 'blur(8px)',
-                  border: '1px solid rgba(255, 255, 255, 0.55)',
+                  border: isDarkMode ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid rgba(255, 255, 255, 0.55)',
                 }}
               >
                 <Bell className="w-5 h-5" />
@@ -282,14 +282,14 @@ export default function Layout({ children }) {
               {showNotifications && (
                 <div className="absolute right-0 mt-2 w-80 rounded-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200 shadow-xl"
                   style={{
-                    background: 'rgba(255, 248, 240, 0.65)',
+                    background: isDarkMode ? 'rgba(28, 25, 23, 0.82)' : 'rgba(255, 248, 240, 0.65)',
                     backdropFilter: 'blur(24px)',
                     WebkitBackdropFilter: 'blur(24px)',
-                    border: '1px solid rgba(255, 255, 255, 0.55)',
+                    border: isDarkMode ? '1px solid rgba(255, 255, 255, 0.10)' : '1px solid rgba(255, 255, 255, 0.55)',
                   }}
                 >
                   <div className="px-4 py-3 flex justify-between items-center"
-                    style={{borderBottom: '1px solid rgba(255, 255, 255, 0.4)'}}>
+                    style={{borderBottom: isDarkMode ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(255, 255, 255, 0.4)'}}>
                     <h3 className="font-semibold text-surface-900 dark:text-white">Notifications</h3>
                     {unreadCount > 0 && (
                       <span className="text-xs font-medium bg-brand-100/80 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 px-2 py-0.5 rounded-full">
@@ -305,7 +305,7 @@ export default function Layout({ children }) {
                     ) : (
                       notifications.slice(0, 5).map(notif => (
                         <div key={notif.id} className={`p-4 last:border-0 hover:bg-white/30 dark:hover:bg-white/5 transition-colors ${notif.read ? 'opacity-60' : ''}`}
-                          style={{borderBottom: '1px solid rgba(255,255,255,0.3)'}}>
+                          style={{borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.3)'}}>
                           <p className="text-sm font-medium text-surface-900 dark:text-white">{notif.title}</p>
                           <p className="text-xs text-surface-500 dark:text-surface-400 mt-1 line-clamp-2">{notif.message}</p>
                           <p className="text-[10px] text-surface-400 dark:text-surface-500 mt-2">
@@ -315,7 +315,7 @@ export default function Layout({ children }) {
                       ))
                     )}
                   </div>
-                  <div className="p-2" style={{borderTop: '1px solid rgba(255,255,255,0.4)'}}>
+                  <div className="p-2" style={{borderTop: isDarkMode ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(255,255,255,0.4)'}}>
                     <button className="w-full text-center text-xs font-medium text-brand-600 dark:text-brand-400 py-1.5 hover:underline">
                       View all notifications
                     </button>
@@ -330,10 +330,10 @@ export default function Layout({ children }) {
               title="Sign Out"
               className="flex items-center gap-1.5 px-3 py-2 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 rounded-xl transition-colors shadow-sm text-sm font-medium"
               style={{
-                background: 'rgba(255, 235, 235, 0.40)',
+                background: isDarkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 235, 235, 0.40)',
                 backdropFilter: 'blur(8px)',
                 WebkitBackdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255, 200, 200, 0.45)',
+                border: isDarkMode ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(255, 200, 200, 0.45)',
               }}
             >
               <LogOut className="w-4 h-4" />
