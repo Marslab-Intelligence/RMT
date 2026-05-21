@@ -95,7 +95,7 @@ export default function RenewalsList() {
   const fetchRenewals = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/renewals?page=${page}&limit=10&search=${search}&status=${statusColFilter !== 'all' ? statusColFilter : statusFilter}&dateRange=${dateRangeFilter}&valueRange=${valueFilter}`, {
+      const res = await fetch(`/api/renewals?page=${page}&limit=25&search=${search}&status=${statusColFilter !== 'all' ? statusColFilter : statusFilter}&dateRange=${dateRangeFilter}&valueRange=${valueFilter}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -642,9 +642,9 @@ export default function RenewalsList() {
 
       {/* Main Table Card */}
       <div className="card overflow-hidden dark:bg-surface-800 dark:border-surface-700">
-        <div>
+        <div className="max-h-[600px] overflow-y-auto custom-scrollbar relative">
           <table className="w-full text-left text-sm table-fixed">
-            <thead className="bg-surface-50 dark:bg-surface-900/50 text-surface-500 dark:text-surface-400 border-b border-surface-200 dark:border-surface-700">
+            <thead className="bg-surface-50 dark:bg-surface-900 text-surface-500 dark:text-surface-400 border-b border-surface-200 dark:border-surface-700 sticky top-0 z-10 shadow-sm">
               <tr>
                 <th className="px-4 py-3 font-medium w-[7%]">Unique ID</th>
                 <th className="px-4 py-3 font-medium w-[15%]">Client Info</th>
@@ -843,7 +843,7 @@ export default function RenewalsList() {
         {/* Pagination */}
         <div className="px-6 py-4 border-t border-surface-200 dark:border-surface-700 flex items-center justify-between bg-white dark:bg-surface-800">
           <div className="text-sm text-surface-500 dark:text-surface-400">
-            Showing <span className="font-medium text-surface-900 dark:text-white">{Math.min((page - 1) * 10 + 1, totalRecords)}</span> to <span className="font-medium text-surface-900 dark:text-white">{Math.min(page * 10, totalRecords)}</span> of <span className="font-medium text-surface-900 dark:text-white">{totalRecords}</span> results
+            Showing <span className="font-medium text-surface-900 dark:text-white">{Math.min((page - 1) * 25 + 1, totalRecords)}</span> to <span className="font-medium text-surface-900 dark:text-white">{Math.min(page * 25, totalRecords)}</span> of <span className="font-medium text-surface-900 dark:text-white">{totalRecords}</span> results
           </div>
           <div className="flex gap-2">
             <button 
