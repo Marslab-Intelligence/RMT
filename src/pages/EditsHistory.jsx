@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { History, User, Calendar, Edit, ArrowRight, Shield, RefreshCw, PlusCircle, CheckCircle } from 'lucide-react';
+import { History, User, Calendar, Edit, ArrowRight, Shield, RefreshCw, PlusCircle, CheckCircle, X, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatDate, formatDateTime } from '../utils/formatters';
 
@@ -8,6 +8,7 @@ export default function EditsHistory() {
   const { token, user } = useAuth();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedLog, setSelectedLog] = useState(null);
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -34,6 +35,7 @@ export default function EditsHistory() {
 
   // Fallback helper to fetch details of the record (even if deleted)
   const getRecordDetails = (log) => {
+    if (!log) return { client_name: '—', service: '—' };
     if (log.client_name && log.service) {
       return { client_name: log.client_name, service: log.service };
     }
@@ -51,6 +53,7 @@ export default function EditsHistory() {
 
   // Fallback helper to fetch unique ID
   const getUniqueId = (log) => {
+    if (!log) return '—';
     if (log.unique_id) return log.unique_id;
     try {
       const next = typeof log.new_data === 'string' ? JSON.parse(log.new_data) : log.new_data;
@@ -63,7 +66,7 @@ export default function EditsHistory() {
 
   // Dynamically compare previous and new data to find edited fields
   const getChanges = (log) => {
-    if (log.action === 'created') return [];
+    if (!log || log.action === 'created') return [];
     try {
       const prev = typeof log.previous_data === 'string' ? JSON.parse(log.previous_data) : log.previous_data;
       const next = typeof log.new_data === 'string' ? JSON.parse(log.new_data) : log.new_data;
@@ -129,11 +132,63 @@ export default function EditsHistory() {
   };
 
   const getReason = (log) => {
+    if (!log) return 'No reason provided';
     try {
       const next = typeof log.new_data === 'string' ? JSON.parse(log.new_data) : log.new_data;
       return next?.reason || 'No reason provided';
     } catch (e) {
       return 'No reason provided';
+    }
+  };
+
+  const downloadTextLog = (log) => {
+    if (!log) return;
+    try {
+      const details = getRecordDetails(log);
+      const uniqueId = getUniqueId(log);
+      const changes = getChanges(log);
+      const reason = getReason(log);
+      const actorRole = log.performed_by_role === 'sales' ? 'CST' : log.performed_by_role;
+
+      let changesText = '';
+      if (log.action === 'created') {
+        changesText = 'Initial record created.';
+      } else if (log.action === 'renewed' && changes.length === 0) {
+        changesText = 'Record renewed successfully.';
+      } else {
+        changesText = changes.map(c => `- ${c.field}: ${c.old} -> ${c.new}`).join('\n');
+      }
+
+      const fileContent = `==================================================
+AUDIT LOG REPORT: RECORD MODIFICATION
+==================================================
+Record ID:       ${uniqueId}
+Client Name:     ${details.client_name}
+Service:         ${details.service}
+Action Type:     ${log.action}
+Performed By:    ${log.performed_by_name} (${actorRole?.toUpperCase()})
+Timestamp:       ${formatDateTime(log.performed_at)}
+Reason/Remarks:  ${reason}
+
+CHANGES DESCRIPTION:
+--------------------------------------------------
+${changesText}
+==================================================
+Generated on ${new Date().toLocaleString('en-IN')}
+`;
+
+      const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `audit_log_${uniqueId}_${new Date(log.performed_at).toISOString().split('T')[0]}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('Audit log downloaded successfully');
+    } catch (e) {
+      toast.error('Failed to generate text file');
     }
   };
 
@@ -145,7 +200,7 @@ export default function EditsHistory() {
             <History className="w-6 h-6 text-brand-500" /> Record Details
           </h1>
           <p className="text-sm text-surface-500 dark:text-surface-400 mt-1">
-            Complete audit logs of all changes, creations, and renewals across all records.
+            Complete audit logs of all changes, creations, and renewals across all records. Click any record to view details & download report.
           </p>
         </div>
         <button 
@@ -193,7 +248,11 @@ export default function EditsHistory() {
                   const unique_id = getUniqueId(log);
 
                   return (
-                    <tr key={log.id} className="hover:bg-surface-50 dark:hover:bg-surface-700/30 transition-colors">
+                    <tr 
+                      key={log.id} 
+                      onClick={() => setSelectedLog(log)}
+                      className="cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-700/30 transition-colors"
+                    >
                       {/* Unique ID */}
                       <td className="px-4 py-3 font-mono text-xs text-brand-600 dark:text-brand-400 font-medium truncate" title={unique_id}>
                         {unique_id}
@@ -211,7 +270,7 @@ export default function EditsHistory() {
 
                       {/* Performed By Role Badge */}
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                           <span 
                             className="w-7 h-7 rounded-full bg-brand-100 dark:bg-brand-900/20 text-brand-700 dark:text-brand-400 flex items-center justify-center text-xs font-semibold"
                           >
@@ -284,6 +343,123 @@ export default function EditsHistory() {
           </table>
         </div>
       </div>
+
+      {/* Modal Popup */}
+      {selectedLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden animate-scale-up">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center px-6 py-4 border-b border-surface-200 dark:border-surface-700">
+              <h3 className="text-lg font-bold text-surface-900 dark:text-white flex items-center gap-2">
+                <History className="w-5 h-5 text-brand-500" /> Audit Log Details
+              </h3>
+              <button 
+                onClick={() => setSelectedLog(null)}
+                className="text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="p-6 space-y-4 max-h-[500px] overflow-y-auto custom-scrollbar">
+              {/* Record Metadata Grid */}
+              <div className="grid grid-cols-2 gap-4 bg-surface-50 dark:bg-surface-900/40 p-4 rounded-xl border border-surface-100 dark:border-surface-700/50">
+                <div>
+                  <span className="block text-[10px] text-surface-400 uppercase font-semibold">Record ID</span>
+                  <span className="text-sm font-mono font-bold text-brand-600 dark:text-brand-400">{getUniqueId(selectedLog)}</span>
+                </div>
+                <div>
+                  <span className="block text-[10px] text-surface-400 uppercase font-semibold">Action Type</span>
+                  <span className="inline-block text-xs font-semibold capitalize px-2 py-0.5 rounded bg-brand-50 text-brand-700 dark:bg-brand-900/20 dark:text-brand-400 border border-brand-200/30">
+                    {selectedLog.action}
+                  </span>
+                </div>
+                <div className="col-span-2">
+                  <span className="block text-[10px] text-surface-400 uppercase font-semibold">Client Name</span>
+                  <span className="text-sm font-semibold text-surface-900 dark:text-white">{getRecordDetails(selectedLog).client_name}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="block text-[10px] text-surface-400 uppercase font-semibold">Service</span>
+                  <span className="text-sm text-surface-600 dark:text-surface-300">{getRecordDetails(selectedLog).service}</span>
+                </div>
+              </div>
+
+              {/* Audit Details */}
+              <div className="space-y-3">
+                <div>
+                  <span className="block text-[10px] text-surface-400 uppercase font-semibold mb-1">Performed By</span>
+                  <div className="flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-full bg-brand-100 dark:bg-brand-900/20 text-brand-700 dark:text-brand-400 flex items-center justify-center text-xs font-semibold">
+                      {selectedLog.performed_by_name?.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase()}
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-surface-900 dark:text-white">{selectedLog.performed_by_name}</p>
+                      <p className="text-[10px] text-surface-400 capitalize">{selectedLog.performed_by_role === 'sales' ? 'CST Team' : selectedLog.performed_by_role + ' Team'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="block text-[10px] text-surface-400 uppercase font-semibold">Performed At</span>
+                  <span className="text-sm text-surface-700 dark:text-surface-300">{formatDateTime(selectedLog.performed_at)}</span>
+                </div>
+
+                {selectedLog.action === 'edited' && (
+                  <div>
+                    <span className="block text-[10px] text-surface-400 uppercase font-semibold mb-1">Reason for Edit</span>
+                    <p className="text-sm bg-surface-50 dark:bg-surface-900/40 p-3 rounded-lg border border-surface-150 dark:border-surface-800 text-surface-700 dark:text-surface-300 italic">
+                      "{getReason(selectedLog)}"
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <span className="block text-[10px] text-surface-400 uppercase font-semibold mb-2">Changes Description</span>
+                  {selectedLog.action === 'created' ? (
+                    <div className="text-sm text-brand-600 dark:text-brand-400 bg-brand-50/50 dark:bg-brand-900/10 p-3 rounded-lg border border-brand-150 dark:border-brand-900/30 flex items-center gap-2">
+                      <PlusCircle className="w-4 h-4" /> Initial creation of the record with pre-populated fields.
+                    </div>
+                  ) : selectedLog.action === 'renewed' && getChanges(selectedLog).length === 0 ? (
+                    <div className="text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/10 p-3 rounded-lg border border-emerald-150 dark:border-emerald-900/30 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4" /> Record renewed successfully with updated dates.
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-[180px] overflow-y-auto custom-scrollbar bg-surface-50 dark:bg-surface-900/30 p-4 rounded-xl border border-surface-100 dark:border-surface-800">
+                      {getChanges(selectedLog).map((c, i) => (
+                        <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 py-1.5 border-b border-surface-200/50 dark:border-surface-750/30 last:border-0 text-sm">
+                          <span className="font-semibold text-surface-600 dark:text-surface-400">{c.field}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 rounded line-through text-xs font-mono">{c.old}</span>
+                            <ArrowRight className="w-3.5 h-3.5 text-surface-400" />
+                            <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded font-medium text-xs font-mono">{c.new}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-3 px-6 py-4 bg-surface-50 dark:bg-surface-900/50 border-t border-surface-200 dark:border-surface-700">
+              <button 
+                onClick={() => setSelectedLog(null)}
+                className="btn-secondary px-4 py-2 text-sm font-semibold"
+              >
+                Close
+              </button>
+              <button 
+                onClick={() => downloadTextLog(selectedLog)}
+                className="btn-primary flex items-center gap-2 px-4 py-2 text-sm font-semibold"
+              >
+                <Download className="w-4 h-4" /> Download Text
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

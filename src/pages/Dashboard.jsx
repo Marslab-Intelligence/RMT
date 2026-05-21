@@ -135,7 +135,7 @@ export default function Dashboard() {
         transition={{ delay: 0.6 }}
         className={`mt-8 grid grid-cols-1 ${user?.role === 'finance' ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-6`}
       >
-        <div className="card p-6 bg-surface-900 text-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 relative overflow-hidden">
+        <div className="card-accent p-6 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none text-white">
             <CalendarClock className="w-48 h-48" />
           </div>
@@ -151,7 +151,7 @@ export default function Dashboard() {
           </button>
         </div>
 
-        <div className="card p-6 dark:bg-surface-800 dark:border-surface-700">
+        <div className="card p-6">
           <h2 className="text-lg font-bold text-surface-900 dark:text-white mb-4">Recent Activity</h2>
           <div className="space-y-4">
              {activityLogs.length === 0 ? (
@@ -173,7 +173,7 @@ export default function Dashboard() {
         </div>
 
         {user?.role === 'finance' && (
-          <div className="card p-6 dark:bg-surface-800 dark:border-surface-700">
+          <div className="card p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-bold text-surface-900 dark:text-white">Recent Edits (CST & Admin)</h2>
               <button 

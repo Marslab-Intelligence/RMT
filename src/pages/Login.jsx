@@ -35,7 +35,11 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-surface-50 dark:bg-surface-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100 dark:from-stone-900 dark:via-slate-900 dark:to-rose-950">
+      {/* Decorative blobs */}
+      <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-amber-300/35 dark:bg-amber-700/20 blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-20 right-0 w-80 h-80 rounded-full bg-orange-300/30 dark:bg-orange-800/15 blur-3xl pointer-events-none" />
+      <div className="absolute top-1/2 left-1/3 w-72 h-72 rounded-full bg-rose-300/25 dark:bg-rose-800/15 blur-3xl pointer-events-none" />
       {/* Access Denied Popup Modal */}
       <AnimatePresence>
         {showAccessDenied && (
@@ -54,7 +58,14 @@ export default function Login() {
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
             >
-              <div className="bg-white dark:bg-surface-800 rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center relative border border-surface-200 dark:border-surface-700">
+              <div className="rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center relative"
+                style={{
+                  background: 'rgba(255, 248, 240, 0.65)',
+                  backdropFilter: 'blur(24px)',
+                  WebkitBackdropFilter: 'blur(24px)',
+                  border: '1px solid rgba(255, 255, 255, 0.60)',
+                }}
+              >
                 <button
                   onClick={() => window.location.href = '/api/auth/zoho/logout'}
                   className="absolute top-4 right-4 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 transition-colors"
@@ -112,7 +123,14 @@ export default function Login() {
         transition={{ delay: 0.3 }}
         className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10"
       >
-        <div className="bg-white dark:bg-surface-800 py-8 px-4 shadow-sm sm:rounded-xl sm:px-10 border border-surface-200 dark:border-surface-700">
+        <div className="py-8 px-4 sm:rounded-2xl sm:px-10 shadow-xl"
+          style={{
+            background: 'rgba(255, 248, 240, 0.55)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            border: '1px solid rgba(255, 255, 255, 0.60)',
+          }}
+        >
           <div className="text-center mb-6">
             <h3 className="text-lg font-medium text-surface-900 dark:text-white">Single Sign-On</h3>
             <p className="mt-1 text-xs text-surface-500">Sign in securely using your official MarsLab corporate Zoho identity.</p>
