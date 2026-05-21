@@ -122,7 +122,7 @@ export default function Layout({ children }) {
   ];
 
   if (user?.role === 'finance' || user?.role === 'admin') {
-    navItems.push({ name: 'Records', path: '/edits-history', icon: History });
+    navItems.push({ name: 'Record Details', path: '/edits-history', icon: History });
   }
 
   const getInitials = (name) => {
