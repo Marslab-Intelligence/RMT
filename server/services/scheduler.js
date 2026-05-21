@@ -161,7 +161,7 @@ async function processRenewals() {
         `, [`Please meet ${renewal.client_name} regarding ${renewal.service} renewal (${salesTier.days} days left).`]);
 
         await sendCliqNotification(
-          `⚡ *Sales Action Required* (${salesTier.days} Days Left)\n*Client ID:* ${renewal.unique_id}\n*Client:* ${renewal.client_name}\n*Service:* ${renewal.service}\n*Action:* Please meet the client regarding upcoming renewal.\n*Email Sent To:* ${SALES_TEAM_EMAIL}`,
+          `⚡ *CST Action Required* (${salesTier.days} Days Left)\n*Client ID:* ${renewal.unique_id}\n*Client:* ${renewal.client_name}\n*Service:* ${renewal.service}\n*Action:* Please meet the client regarding upcoming renewal.\n*Email Sent To:* ${SALES_TEAM_EMAIL}`,
           true
         );
 

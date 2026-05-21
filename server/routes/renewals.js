@@ -559,7 +559,7 @@ router.put('/:id/request-edit', authenticateToken, requireRole('sales'), async (
     await db.query(`
       INSERT INTO notifications (role, title, message, type)
       VALUES ('admin', 'Edit Access Requested', $1, 'info')
-    `, [`Sales team requested edit access for ${renewal.client_name}`]);
+    `, [`CST team requested edit access for ${renewal.client_name}`]);
 
     // Send email notification to all admins with a direct approval link
     const { sendEmail } = await import('../services/emailService.js');
@@ -584,21 +584,21 @@ router.put('/:id/request-edit', authenticateToken, requireRole('sales'), async (
             <tr>
               <td style="background:linear-gradient(135deg,#f59e0b,#d97706);padding:36px 40px;text-align:center;">
                 <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;">🔒 Edit Access Requested</h1>
-                <p style="color:#ffffffcc;margin:8px 0 0;font-size:14px;">Sales Team Request</p>
+                <p style="color:#ffffffcc;margin:8px 0 0;font-size:14px;">CST Team Request</p>
               </td>
             </tr>
             <tr>
               <td style="padding:40px;">
                 <p style="color:#1e293b;font-size:16px;line-height:1.6;margin:0 0 20px;">Dear <strong>Admin</strong>,</p>
                 <p style="color:#475569;font-size:15px;line-height:1.7;margin:0 0 24px;">
-                  The sales team has requested edit access for the following client:
+                  The CST team has requested edit access for the following client:
                 </p>
                 <div style="background:#f8fafc;border-left:4px solid #f59e0b;border-radius:8px;padding:20px;margin:0 0 24px;">
                   <table width="100%" cellpadding="0" cellspacing="0">
                     <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Client ID</td><td style="padding:6px 0;color:#1e293b;font-size:14px;font-weight:600;text-align:right;">${renewal.unique_id}</td></tr>
                     <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Client</td><td style="padding:6px 0;color:#1e293b;font-size:14px;font-weight:600;text-align:right;">${renewal.client_name}</td></tr>
                     <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Service</td><td style="padding:6px 0;color:#1e293b;font-size:14px;font-weight:600;text-align:right;">${renewal.service}</td></tr>
-                    <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Requested By</td><td style="padding:6px 0;color:#1e293b;font-size:14px;font-weight:600;text-align:right;">Sales Team</td></tr>
+                    <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Requested By</td><td style="padding:6px 0;color:#1e293b;font-size:14px;font-weight:600;text-align:right;">CST Team</td></tr>
                   </table>
                 </div>
                 <div style="text-align:center;margin:30px 0 10px;">
@@ -705,7 +705,7 @@ router.get('/:id/approve-edit-email', async (req, res) => {
             </tr>
             <tr>
               <td style="padding:40px;">
-                <p style="color:#1e293b;font-size:16px;line-height:1.6;margin:0 0 20px;">Dear <strong>Sales Team</strong>,</p>
+                <p style="color:#1e293b;font-size:16px;line-height:1.6;margin:0 0 20px;">Dear <strong>CST Team</strong>,</p>
                 <p style="color:#475569;font-size:15px;line-height:1.7;margin:0 0 24px;">
                   The admin has approved your edit request for the following client. You now have access to edit the details of this renewal:
                 </p>
@@ -748,7 +748,7 @@ router.get('/:id/approve-edit-email', async (req, res) => {
         <div style="background:white;padding:40px;border-radius:12px;max-width:500px;margin:0 auto;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
           <h1 style="color:#10b981;margin-top:0;">✅ Approved Successfully</h1>
           <p style="color:#475569;font-size:16px;">The edit request for <strong>${renewal.client_name}</strong> has been successfully approved.</p>
-          <p style="color:#64748b;font-size:14px;margin-top:10px;">The sales team has been notified via email.</p>
+          <p style="color:#64748b;font-size:14px;margin-top:10px;">The CST team has been notified via email.</p>
           <p style="color:#94a3b8;font-size:14px;margin-top:30px;">You can safely close this tab now.</p>
         </div>
       </body>
@@ -800,7 +800,7 @@ router.put('/:id/approve-edit', authenticateToken, requireRole('admin'), async (
             </tr>
             <tr>
               <td style="padding:40px;">
-                <p style="color:#1e293b;font-size:16px;line-height:1.6;margin:0 0 20px;">Dear <strong>Sales Team</strong>,</p>
+                <p style="color:#1e293b;font-size:16px;line-height:1.6;margin:0 0 20px;">Dear <strong>CST Team</strong>,</p>
                 <p style="color:#475569;font-size:15px;line-height:1.7;margin:0 0 24px;">
                   The admin has approved your edit request for the following client. You now have access to edit the details of this renewal:
                 </p>
@@ -970,9 +970,9 @@ router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admi
     const roleLabels = {
       admin: 'Admin',
       finance: 'Finance team',
-      sales: 'Sales team'
+      sales: 'CST team'
     };
-    const actorRole = roleLabels[req.user.role] || 'Sales team';
+    const actorRole = roleLabels[req.user.role] || 'CST team';
 
     const colorMap = { 
       quotation_confirmation: '#f59e0b', 
@@ -1032,14 +1032,14 @@ router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admi
             <tr>
               <td style="background:linear-gradient(135deg,${statusColor},${statusColor}dd);padding:36px 40px;text-align:center;">
                 <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;">${statusIcon} Renewal Status Update</h1>
-                <p style="color:#ffffffcc;margin:8px 0 0;font-size:14px;">Sales Team Confirmation</p>
+                <p style="color:#ffffffcc;margin:8px 0 0;font-size:14px;">CST Team Confirmation</p>
               </td>
             </tr>
             <tr>
               <td style="padding:40px;">
                 <p style="color:#1e293b;font-size:16px;line-height:1.6;margin:0 0 20px;">Dear <strong>Finance Team</strong>,</p>
                 <p style="color:#475569;font-size:15px;line-height:1.7;margin:0 0 24px;">
-                  The sales team has updated the renewal status for the following client:
+                  The CST team has updated the renewal status for the following client:
                 </p>
                 <div style="background:#f8fafc;border-left:4px solid ${statusColor};border-radius:8px;padding:20px;margin:0 0 24px;">
                   <table width="100%" cellpadding="0" cellspacing="0">

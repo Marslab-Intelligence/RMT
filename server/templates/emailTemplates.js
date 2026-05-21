@@ -87,7 +87,7 @@ export function salesReminderEmail({ clientName, service, renewalDate, daysLeft 
           </tr>
           <tr>
             <td style="padding:40px;">
-              <p style="color:#1e293b;font-size:16px;line-height:1.6;margin:0 0 20px;">Dear <strong>Sales Team</strong>,</p>
+              <p style="color:#1e293b;font-size:16px;line-height:1.6;margin:0 0 20px;">Dear <strong>CST Team</strong>,</p>
               <p style="color:#475569;font-size:15px;line-height:1.7;margin:0 0 24px;">
                 Please meet client <strong style="color:#d97706;">${clientName}</strong> regarding their upcoming renewal.
               </p>

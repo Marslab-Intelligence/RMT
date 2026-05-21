@@ -86,7 +86,7 @@ export default function Settings() {
                 <h3 className="text-xl font-bold text-surface-900 dark:text-white">{user?.fullName}</h3>
                 <p className="text-surface-500 dark:text-surface-400">{user?.email}</p>
                 <span className="inline-block mt-2 px-3 py-1 bg-surface-100 dark:bg-surface-700 text-surface-700 dark:text-surface-300 text-xs font-semibold rounded-full capitalize">
-                  {user?.role} Team
+                  {user?.role === 'sales' ? 'CST' : user?.role} Team
                 </span>
               </div>
             </div>

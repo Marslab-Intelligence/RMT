@@ -163,7 +163,7 @@ export default function Layout({ children }) {
           <div className="text-center mb-3 px-2">
             <p className="text-sm font-semibold text-surface-700 dark:text-surface-300">{user?.fullName}</p>
             <p className="text-xs text-surface-500 dark:text-surface-400 capitalize mt-0.5">
-              {user?.role} Team
+              {user?.role === 'sales' ? 'CST' : user?.role} Team
             </p>
           </div>
           <button 
