@@ -60,6 +60,8 @@ export default function RenewalsList() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
+  const [sortBy, setSortBy] = useState('renewal_date');
+  const [sortDir, setSortDir] = useState('asc');
   
   // Update URL and local state when status changes
   const handleStatusChange = (newStatus) => {
@@ -89,7 +91,7 @@ export default function RenewalsList() {
   const fetchRenewals = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/renewals?page=${page}&limit=10&search=${search}&status=${statusFilter}`, {
+      const res = await fetch(`/api/renewals?page=${page}&limit=10&search=${search}&status=${statusFilter}&sort=${sortBy}&order=${sortDir}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -110,7 +112,22 @@ export default function RenewalsList() {
       fetchRenewals();
     }, 300);
     return () => clearTimeout(delayDebounceFn);
-  }, [page, search, statusFilter, token]);
+  }, [page, search, statusFilter, sortBy, sortDir, token]);
+
+  const handleSort = (col) => {
+    if (sortBy === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(col);
+      setSortDir('asc');
+    }
+    setPage(1);
+  };
+
+  const SortIcon = ({ col }) => {
+    if (sortBy !== col) return <span className="ml-1 text-surface-300 dark:text-surface-600">⇅</span>;
+    return <span className="ml-1 text-brand-500">{sortDir === 'asc' ? '↑' : '↓'}</span>;
+  };
 
   const handleExportCSV = () => {
     // Simple CSV export logic
@@ -566,9 +583,24 @@ export default function RenewalsList() {
                 <th className="px-4 py-3 font-medium w-[7%]">Unique ID</th>
                 <th className="px-4 py-3 font-medium w-[15%]">Client Info</th>
                 <th className="px-4 py-3 font-medium w-[12%]">Service</th>
-                <th className="px-4 py-3 font-medium w-[10%]">Renewal Date</th>
-                <th className="px-4 py-3 font-medium text-right w-[8%]">Value</th>
-                <th className="px-4 py-3 font-medium text-center w-[9%]">Status</th>
+                <th
+                  className="px-4 py-3 font-medium w-[10%] cursor-pointer select-none hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                  onClick={() => handleSort('renewal_date')}
+                >
+                  Renewal Date<SortIcon col="renewal_date" />
+                </th>
+                <th
+                  className="px-4 py-3 font-medium text-right w-[8%] cursor-pointer select-none hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                  onClick={() => handleSort('value')}
+                >
+                  Value<SortIcon col="value" />
+                </th>
+                <th
+                  className="px-4 py-3 font-medium text-center w-[9%] cursor-pointer select-none hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                  onClick={() => handleSort('status')}
+                >
+                  Status<SortIcon col="status" />
+                </th>
                 <th className="px-4 py-3 font-medium text-center w-[9%]">Timeline</th>
                 <th className="px-4 py-3 font-medium text-center w-[13%]">Renewed</th>
                 {!isFinance && <th className="px-4 py-3 font-medium text-center w-[9%]">Actions</th>}
