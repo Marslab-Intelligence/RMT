@@ -925,8 +925,7 @@ router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admi
       today.setHours(0, 0, 0, 0);
       const rDate = new Date(new_renewal_date);
       rDate.setHours(0, 0, 0, 0);
-      const daysLeft = Math.ceil((rDate - today) / (1000 * 60 * 60 * 24));
-      const computedStatus = daysLeft < 0 ? 'Expired' : daysLeft <= 30 ? 'Pending Renewal' : 'Active';
+      const computedStatus = 'Active';
 
       await db.query(`
         UPDATE renewals SET 
