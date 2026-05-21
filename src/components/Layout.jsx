@@ -18,6 +18,20 @@ import {
   Home
 } from 'lucide-react';
 
+const getRoleLabel = (role) => {
+  if (role === 'admin') return 'Admin';
+  if (role === 'finance') return 'Finance';
+  if (role === 'sales') return 'CST';
+  return '';
+};
+
+const getRoleBadgeStyle = (role) => {
+  if (role === 'admin') return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-700/50';
+  if (role === 'finance') return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-700/50';
+  if (role === 'sales') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700/50';
+  return '';
+};
+
 export default function Layout({ children }) {
   const { user, logout, token } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -195,6 +209,12 @@ export default function Layout({ children }) {
               <Home className="w-5 h-5" />
               <span className="hidden sm:inline">Home</span>
             </button>
+            {/* Role page label — only on dashboard */}
+            {location.pathname === '/' && user?.role && (
+              <span className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold tracking-wide ${getRoleBadgeStyle(user.role)}`}>
+                {getRoleLabel(user.role)}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-3 sm:gap-4">
@@ -254,6 +274,16 @@ export default function Layout({ children }) {
                 </div>
               )}
             </div>
+
+            {/* Sign Out Button */}
+            <button
+              onClick={handleLogout}
+              title="Sign Out"
+              className="flex items-center gap-1.5 px-3 py-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors bg-[#f5f0e8] dark:bg-surface-800 shadow-sm border border-surface-200 dark:border-surface-700 text-sm font-medium"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Sign Out</span>
+            </button>
           </div>
         </header>
 
