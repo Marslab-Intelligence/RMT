@@ -10,7 +10,7 @@ const router = Router();
 // Get all renewals
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const { search, status, sort, order, page = 1, limit = 50, dateRange, valueRange } = req.query;
+    const { search, status, sort, order, page = 1, limit = 50, dateRange, valueRange, renewalConfirmation } = req.query;
     let query = 'SELECT * FROM renewals WHERE 1=1';
     const params = [];
     let paramIndex = 1;
@@ -24,6 +24,11 @@ router.get('/', authenticateToken, async (req, res) => {
     if (status && status !== 'all') {
       query += ` AND status = $${paramIndex++}`;
       params.push(status);
+    }
+
+    if (renewalConfirmation && renewalConfirmation !== 'all') {
+      query += ` AND (renewal_confirmation = $${paramIndex++} OR (renewal_confirmation IS NULL AND $${paramIndex - 1} = 'pending'))`;
+      params.push(renewalConfirmation);
     }
 
     // Date range filter

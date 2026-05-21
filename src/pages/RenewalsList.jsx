@@ -64,6 +64,7 @@ export default function RenewalsList() {
   const [dateRangeFilter, setDateRangeFilter] = useState('all');
   const [valueFilter, setValueFilter] = useState('all');
   const [statusColFilter, setStatusColFilter] = useState('all');
+  const [renewedFilter, setRenewedFilter] = useState('all');
   const [openFilterCol, setOpenFilterCol] = useState(null); // which column dropdown is open
   const filterRef = useRef(null);
   
@@ -95,7 +96,7 @@ export default function RenewalsList() {
   const fetchRenewals = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/renewals?page=${page}&limit=25&search=${search}&status=${statusColFilter !== 'all' ? statusColFilter : statusFilter}&dateRange=${dateRangeFilter}&valueRange=${valueFilter}`, {
+      const res = await fetch(`/api/renewals?page=${page}&limit=25&search=${search}&status=${statusColFilter !== 'all' ? statusColFilter : statusFilter}&dateRange=${dateRangeFilter}&valueRange=${valueFilter}&renewalConfirmation=${renewedFilter}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -116,7 +117,7 @@ export default function RenewalsList() {
       fetchRenewals();
     }, 300);
     return () => clearTimeout(delayDebounceFn);
-  }, [page, search, statusFilter, dateRangeFilter, valueFilter, statusColFilter, token]);
+  }, [page, search, statusFilter, dateRangeFilter, valueFilter, statusColFilter, renewedFilter, token]);
 
   // Close filter dropdown when clicking outside
   useEffect(() => {
@@ -193,6 +194,16 @@ export default function RenewalsList() {
     { value: 'Pending Renewal', label: 'Pending Renewal' },
     { value: 'Expired', label: 'Expired' },
     { value: '-', label: 'Discontinued' },
+  ];
+
+  const RENEWED_OPTIONS = [
+    { value: 'all', label: 'All Options' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'quotation_confirmation', label: 'Quotation confirmation' },
+    { value: 'awaiting_client_approval', label: 'Awaiting client approval' },
+    { value: 'awaiting_with_vendor', label: 'Awaiting with vendor' },
+    { value: 'renewed', label: 'Renewed' },
+    { value: 'service_discontinued', label: 'Service Discontinued' },
   ];
 
   const handleExportCSV = () => {
@@ -668,7 +679,12 @@ export default function RenewalsList() {
                   </div>
                 </th>
                 <th className="px-4 py-3 font-medium text-center w-[9%]">Timeline</th>
-                <th className="px-4 py-3 font-medium text-center w-[13%]">Renewed</th>
+                <th className="px-4 py-3 font-medium text-center w-[13%]">
+                  <div className="flex items-center justify-center">
+                    Renewed
+                    <FilterDropdown col="renewed" value={renewedFilter} onChange={setRenewedFilter} options={RENEWED_OPTIONS} />
+                  </div>
+                </th>
                 {!isFinance && <th className="px-4 py-3 font-medium text-center w-[9%]">Actions</th>}
                 {isAdmin && <th className="px-4 py-3 font-medium text-center w-[8%]">Approvals</th>}
               </tr>
