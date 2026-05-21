@@ -10,7 +10,6 @@ import {
   IndianRupee, 
   Clock,
   ArrowUpRight,
-  TrendingUp,
   Activity
 } from 'lucide-react';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
@@ -62,12 +61,12 @@ export default function Dashboard() {
   }
 
   const kpis = [
-    { title: 'Total Clients', value: stats?.total || 0, icon: Users, color: 'bg-blue-500', trend: '+12%', lightBg: 'bg-blue-50 dark:bg-blue-900/20', lightText: 'text-blue-600 dark:text-blue-400', statusQuery: 'all' },
-    { title: 'Upcoming (30d)', value: stats?.upcoming || 0, icon: CalendarClock, color: 'bg-orange-500', trend: 'Action Req.', lightBg: 'bg-orange-50 dark:bg-orange-900/20', lightText: 'text-orange-600 dark:text-orange-400', statusQuery: 'Pending Renewal' },
-    { title: 'Renewed', value: stats?.renewed || 0, icon: CheckCircle2, color: 'bg-emerald-500', trend: '+24%', lightBg: 'bg-emerald-50 dark:bg-emerald-900/20', lightText: 'text-emerald-600 dark:text-emerald-400', statusQuery: 'Renewed' },
-    { title: 'Expired', value: stats?.expired || 0, icon: AlertCircle, color: 'bg-red-500', trend: '-2%', lightBg: 'bg-red-50 dark:bg-red-900/20', lightText: 'text-red-600 dark:text-red-400', statusQuery: 'Expired' },
-    { title: 'Pending Follow-ups', value: stats?.pendingFollowups || 0, icon: Clock, color: 'bg-purple-500', trend: 'Priority', lightBg: 'bg-purple-50 dark:bg-purple-900/20', lightText: 'text-purple-600 dark:text-purple-400', statusQuery: 'Active' },
-    { title: 'Total Revenue Value', value: formatCurrency(stats?.revenue || 0), icon: IndianRupee, color: 'bg-brand-500', trend: '+18%', lightBg: 'bg-brand-50 dark:bg-brand-900/20', lightText: 'text-brand-600 dark:text-brand-400', statusQuery: 'all' },
+    { title: 'Total Clients', value: stats?.total || 0, icon: Users, color: 'bg-blue-500', lightBg: 'bg-blue-50 dark:bg-blue-900/20', lightText: 'text-blue-600 dark:text-blue-400', statusQuery: 'all' },
+    { title: 'Upcoming (30d)', value: stats?.upcoming || 0, icon: CalendarClock, color: 'bg-orange-500', lightBg: 'bg-orange-50 dark:bg-orange-900/20', lightText: 'text-orange-600 dark:text-orange-400', statusQuery: 'Pending Renewal' },
+    { title: 'Renewed', value: stats?.renewed || 0, icon: CheckCircle2, color: 'bg-emerald-500', lightBg: 'bg-emerald-50 dark:bg-emerald-900/20', lightText: 'text-emerald-600 dark:text-emerald-400', statusQuery: 'Renewed' },
+    { title: 'Expired', value: stats?.expired || 0, icon: AlertCircle, color: 'bg-red-500', lightBg: 'bg-red-50 dark:bg-red-900/20', lightText: 'text-red-600 dark:text-red-400', statusQuery: 'Expired' },
+    { title: 'Pending Follow-ups', value: stats?.pendingFollowups || 0, icon: Clock, color: 'bg-purple-500', lightBg: 'bg-purple-50 dark:bg-purple-900/20', lightText: 'text-purple-600 dark:text-purple-400', statusQuery: 'Active' },
+    { title: 'Total Revenue Value', value: formatCurrency(stats?.revenue || 0), icon: IndianRupee, color: 'bg-brand-500', lightBg: 'bg-brand-50 dark:bg-brand-900/20', lightText: 'text-brand-600 dark:text-brand-400', statusQuery: 'all' },
   ];
 
   const container = {
@@ -117,10 +116,6 @@ export default function Dashboard() {
               <div className="flex justify-between items-start mb-4">
                 <div className={`p-3 rounded-xl ${kpi.lightBg} ${kpi.lightText}`}>
                   <Icon className="w-6 h-6" />
-                </div>
-                <div className="flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded-full">
-                  {kpi.trend.includes('-') || kpi.trend.includes('Req') || kpi.trend.includes('Priority') ? null : <TrendingUp className="w-3 h-3 mr-1" />}
-                  {kpi.trend}
                 </div>
               </div>
               
