@@ -684,7 +684,6 @@ router.get('/:id/approve-edit-email', async (req, res) => {
     const { rows: salesUsers } = await db.query("SELECT email FROM users WHERE role = 'sales'");
     
     const salesEmails = new Set();
-    if (renewal.sales_email) salesEmails.add(renewal.sales_email);
     for (const u of salesUsers) {
       if (u.email) salesEmails.add(u.email);
     }
@@ -779,7 +778,6 @@ router.put('/:id/approve-edit', authenticateToken, requireRole('admin'), async (
     const { rows: salesUsers } = await db.query("SELECT email FROM users WHERE role = 'sales'");
     
     const salesEmails = new Set();
-    if (renewal.sales_email) salesEmails.add(renewal.sales_email);
     for (const u of salesUsers) {
       if (u.email) salesEmails.add(u.email);
     }
