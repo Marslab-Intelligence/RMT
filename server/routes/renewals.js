@@ -126,6 +126,26 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
+// Get all record edits by CST (sales) and admin
+router.get('/edits-history', authenticateToken, async (req, res) => {
+  try {
+    const { limit = 50 } = req.query;
+    const { rows } = await db.query(`
+      SELECT rh.*, u.full_name as performed_by_name, u.role as performed_by_role,
+             r.unique_id, r.client_name, r.service, r.value, r.renewal_date, r.status
+      FROM renewal_history rh
+      JOIN users u ON rh.performed_by = u.id
+      LEFT JOIN renewals r ON rh.renewal_id = r.id
+      ORDER BY rh.performed_at DESC
+      LIMIT $1
+    `, [parseInt(limit)]);
+    res.json(rows);
+  } catch (err) {
+    console.error('Edits history error:', err);
+    res.status(500).json({ error: 'Failed to fetch edits history.' });
+  }
+});
+
 // Get single renewal
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
