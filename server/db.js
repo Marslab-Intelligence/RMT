@@ -54,6 +54,8 @@ export const initDb = async () => {
         renewal_confirmation VARCHAR(50) DEFAULT 'pending',
         edit_status VARCHAR(50) DEFAULT NULL,
         edit_reason TEXT DEFAULT NULL,
+        invoice_status VARCHAR(20) DEFAULT 'Not' CHECK(invoice_status IN ('Sent', 'Not')),
+        plan_period VARCHAR(50) DEFAULT 'yearly_plan' CHECK(plan_period IN ('halfly_plan', 'quarterly_plan', 'yearly_plan')),
         created_by INTEGER REFERENCES users(id),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -103,6 +105,43 @@ export const initDb = async () => {
         link VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS trash_renewals (
+        id SERIAL PRIMARY KEY,
+        original_id INTEGER NOT NULL,
+        unique_id VARCHAR(255),
+        client_name VARCHAR(255),
+        service VARCHAR(255),
+        renewal_date DATE,
+        value NUMERIC,
+        owner VARCHAR(255),
+        client_email VARCHAR(255),
+        sales_email VARCHAR(255),
+        status VARCHAR(255),
+        locked INTEGER DEFAULT 0,
+        follow_up_status VARCHAR(255),
+        follow_up_remarks TEXT,
+        day_30_sent VARCHAR(50),
+        day_20_sent VARCHAR(50),
+        day_15_sent VARCHAR(50),
+        day_10_sent VARCHAR(50),
+        day_5_sent VARCHAR(50),
+        day_3_sent VARCHAR(50),
+        sales_15_sent VARCHAR(50),
+        sales_5_sent VARCHAR(50),
+        created_by INTEGER,
+        created_at TIMESTAMP,
+        updated_at TIMESTAMP,
+        edit_status VARCHAR(255),
+        edit_reason TEXT,
+        sales_3_sent VARCHAR(50),
+        renewal_confirmation VARCHAR(50),
+        contact_number VARCHAR(50),
+        reference_id VARCHAR(255),
+        invoice_status VARCHAR(20) DEFAULT 'Not',
+        plan_period VARCHAR(50) DEFAULT 'yearly_plan',
+        deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
     `);
 
     // Ensure all required columns exist in the renewals table (in case it was created previously)
@@ -110,6 +149,12 @@ export const initDb = async () => {
       ALTER TABLE renewals ADD COLUMN IF NOT EXISTS renewal_confirmation VARCHAR(50) DEFAULT 'pending';
       ALTER TABLE renewals ADD COLUMN IF NOT EXISTS edit_status VARCHAR(50) DEFAULT NULL;
       ALTER TABLE renewals ADD COLUMN IF NOT EXISTS edit_reason TEXT DEFAULT NULL;
+      ALTER TABLE renewals ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
+      ALTER TABLE renewals ADD COLUMN IF NOT EXISTS invoice_status VARCHAR(20) DEFAULT 'Not';
+      ALTER TABLE renewals ADD COLUMN IF NOT EXISTS plan_period VARCHAR(50) DEFAULT 'yearly_plan';
+      
+      ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS invoice_status VARCHAR(20) DEFAULT 'Not';
+      ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS plan_period VARCHAR(50) DEFAULT 'yearly_plan';
     `);
 
     // Auto-update statuses based on renewal dates on startup

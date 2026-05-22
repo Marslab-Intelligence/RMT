@@ -42,6 +42,7 @@ export default function RenewalForm({ onClose, onSuccess, editData = null }) {
     contact_number: editData?.contact_number || '',
     reference_id: editData?.reference_id || '',
     status: editData?.status || 'Active',
+    plan_period: editData?.plan_period || 'yearly_plan',
     reason: ''
   });
 
@@ -205,9 +206,17 @@ export default function RenewalForm({ onClose, onSuccess, editData = null }) {
               </div>
               <div>
                 <label className="label">Initial Status</label>
-                <select name="status" value={formData.status} onChange={handleChange} className="input-field bg-white dark:bg-surface-800">
-                  <option value="Active">Active</option>
-                  <option value="Pending Renewal">Pending Renewal</option>
+                <select name="status" value={formData.status} onChange={handleChange} className="input-field bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">
+                  <option value="Active" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Active</option>
+                  <option value="Pending Renewal" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Pending Renewal</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Plan Period</label>
+                <select name="plan_period" value={formData.plan_period} onChange={handleChange} className="input-field bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">
+                  <option value="halfly_plan" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Halfly plan</option>
+                  <option value="quarterly_plan" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Quarterly plan</option>
+                  <option value="yearly_plan" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Yearly plan</option>
                 </select>
               </div>
             </div>

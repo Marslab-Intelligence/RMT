@@ -101,6 +101,22 @@ export default function ClientDetailsModal({ client, onClose }) {
                 </div>
               </div>
             )}
+
+            {client.plan_period && (
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-lg">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-0.5">Plan Period</p>
+                  <p className="text-sm font-medium text-surface-900 dark:text-white">
+                    {client.plan_period === 'monthly_plan' || client.plan_period === 'halfly_plan' ? 'Halfly plan' : 
+                     client.plan_period === 'quarterly_plan' ? 'Quarterly plan' : 
+                     client.plan_period === 'yearly_plan' ? 'Yearly plan' : client.plan_period}
+                  </p>
+                </div>
+              </div>
+            )}
             
             {client.edit_status && (
               <div className="flex items-start gap-3">
