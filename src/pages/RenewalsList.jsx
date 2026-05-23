@@ -102,6 +102,37 @@ export default function RenewalsList() {
   const [newRenewalDate, setNewRenewalDate] = useState('');
   const datePickerRef = useRef(null);
 
+  const tableContainerRef = useRef(null);
+  const [isDragDown, setIsDragDown] = useState(false);
+  const [dragStartX, setDragStartX] = useState(0);
+  const [dragScrollLeft, setDragScrollLeft] = useState(0);
+
+  const handleDragMouseDown = (e) => {
+    if (e.button !== 0) return; // Only left click
+    if (e.target.closest('select') || e.target.closest('button') || e.target.closest('input') || e.target.closest('a')) {
+      return;
+    }
+    setIsDragDown(true);
+    setDragStartX(e.pageX - tableContainerRef.current.offsetLeft);
+    setDragScrollLeft(tableContainerRef.current.scrollLeft);
+  };
+
+  const handleDragMouseLeave = () => {
+    setIsDragDown(false);
+  };
+
+  const handleDragMouseUp = () => {
+    setIsDragDown(false);
+  };
+
+  const handleDragMouseMove = (e) => {
+    if (!isDragDown) return;
+    e.preventDefault();
+    const x = e.pageX - tableContainerRef.current.offsetLeft;
+    const walk = (x - dragStartX) * 1.5;
+    tableContainerRef.current.scrollLeft = dragScrollLeft - walk;
+  };
+
   const handleNativeDateSelect = (e) => {
     const val = e.target.value;
     if (!val) return;
@@ -712,10 +743,16 @@ export default function RenewalsList() {
         </div>
       </div>
 
-      {/* Main Table Card */}
       <div className="card overflow-hidden dark:bg-surface-800 dark:border-surface-700">
-        <div className="max-h-[600px] overflow-y-auto custom-scrollbar relative">
-          <table className="w-full text-left text-sm table-fixed">
+        <div 
+          ref={tableContainerRef}
+          onMouseDown={handleDragMouseDown}
+          onMouseLeave={handleDragMouseLeave}
+          onMouseUp={handleDragMouseUp}
+          onMouseMove={handleDragMouseMove}
+          className={`max-h-[600px] overflow-auto custom-scrollbar relative select-none ${isDragDown ? 'cursor-grabbing' : 'cursor-grab'}`}
+        >
+          <table className="w-full text-left text-sm table-fixed min-w-[1500px]">
             <thead className="bg-surface-50 dark:bg-surface-900 text-surface-500 dark:text-surface-400 border-b border-surface-200 dark:border-surface-700 sticky top-0 z-10 shadow-sm">
               <tr>
                 <th className="px-4 py-3 font-medium w-[7%]">Unique ID</th>
@@ -733,7 +770,6 @@ export default function RenewalsList() {
                     <FilterDropdown col="value" value={valueFilter} onChange={setValueFilter} options={VALUE_OPTIONS} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-right w-[13%]">Invoice Value / Bal</th>
                 <th className="px-4 py-3 font-medium text-center w-[8%]">
                   <div className="flex items-center justify-center">
                     Status
@@ -754,6 +790,7 @@ export default function RenewalsList() {
                 </th>
                 {!isFinance && <th className="px-4 py-3 font-medium text-center w-[5%]">Actions</th>}
                 {isAdmin && <th className="px-4 py-3 font-medium text-center w-[5%]">Approvals</th>}
+                <th className="px-4 py-3 font-medium text-right w-[13%]">Invoice Value / Bal</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-200 dark:divide-surface-700">
@@ -798,33 +835,6 @@ export default function RenewalsList() {
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-surface-900 dark:text-white">
                       {formatCurrency(row.value)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {row.invoice_status === 'Sent' && row.invoice_value !== null && row.invoice_value !== undefined ? (
-                        <div className="flex flex-col items-end space-y-0.5 w-full max-w-[160px] ml-auto">
-                          <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                            Inv: {formatCurrency(row.invoice_value)}
-                          </div>
-                          <div className="text-[11px] text-surface-600 dark:text-surface-300 font-medium">
-                            Bal: {formatCurrency(row.value - row.invoice_value)}
-                          </div>
-                          {parseFloat(row.value) > 0 && (
-                            <>
-                              <div className="text-[10px] text-surface-400 dark:text-surface-500 font-mono whitespace-nowrap mt-0.5">
-                                {Math.round((row.invoice_value / row.value) * 100)}% Paid • {Math.round((1 - row.invoice_value / row.value) * 100)}% Yet to pay
-                              </div>
-                              <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-1.5 rounded-full overflow-hidden mt-0.5">
-                                <div 
-                                  className="bg-emerald-500 h-full rounded-full" 
-                                  style={{ width: `${Math.min(100, Math.max(0, (row.invoice_value / row.value) * 100))}%` }}
-                                ></div>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-surface-400 dark:text-surface-600 block text-center">—</span>
-                      )}
                     </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${getStatusColor(row.status)}`}>
@@ -967,6 +977,33 @@ export default function RenewalsList() {
                         )}
                       </td>
                     )}
+                    <td className="px-4 py-3 text-right">
+                      {row.invoice_status === 'Sent' && row.invoice_value !== null && row.invoice_value !== undefined ? (
+                        <div className="flex flex-col items-end space-y-0.5 w-full max-w-[160px] ml-auto">
+                          <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                            Inv: {formatCurrency(row.invoice_value)}
+                          </div>
+                          <div className="text-[11px] text-surface-600 dark:text-surface-300 font-medium">
+                            Bal: {formatCurrency(row.value - row.invoice_value)}
+                          </div>
+                          {parseFloat(row.value) > 0 && (
+                            <>
+                              <div className="text-[10px] text-surface-400 dark:text-surface-500 font-mono whitespace-nowrap mt-0.5">
+                                {Math.round((row.invoice_value / row.value) * 100)}% Paid • {Math.round((1 - row.invoice_value / row.value) * 100)}% Yet to pay
+                              </div>
+                              <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-1.5 rounded-full overflow-hidden mt-0.5">
+                                <div 
+                                  className="bg-emerald-500 h-full rounded-full" 
+                                  style={{ width: `${Math.min(100, Math.max(0, (row.invoice_value / row.value) * 100))}%` }}
+                                ></div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-surface-400 dark:text-surface-600 block text-center">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}
