@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, CalendarClock, User, Mail, DollarSign, Tag, Clock } from 'lucide-react';
+import { X, CalendarClock, User, Mail, DollarSign, Tag, Clock, FileCheck } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { formatCurrency, formatDate, getStatusColor, getDaysLeftColor } from '../utils/formatters';
 
@@ -127,6 +127,31 @@ export default function ClientDetailsModal({ client, onClose }) {
                   <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-0.5">Edit Status</p>
                   <p className="text-sm font-medium text-surface-900 dark:text-white capitalize">{client.edit_status}</p>
                   {client.edit_reason && <p className="text-xs text-surface-500 mt-0.5">Reason: {client.edit_reason}</p>}
+                </div>
+              </div>
+            )}
+
+            {client.invoice_status === 'Sent' && (
+              <div className="border-t border-surface-200 dark:border-surface-700 pt-4 mt-4 space-y-4">
+                <h3 className="text-sm font-bold text-surface-900 dark:text-white mb-2 flex items-center gap-2">
+                  <FileCheck className="w-4 h-4 text-emerald-500" />
+                  Invoice Details
+                </h3>
+                <div className="grid grid-cols-2 gap-4 pl-7">
+                  <div>
+                    <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-0.5">Invoice Number</p>
+                    <p className="text-sm font-medium text-surface-900 dark:text-white">{client.invoice_number || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-0.5">Invoice Value</p>
+                    <p className="text-sm font-medium text-surface-900 dark:text-white">
+                      {client.invoice_value !== null && client.invoice_value !== undefined ? formatCurrency(client.invoice_value) : '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-0.5">Sent Date</p>
+                    <p className="text-sm font-medium text-surface-900 dark:text-white">{client.invoice_sent_date ? formatDate(client.invoice_sent_date) : '-'}</p>
+                  </div>
                 </div>
               </div>
             )}

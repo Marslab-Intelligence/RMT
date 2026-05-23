@@ -256,18 +256,20 @@ router.post('/trash/restore-batch', authenticateToken, requireRole('admin'), asy
           id, unique_id, client_name, service, renewal_date, value, owner, client_email, sales_email, status, 
           locked, follow_up_status, follow_up_remarks, day_30_sent, day_20_sent, day_15_sent, day_10_sent, 
           day_5_sent, day_3_sent, sales_15_sent, sales_5_sent, created_by, created_at, updated_at, 
-          edit_status, edit_reason, renewal_confirmation, contact_number, reference_id, invoice_status
+          edit_status, edit_reason, renewal_confirmation, contact_number, reference_id, invoice_status,
+          invoice_number, invoice_value, invoice_sent_date
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 
           $11, $12, $13, $14, $15, $16, $17, 
           $18, $19, $20, $21, $22, $23, $24, 
-          $25, $26, $27, $28, $29, $30
+          $25, $26, $27, $28, $29, $30, $31, $32, $33
         )
       `, [
         renewal.original_id, renewal.unique_id, renewal.client_name, renewal.service, renewal.renewal_date, renewal.value, renewal.owner, renewal.client_email, renewal.sales_email, renewal.status,
         renewal.locked, renewal.follow_up_status, renewal.follow_up_remarks, renewal.day_30_sent, renewal.day_20_sent, renewal.day_15_sent, renewal.day_10_sent,
         renewal.day_5_sent, renewal.day_3_sent, renewal.sales_15_sent, renewal.sales_5_sent, renewal.created_by, renewal.created_at, renewal.updated_at,
-        renewal.edit_status, renewal.edit_reason, renewal.renewal_confirmation, renewal.contact_number, renewal.reference_id, renewal.invoice_status
+        renewal.edit_status, renewal.edit_reason, renewal.renewal_confirmation, renewal.contact_number, renewal.reference_id, renewal.invoice_status,
+        renewal.invoice_number, renewal.invoice_value, renewal.invoice_sent_date
       ]);
 
       // Remove from trash_renewals
@@ -338,15 +340,42 @@ router.post('/trash/delete-batch', authenticateToken, requireRole('admin'), asyn
 
 // Update invoice status - Finance and Admin
 router.patch('/:id/invoice', authenticateToken, requireRole('finance', 'admin'), async (req, res) => {
-  const { invoice_status } = req.body;
+  const { invoice_status, invoice_number, invoice_value, invoice_sent_date } = req.body;
   if (!['Sent', 'Not'].includes(invoice_status)) {
     return res.status(400).json({ error: 'Invalid invoice_status. Must be "Sent" or "Not".' });
   }
   try {
-    const { rows } = await db.query(
-      `UPDATE renewals SET invoice_status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *`,
-      [invoice_status, req.params.id]
-    );
+    let query, params;
+    if (invoice_status === 'Sent') {
+      if (!invoice_number || invoice_value === undefined || invoice_value === null || !invoice_sent_date) {
+        return res.status(400).json({ error: 'Invoice Number, Invoice Value, and Invoice Sent Date are required.' });
+      }
+      query = `
+        UPDATE renewals 
+        SET invoice_status = $1, 
+            invoice_number = $2, 
+            invoice_value = $3, 
+            invoice_sent_date = $4, 
+            updated_at = CURRENT_TIMESTAMP 
+        WHERE id = $5 
+        RETURNING *
+      `;
+      params = [invoice_status, invoice_number, parseFloat(invoice_value), invoice_sent_date, req.params.id];
+    } else {
+      query = `
+        UPDATE renewals 
+        SET invoice_status = $1, 
+            invoice_number = NULL, 
+            invoice_value = NULL, 
+            invoice_sent_date = NULL, 
+            updated_at = CURRENT_TIMESTAMP 
+        WHERE id = $2 
+        RETURNING *
+      `;
+      params = [invoice_status, req.params.id];
+    }
+
+    const { rows } = await db.query(query, params);
     if (rows.length === 0) return res.status(404).json({ error: 'Renewal not found.' });
     res.json(rows[0]);
   } catch (err) {
@@ -368,18 +397,20 @@ router.put('/:id/restore', authenticateToken, requireRole('admin'), async (req, 
         id, unique_id, client_name, service, renewal_date, value, owner, client_email, sales_email, status, 
         locked, follow_up_status, follow_up_remarks, day_30_sent, day_20_sent, day_15_sent, day_10_sent, 
         day_5_sent, day_3_sent, sales_15_sent, sales_5_sent, created_by, created_at, updated_at, 
-        edit_status, edit_reason, renewal_confirmation, contact_number, reference_id, invoice_status
+        edit_status, edit_reason, renewal_confirmation, contact_number, reference_id, invoice_status,
+        invoice_number, invoice_value, invoice_sent_date
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 
         $11, $12, $13, $14, $15, $16, $17, 
         $18, $19, $20, $21, $22, $23, $24, 
-        $25, $26, $27, $28, $29, $30
+        $25, $26, $27, $28, $29, $30, $31, $32, $33
       )
     `, [
       renewal.original_id, renewal.unique_id, renewal.client_name, renewal.service, renewal.renewal_date, renewal.value, renewal.owner, renewal.client_email, renewal.sales_email, renewal.status,
       renewal.locked, renewal.follow_up_status, renewal.follow_up_remarks, renewal.day_30_sent, renewal.day_20_sent, renewal.day_15_sent, renewal.day_10_sent,
       renewal.day_5_sent, renewal.day_3_sent, renewal.sales_15_sent, renewal.sales_5_sent, renewal.created_by, renewal.created_at, renewal.updated_at,
-      renewal.edit_status, renewal.edit_reason, renewal.renewal_confirmation, renewal.contact_number, renewal.reference_id, renewal.invoice_status
+      renewal.edit_status, renewal.edit_reason, renewal.renewal_confirmation, renewal.contact_number, renewal.reference_id, renewal.invoice_status,
+      renewal.invoice_number, renewal.invoice_value, renewal.invoice_sent_date
     ]);
 
     // Update ID sequence to prevent serial collision
@@ -905,18 +936,20 @@ router.delete('/:id', authenticateToken, requireRole('finance', 'admin'), async 
         original_id, unique_id, client_name, service, renewal_date, value, owner, client_email, sales_email, status, 
         locked, follow_up_status, follow_up_remarks, day_30_sent, day_20_sent, day_15_sent, day_10_sent, 
         day_5_sent, day_3_sent, sales_15_sent, sales_5_sent, created_by, created_at, updated_at, 
-        edit_status, edit_reason, renewal_confirmation, contact_number, reference_id, invoice_status
+        edit_status, edit_reason, renewal_confirmation, contact_number, reference_id, invoice_status,
+        invoice_number, invoice_value, invoice_sent_date
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 
         $11, $12, $13, $14, $15, $16, $17, 
         $18, $19, $20, $21, $22, $23, $24, 
-        $25, $26, $27, $28, $29, $30
+        $25, $26, $27, $28, $29, $30, $31, $32, $33
       )
     `, [
       renewal.id, renewal.unique_id, renewal.client_name, renewal.service, renewal.renewal_date, renewal.value, renewal.owner, renewal.client_email, renewal.sales_email, renewal.status,
       renewal.locked, renewal.follow_up_status, renewal.follow_up_remarks, renewal.day_30_sent, renewal.day_20_sent, renewal.day_15_sent, renewal.day_10_sent,
       renewal.day_5_sent, renewal.day_3_sent, renewal.sales_15_sent, renewal.sales_5_sent, renewal.created_by, renewal.created_at, renewal.updated_at,
-      renewal.edit_status, renewal.edit_reason, renewal.renewal_confirmation, renewal.contact_number, renewal.reference_id, renewal.invoice_status
+      renewal.edit_status, renewal.edit_reason, renewal.renewal_confirmation, renewal.contact_number, renewal.reference_id, renewal.invoice_status,
+      renewal.invoice_number, renewal.invoice_value, renewal.invoice_sent_date
     ]);
 
     // Delete from renewals table

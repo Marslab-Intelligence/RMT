@@ -55,6 +55,9 @@ export const initDb = async () => {
         edit_status VARCHAR(50) DEFAULT NULL,
         edit_reason TEXT DEFAULT NULL,
         invoice_status VARCHAR(20) DEFAULT 'Not' CHECK(invoice_status IN ('Sent', 'Not')),
+        invoice_number VARCHAR(100) DEFAULT NULL,
+        invoice_value NUMERIC(15,2) DEFAULT NULL,
+        invoice_sent_date DATE DEFAULT NULL,
         plan_period VARCHAR(50) DEFAULT 'yearly_plan' CHECK(plan_period IN ('halfly_plan', 'quarterly_plan', 'yearly_plan')),
         created_by INTEGER REFERENCES users(id),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -139,6 +142,9 @@ export const initDb = async () => {
         contact_number VARCHAR(50),
         reference_id VARCHAR(255),
         invoice_status VARCHAR(20) DEFAULT 'Not',
+        invoice_number VARCHAR(100) DEFAULT NULL,
+        invoice_value NUMERIC(15,2) DEFAULT NULL,
+        invoice_sent_date DATE DEFAULT NULL,
         plan_period VARCHAR(50) DEFAULT 'yearly_plan',
         deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -152,9 +158,15 @@ export const initDb = async () => {
       ALTER TABLE renewals ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
       ALTER TABLE renewals ADD COLUMN IF NOT EXISTS invoice_status VARCHAR(20) DEFAULT 'Not';
       ALTER TABLE renewals ADD COLUMN IF NOT EXISTS plan_period VARCHAR(50) DEFAULT 'yearly_plan';
+      ALTER TABLE renewals ADD COLUMN IF NOT EXISTS invoice_number VARCHAR(100) DEFAULT NULL;
+      ALTER TABLE renewals ADD COLUMN IF NOT EXISTS invoice_value NUMERIC(15,2) DEFAULT NULL;
+      ALTER TABLE renewals ADD COLUMN IF NOT EXISTS invoice_sent_date DATE DEFAULT NULL;
       
       ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS invoice_status VARCHAR(20) DEFAULT 'Not';
       ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS plan_period VARCHAR(50) DEFAULT 'yearly_plan';
+      ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS invoice_number VARCHAR(100) DEFAULT NULL;
+      ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS invoice_value NUMERIC(15,2) DEFAULT NULL;
+      ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS invoice_sent_date DATE DEFAULT NULL;
     `);
 
     // Auto-update statuses based on renewal dates on startup
