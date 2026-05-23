@@ -719,9 +719,9 @@ export default function RenewalsList() {
             <thead className="bg-surface-50 dark:bg-surface-900 text-surface-500 dark:text-surface-400 border-b border-surface-200 dark:border-surface-700 sticky top-0 z-10 shadow-sm">
               <tr>
                 <th className="px-4 py-3 font-medium w-[7%]">Unique ID</th>
-                <th className="px-4 py-3 font-medium w-[14%]">Client Info</th>
-                <th className="px-4 py-3 font-medium w-[10%]">Service</th>
-                <th className="px-4 py-3 font-medium w-[10%]">
+                <th className="px-4 py-3 font-medium w-[13%]">Client Info</th>
+                <th className="px-4 py-3 font-medium w-[9%]">Service</th>
+                <th className="px-4 py-3 font-medium w-[9%]">
                   <div className="flex items-center">
                     Renewal Date
                     <FilterDropdown col="date" value={dateRangeFilter} onChange={setDateRangeFilter} options={DATE_OPTIONS} />
@@ -733,39 +733,40 @@ export default function RenewalsList() {
                     <FilterDropdown col="value" value={valueFilter} onChange={setValueFilter} options={VALUE_OPTIONS} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-center w-[9%]">
+                <th className="px-4 py-3 font-medium text-right w-[13%]">Invoice Value / Bal</th>
+                <th className="px-4 py-3 font-medium text-center w-[8%]">
                   <div className="flex items-center justify-center">
                     Status
                     <FilterDropdown col="status" value={statusColFilter} onChange={setStatusColFilter} options={STATUS_COL_OPTIONS} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-center w-[7%]">Timeline</th>
-                <th className="px-4 py-3 font-medium text-center w-[11%]">
+                <th className="px-4 py-3 font-medium text-center w-[6%]">Timeline</th>
+                <th className="px-4 py-3 font-medium text-center w-[10%]">
                   <div className="flex items-center justify-center">
                     Renewed
                     <FilterDropdown col="renewed" value={renewedFilter} onChange={setRenewedFilter} options={RENEWED_OPTIONS} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-center w-[11%]">
+                <th className="px-4 py-3 font-medium text-center w-[9%]">
                   <div className="flex items-center justify-center">
                     Invoice
                   </div>
                 </th>
-                {!isFinance && <th className="px-4 py-3 font-medium text-center w-[7%]">Actions</th>}
-                {isAdmin && <th className="px-4 py-3 font-medium text-center w-[6%]">Approvals</th>}
+                {!isFinance && <th className="px-4 py-3 font-medium text-center w-[5%]">Actions</th>}
+                {isAdmin && <th className="px-4 py-3 font-medium text-center w-[5%]">Approvals</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-200 dark:divide-surface-700">
               {loading ? (
                 <tr>
-                  <td colSpan="12" className="px-6 py-12 text-center text-surface-500">
+                  <td colSpan="13" className="px-6 py-12 text-center text-surface-500">
                     <div className="flex justify-center mb-2"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-600"></div></div>
                     Loading records...
                   </td>
                 </tr>
               ) : renewals.length === 0 ? (
                 <tr>
-                  <td colSpan="12" className="px-6 py-12 text-center text-surface-500">
+                  <td colSpan="13" className="px-6 py-12 text-center text-surface-500">
                     No renewal records found matching your criteria.
                   </td>
                 </tr>
@@ -795,35 +796,35 @@ export default function RenewalsList() {
                         </p>
                       )}
                     </td>
+                    <td className="px-4 py-3 text-right font-medium text-surface-900 dark:text-white">
+                      {formatCurrency(row.value)}
+                    </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex flex-col items-end">
-                        <span className="font-semibold text-surface-900 dark:text-white">
-                          {formatCurrency(row.value)}
-                        </span>
-                        {row.invoice_status === 'Sent' && row.invoice_value !== null && row.invoice_value !== undefined && (
-                          <div className="mt-1 w-full max-w-[150px] text-right space-y-0.5">
-                            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                              Invoiced: {formatCurrency(row.invoice_value)}
-                            </div>
-                            <div className="text-[10px] text-surface-500 dark:text-surface-400">
-                              Balance: {formatCurrency(row.value - row.invoice_value)}
-                            </div>
-                            {parseFloat(row.value) > 0 && (
-                              <>
-                                <div className="text-[9px] text-surface-400 dark:text-surface-500 font-mono whitespace-nowrap mt-0.5">
-                                  {Math.round((row.invoice_value / row.value) * 100)}% Paid • {Math.round((1 - row.invoice_value / row.value) * 100)}% Yet to pay
-                                </div>
-                                <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-1 rounded-full overflow-hidden mt-0.5">
-                                  <div 
-                                    className="bg-emerald-500 h-full rounded-full" 
-                                    style={{ width: `${Math.min(100, Math.max(0, (row.invoice_value / row.value) * 100))}%` }}
-                                  ></div>
-                                </div>
-                              </>
-                            )}
+                      {row.invoice_status === 'Sent' && row.invoice_value !== null && row.invoice_value !== undefined ? (
+                        <div className="flex flex-col items-end space-y-0.5 w-full max-w-[160px] ml-auto">
+                          <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                            Inv: {formatCurrency(row.invoice_value)}
                           </div>
-                        )}
-                      </div>
+                          <div className="text-[11px] text-surface-600 dark:text-surface-300 font-medium">
+                            Bal: {formatCurrency(row.value - row.invoice_value)}
+                          </div>
+                          {parseFloat(row.value) > 0 && (
+                            <>
+                              <div className="text-[10px] text-surface-400 dark:text-surface-500 font-mono whitespace-nowrap mt-0.5">
+                                {Math.round((row.invoice_value / row.value) * 100)}% Paid • {Math.round((1 - row.invoice_value / row.value) * 100)}% Yet to pay
+                              </div>
+                              <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-1.5 rounded-full overflow-hidden mt-0.5">
+                                <div 
+                                  className="bg-emerald-500 h-full rounded-full" 
+                                  style={{ width: `${Math.min(100, Math.max(0, (row.invoice_value / row.value) * 100))}%` }}
+                                ></div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-surface-400 dark:text-surface-600 block text-center">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${getStatusColor(row.status)}`}>
