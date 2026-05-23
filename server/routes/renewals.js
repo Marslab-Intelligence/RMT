@@ -31,16 +31,16 @@ const getEmailFlags = (renewalDate) => {
   };
 };
 
-const notifyAdminAndFinance = async (title, message, type = 'info') => {
+const notifyAdminAndFinance = async (title, message, type = 'info', link = null) => {
   try {
     await db.query(`
-      INSERT INTO notifications (role, title, message, type)
-      VALUES ('admin', $1, $2, $3)
-    `, [title, message, type]);
+      INSERT INTO notifications (role, title, message, type, link)
+      VALUES ('admin', $1, $2, $3, $4)
+    `, [title, message, type, link]);
     await db.query(`
-      INSERT INTO notifications (role, title, message, type)
-      VALUES ('finance', $1, $2, $3)
-    `, [title, message, type]);
+      INSERT INTO notifications (role, title, message, type, link)
+      VALUES ('finance', $1, $2, $3, $4)
+    `, [title, message, type, link]);
   } catch (err) {
     console.error('Error creating notifications:', err);
   }
@@ -396,7 +396,7 @@ router.patch('/:id/invoice', authenticateToken, requireRole('finance', 'admin'),
     const message = invoice_status === 'Sent'
       ? `Invoice details updated for client "${r.client_name}" (${r.service}): Invoice #${invoice_number}, Value: ₹${parseFloat(invoice_value).toLocaleString('en-IN')}.`
       : `Invoice marked as not sent for client "${r.client_name}" (${r.service}).`;
-    await notifyAdminAndFinance('Invoice Updated', message, 'info');
+    await notifyAdminAndFinance('Invoice Updated', message, 'info', `/renewals?search=${r.unique_id}`);
 
     res.json(rows[0]);
   } catch (err) {
@@ -584,7 +584,8 @@ router.post('/', authenticateToken, requireRole('sales', 'admin'), async (req, r
     await notifyAdminAndFinance(
       'New Renewal Added',
       `New renewal created for ${client_name} (${service}). Renewal date: ${renewal_date}`,
-      'info'
+      'info',
+      `/renewals?search=${unique_id}`
     );
 
     await sendCliqNotification(`🆕 *New Renewal Added*\n*Client ID:* ${unique_id}\n*Client:* ${client_name}\n*Service:* ${service}\n*Renewal Date:* ${new Date(renewal_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}\n*Value:* ₹${parseFloat(value).toLocaleString('en-IN')}`);
@@ -915,7 +916,8 @@ router.put('/:id', authenticateToken, requireRole('finance', 'sales', 'admin'), 
     await notifyAdminAndFinance(
       'Renewal Details Updated',
       `Renewal details updated for client "${client_name}" (${service}) by ${editActorRole.toLowerCase()} team. Reason: ${req.body.reason || 'Not provided'}.`,
-      'info'
+      'info',
+      `/renewals?search=${renewal.unique_id}`
     );
 
     // Send Zoho Cliq notifications to both sales and finance channels
@@ -997,7 +999,8 @@ router.delete('/:id', authenticateToken, requireRole('finance', 'admin'), async 
     await notifyAdminAndFinance(
       'Renewal Deleted',
       `Renewal for client "${renewal.client_name}" (${renewal.service}) has been moved to trash by ${req.user.role}.`,
-      'warning'
+      'warning',
+      '/trash'
     );
 
     res.json({ message: 'Renewal moved to trash successfully.' });
@@ -1484,19 +1487,21 @@ router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admi
 
     // Create notification for finance team and admin team
     await db.query(`
-      INSERT INTO notifications (role, title, message, type)
-      VALUES ('finance', 'Renewal Update', $1, $2)
+      INSERT INTO notifications (role, title, message, type, link)
+      VALUES ('finance', 'Renewal Update', $1, $2, $3)
     `, [
       `${renewal.client_name} (${renewal.service}) has been marked as "${label}" by ${actorRole.toLowerCase()}.${remarks ? ' Remarks: ' + remarks : ''}`,
-      notifType
+      notifType,
+      `/renewals?search=${renewal.unique_id}`
     ]);
 
     await db.query(`
-      INSERT INTO notifications (role, title, message, type)
-      VALUES ('admin', 'Renewal Update', $1, $2)
+      INSERT INTO notifications (role, title, message, type, link)
+      VALUES ('admin', 'Renewal Update', $1, $2, $3)
     `, [
       `${renewal.client_name} (${renewal.service}) has been marked as "${label}" by ${actorRole.toLowerCase()}.${remarks ? ' Remarks: ' + remarks : ''}`,
-      notifType
+      notifType,
+      `/renewals?search=${renewal.unique_id}`
     ]);
 
     await sendCliqNotification(`${statusIcon} *Renewal Status Update*\n*Client ID:* ${renewal.unique_id}\n*Client:* ${renewal.client_name}\n*Service:* ${renewal.service}\n*New Status:* ${label}\n*Updated By:* ${actorRole}\n${remarks ? `*Remarks:* ${remarks}` : ''}`);
