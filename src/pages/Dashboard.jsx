@@ -10,7 +10,8 @@ import {
   IndianRupee, 
   Clock,
   ArrowUpRight,
-  Activity
+  Activity,
+  Bell
 } from 'lucide-react';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
 
@@ -20,6 +21,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [activityLogs, setActivityLogs] = useState([]);
   const [editedLogs, setEditedLogs] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,9 +32,18 @@ export default function Dashboard() {
           fetch('/api/dashboard/activity-logs?limit=5', { headers: { 'Authorization': `Bearer ${token}` } })
         ];
 
-        if (user?.role === 'finance') {
+        const hasEdits = user?.role === 'finance' || user?.role === 'admin' || user?.role === 'sales';
+        const hasNotifications = user?.role === 'finance' || user?.role === 'admin';
+
+        if (hasEdits) {
           promises.push(
             fetch('/api/renewals/edits-history?limit=5', { headers: { 'Authorization': `Bearer ${token}` } })
+          );
+        }
+
+        if (hasNotifications) {
+          promises.push(
+            fetch('/api/dashboard/notifications', { headers: { 'Authorization': `Bearer ${token}` } })
           );
         }
 
@@ -40,8 +51,20 @@ export default function Dashboard() {
 
         if (results[0].ok) setStats(await results[0].json());
         if (results[1].ok) setActivityLogs(await results[1].json());
-        if (user?.role === 'finance' && results[2]?.ok) {
-          setEditedLogs(await results[2].json());
+        
+        let promiseIdx = 2;
+        if (hasEdits) {
+          if (results[promiseIdx]?.ok) {
+            setEditedLogs(await results[promiseIdx].json());
+          }
+          promiseIdx++;
+        }
+
+        if (hasNotifications) {
+          if (results[promiseIdx]?.ok) {
+            const data = await results[promiseIdx].json();
+            setNotifications(data.notifications || []);
+          }
         }
       } catch (err) {
         console.error('Failed to fetch dashboard data', err);
@@ -133,7 +156,13 @@ export default function Dashboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
-        className={`mt-8 grid grid-cols-1 ${user?.role === 'finance' ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-6`}
+        className={`mt-8 grid grid-cols-1 md:grid-cols-2 ${
+          (user?.role === 'finance' || user?.role === 'admin') 
+            ? 'xl:grid-cols-4' 
+            : (user?.role === 'sales') 
+              ? 'xl:grid-cols-3' 
+              : 'xl:grid-cols-2'
+        } gap-6`}
       >
         <div className="card-accent p-6 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none text-white">
@@ -145,7 +174,7 @@ export default function Dashboard() {
           </p>
           <button 
             onClick={() => navigate('/reports')}
-            className="bg-white text-surface-950 px-4 py-2 rounded-md text-sm font-semibold flex items-center hover:bg-surface-100 transition-colors relative z-10"
+            className="bg-white text-surface-900 px-4 py-2 rounded-md text-sm font-semibold flex items-center hover:bg-surface-100 transition-colors relative z-10"
           >
             View Email Logs <ArrowUpRight className="w-4 h-4 ml-1" />
           </button>
@@ -172,7 +201,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {user?.role === 'finance' && (
+        {(user?.role === 'finance' || user?.role === 'admin' || user?.role === 'sales') && (
           <div className="card p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-bold text-surface-900 dark:text-white">Recent Edits (CST & Admin)</h2>
@@ -210,6 +239,56 @@ export default function Dashboard() {
                         )}
                         <p className="text-[10px] text-surface-400 mt-0.5">
                           {formatDateTime(log.performed_at)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        {(user?.role === 'finance' || user?.role === 'admin') && (
+          <div className="card p-6 border-t-2 border-brand-500">
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center gap-2">
+                <Bell className="w-4 h-4 text-brand-500" />
+                <h2 className="text-lg font-bold text-surface-900 dark:text-white">Update Notifications</h2>
+              </div>
+              {notifications.some(n => n.read === 0) && (
+                <span className="bg-brand-100 text-brand-800 text-[10px] font-semibold px-2 py-0.5 rounded-full dark:bg-brand-900/30 dark:text-brand-400 animate-pulse">
+                  New
+                </span>
+              )}
+            </div>
+            <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+              {notifications.length === 0 ? (
+                <p className="text-sm text-surface-500">No recent notifications.</p>
+              ) : (
+                notifications.slice(0, 5).map(notif => {
+                  const notifColorMap = {
+                    success: 'bg-emerald-500',
+                    warning: 'bg-amber-500',
+                    error: 'bg-rose-500',
+                    info: 'bg-blue-500'
+                  };
+                  const bulletColor = notifColorMap[notif.type] || 'bg-brand-500';
+                  
+                  return (
+                    <div key={notif.id} className={`flex items-start gap-2 p-1.5 rounded transition-colors ${notif.read === 0 ? 'bg-surface-50 dark:bg-surface-800/40' : ''}`}>
+                      <div className={`w-2 h-2 rounded-full ${bulletColor} mt-1.5 flex-shrink-0 ${notif.read === 0 ? 'animate-pulse' : ''}`}></div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className={`text-xs font-bold text-surface-900 dark:text-white truncate ${notif.read === 0 ? 'text-brand-600 dark:text-brand-400' : ''}`}>
+                            {notif.title}
+                          </p>
+                          <span className="text-[9px] text-surface-400 flex-shrink-0">
+                            {formatDateTime(notif.created_at)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-surface-600 dark:text-surface-300 mt-0.5 break-words leading-normal">
+                          {notif.message}
                         </p>
                       </div>
                     </div>
