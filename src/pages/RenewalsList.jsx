@@ -795,8 +795,35 @@ export default function RenewalsList() {
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right font-medium text-surface-900 dark:text-white">
-                      {formatCurrency(row.value)}
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex flex-col items-end">
+                        <span className="font-semibold text-surface-900 dark:text-white">
+                          {formatCurrency(row.value)}
+                        </span>
+                        {row.invoice_status === 'Sent' && row.invoice_value !== null && row.invoice_value !== undefined && (
+                          <div className="mt-1 w-full max-w-[150px] text-right space-y-0.5">
+                            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                              Invoiced: {formatCurrency(row.invoice_value)}
+                            </div>
+                            <div className="text-[10px] text-surface-500 dark:text-surface-400">
+                              Balance: {formatCurrency(row.value - row.invoice_value)}
+                            </div>
+                            {parseFloat(row.value) > 0 && (
+                              <>
+                                <div className="text-[9px] text-surface-400 dark:text-surface-500 font-mono whitespace-nowrap mt-0.5">
+                                  {Math.round((row.invoice_value / row.value) * 100)}% Paid • {Math.round((1 - row.invoice_value / row.value) * 100)}% Yet to pay
+                                </div>
+                                <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-1 rounded-full overflow-hidden mt-0.5">
+                                  <div 
+                                    className="bg-emerald-500 h-full rounded-full" 
+                                    style={{ width: `${Math.min(100, Math.max(0, (row.invoice_value / row.value) * 100))}%` }}
+                                  ></div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${getStatusColor(row.status)}`}>

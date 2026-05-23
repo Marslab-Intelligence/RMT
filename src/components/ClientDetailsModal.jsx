@@ -152,6 +152,29 @@ export default function ClientDetailsModal({ client, onClose }) {
                     <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-0.5">Sent Date</p>
                     <p className="text-sm font-medium text-surface-900 dark:text-white">{client.invoice_sent_date ? formatDate(client.invoice_sent_date) : '-'}</p>
                   </div>
+                  <div>
+                    <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-0.5">Balance Amount</p>
+                    <p className="text-sm font-medium text-surface-900 dark:text-white">
+                      {client.invoice_value !== null && client.invoice_value !== undefined ? formatCurrency(client.value - client.invoice_value) : '-'}
+                    </p>
+                  </div>
+                  {parseFloat(client.value) > 0 && client.invoice_value !== null && client.invoice_value !== undefined && (
+                    <div className="col-span-2 mt-2">
+                      <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-1">Invoice Payment Progress</p>
+                      <div className="space-y-1.5 max-w-xs">
+                        <div className="flex justify-between text-xs font-semibold text-surface-700 dark:text-surface-300">
+                          <span>{Math.round((client.invoice_value / client.value) * 100)}% Paid</span>
+                          <span>{Math.round((1 - client.invoice_value / client.value) * 100)}% Yet to pay</span>
+                        </div>
+                        <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-2 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
+                            style={{ width: `${Math.min(100, Math.max(0, (client.invoice_value / client.value) * 100))}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
