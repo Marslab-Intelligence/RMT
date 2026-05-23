@@ -503,20 +503,36 @@ export default function RenewalsList() {
   const handleRenewalConfirmation = async (id, confirmation) => {
     if (confirmation === 'renewed') {
       const current = renewals.find(r => r.id === id);
-      // Pre-fill with current date in DD/MM/YYYY if available
       let currentFormatted = '';
-      if (current?.renewal_date) {
-        try {
-          const date = new Date(current.renewal_date);
-          if (!isNaN(date.getTime())) {
-            const day = String(date.getDate()).padStart(2, '0');
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const year = date.getFullYear();
-            currentFormatted = `${day}/${month}/${year}`;
-          }
-        } catch (e) {
-          currentFormatted = '';
+      try {
+        let baseDate = new Date();
+        if (current?.invoice_sent_date) {
+          baseDate = new Date(current.invoice_sent_date);
+        } else if (current?.renewal_date) {
+          baseDate = new Date(current.renewal_date);
         }
+
+        const plan = current?.plan_period;
+        let monthsToAdd = 12; // default to yearly
+        if (plan === 'quarterly_plan') {
+          monthsToAdd = 3;
+        } else if (plan === 'halfly_plan') {
+          monthsToAdd = 6;
+        } else if (plan === 'yearly_plan') {
+          monthsToAdd = 12;
+        }
+
+        const newDate = new Date(baseDate);
+        newDate.setMonth(newDate.getMonth() + monthsToAdd);
+
+        if (!isNaN(newDate.getTime())) {
+          const day = String(newDate.getDate()).padStart(2, '0');
+          const month = String(newDate.getMonth() + 1).padStart(2, '0');
+          const year = newDate.getFullYear();
+          currentFormatted = `${day}/${month}/${year}`;
+        }
+      } catch (e) {
+        currentFormatted = '';
       }
       setNewRenewalDate(currentFormatted);
       setConfirmRenewalId(id);
