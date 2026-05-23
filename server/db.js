@@ -166,6 +166,18 @@ export const initDb = async () => {
         ELSE 'Active'::varchar
       END
       WHERE status IN ('Active', 'Pending Renewal', 'Expired');
+
+      UPDATE renewals
+      SET renewal_confirmation = 'renewed'
+      WHERE renewal_date IS NOT NULL 
+        AND (renewal_date - CURRENT_DATE) > 30
+        AND renewal_confirmation != 'renewed';
+
+      UPDATE renewals
+      SET renewal_confirmation = 'pending'
+      WHERE renewal_date IS NOT NULL 
+        AND (renewal_date - CURRENT_DATE) < 30
+        AND renewal_confirmation = 'renewed';
     `);
 
     // Auto-seed the three required SSO users if they don't exist

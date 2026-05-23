@@ -30,6 +30,24 @@ async function processRenewals() {
   console.log(`\n⏰ [${new Date().toISOString()}] Running renewal email scheduler...`);
 
   try {
+    // Auto-revert renewals marked as 'renewed' back to 'pending' when they have less than 30 days left
+    await db.query(`
+      UPDATE renewals 
+      SET renewal_confirmation = 'pending' 
+      WHERE renewal_confirmation = 'renewed' 
+        AND renewal_date IS NOT NULL 
+        AND (renewal_date - CURRENT_DATE) < 30
+    `);
+
+    // Auto-confirm renewals as 'renewed' when they have more than 30 days left
+    await db.query(`
+      UPDATE renewals 
+      SET renewal_confirmation = 'renewed' 
+      WHERE renewal_confirmation != 'renewed' 
+        AND renewal_date IS NOT NULL 
+        AND (renewal_date - CURRENT_DATE) > 30
+    `);
+
     const { rows: renewals } = await db.query(`
       SELECT * FROM renewals 
       WHERE status IN ('Active', 'Pending Renewal')
@@ -82,9 +100,10 @@ async function processRenewals() {
       ];
 
       // Find which tier this renewal falls into
-      const currentTier = schedule.find(s => daysLeft === s.days);
+      // Use <= so that if a day was skipped (scheduler down, etc.) the email still fires
+      const currentTier = schedule.find(s => daysLeft <= s.days && renewal[s.column] === 'No');
 
-      if (currentTier && renewal[currentTier.column] === 'No') {
+      if (currentTier) {
         const template = clientReminderEmail(emailData);
 
         // --- Send to Client Email with Sales Team CC'd ---
@@ -107,7 +126,7 @@ async function processRenewals() {
         console.log(`   📧 ${currentTier.days}-day reminder → ${renewal.client_email} (CC: ${SALES_TEAM_EMAIL}) (${clientResult.success ? '✅' : '❌'})`);
 
         // Mark this tier AND all previous (larger) tiers as sent
-        const tiersToMark = schedule.filter(s => s.days >= currentTier.days);
+        const tiersToMark = schedule.filter(t => t.days >= currentTier.days);
         const setClauses = tiersToMark.map(t => `${t.column} = 'Yes'`).join(', ');
         await db.query(`UPDATE renewals SET ${setClauses}, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [renewal.id]);
 
@@ -117,7 +136,9 @@ async function processRenewals() {
           VALUES ('finance', 'Email Sent', $1, 'info')
         `, [`${currentTier.days}-day reminder sent for ${renewal.client_name} (${renewal.service}).`]);
 
-        await sendCliqNotification(`📧 *Client Reminder Sent* (${currentTier.days} Days Remaining)\n*Client ID:* ${renewal.unique_id}\n*Client:* ${renewal.client_name}\n*Service:* ${renewal.service}\n*Renewal Date:* ${formatDate(renewal.renewal_date)}\n*Email Sent To:* ${renewal.client_email}\n*CC:* ${SALES_TEAM_EMAIL}`);
+        const cliqMsg = `📧 *Client Reminder Sent* (${currentTier.days} Days Remaining)\n*Client ID:* ${renewal.unique_id}\n*Client:* ${renewal.client_name}\n*Service:* ${renewal.service}\n*Renewal Date:* ${formatDate(renewal.renewal_date)}\n*Email Sent To:* ${renewal.client_email}\n*CC:* ${SALES_TEAM_EMAIL}`;
+        await sendCliqNotification(cliqMsg, false);
+        await sendCliqNotification(cliqMsg, true);
 
         console.log(`   ✅ ${currentTier.days}-day reminder complete for ${renewal.client_name}`);
       }
@@ -133,9 +154,9 @@ async function processRenewals() {
         { days: 5,  column: 'sales_5_sent' },
       ];
 
-      const salesTier = salesSpecialSchedule.find(s => daysLeft === s.days);
+      const salesTier = salesSpecialSchedule.find(s => daysLeft <= s.days && renewal[s.column] === 'No');
 
-      if (salesTier && renewal[salesTier.column] === 'No') {
+      if (salesTier) {
         const salesTemplate = salesReminderEmail(emailData);
 
         const salesResult = await sendEmail({
@@ -176,8 +197,8 @@ async function processRenewals() {
 }
 
 export function startScheduler() {
-  // Run every day at 9:00 AM IST (3:30 AM UTC)
-  cron.schedule('30 3 * * *', () => {
+  // Run every hour at :00 so no renewal window is missed
+  cron.schedule('0 * * * *', () => {
     processRenewals();
   });
 
@@ -186,7 +207,7 @@ export function startScheduler() {
     processRenewals();
   }, 3000);
 
-  console.log('🕐 Email scheduler started (runs daily at 9:00 AM IST)');
+  console.log('🕐 Email scheduler started (runs every hour)');
 }
 
 // Export for manual trigger

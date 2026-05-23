@@ -7,9 +7,52 @@ import jwt from 'jsonwebtoken';
 
 const router = Router();
 
+const getEmailFlags = (renewalDate) => {
+  if (!renewalDate) {
+    return {
+      day_30_sent: 'No', day_20_sent: 'No', day_15_sent: 'No',
+      day_10_sent: 'No', day_5_sent: 'No', day_3_sent: 'No',
+      sales_15_sent: 'No', sales_5_sent: 'No'
+    };
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const rDate = new Date(renewalDate);
+  rDate.setHours(0, 0, 0, 0);
+  const daysLeft = Math.ceil((rDate - today) / (1000 * 60 * 60 * 24));
+  return {
+    day_30_sent: daysLeft < 30 ? 'Yes' : 'No',
+    day_20_sent: daysLeft < 20 ? 'Yes' : 'No',
+    day_15_sent: daysLeft < 15 ? 'Yes' : 'No',
+    day_10_sent: daysLeft < 10 ? 'Yes' : 'No',
+    day_5_sent: daysLeft < 5 ? 'Yes' : 'No',
+    day_3_sent: daysLeft < 3 ? 'Yes' : 'No',
+    sales_15_sent: daysLeft < 15 ? 'Yes' : 'No',
+    sales_5_sent: daysLeft < 5 ? 'Yes' : 'No'
+  };
+};
+
 // Get all renewals
 router.get('/', authenticateToken, async (req, res) => {
   try {
+    // Auto-revert renewals marked as 'renewed' back to 'pending' when they have less than 30 days left
+    await db.query(`
+      UPDATE renewals 
+      SET renewal_confirmation = 'pending' 
+      WHERE renewal_confirmation = 'renewed' 
+        AND renewal_date IS NOT NULL 
+        AND (renewal_date - CURRENT_DATE) < 30
+    `);
+
+    // Auto-confirm renewals as 'renewed' when they have more than 30 days left
+    await db.query(`
+      UPDATE renewals 
+      SET renewal_confirmation = 'renewed' 
+      WHERE renewal_confirmation != 'renewed' 
+        AND renewal_date IS NOT NULL 
+        AND (renewal_date - CURRENT_DATE) > 30
+    `);
+
     const { search, status, sort, order, page = 1, limit = 50, dateRange, valueRange, renewalConfirmation } = req.query;
     let query = 'SELECT * FROM renewals WHERE 1=1';
     const params = [];
@@ -87,9 +130,9 @@ router.get('/', authenticateToken, async (req, res) => {
     const sortOrder = order ? (order.toLowerCase() === 'desc' ? 'DESC' : 'ASC') : 'ASC';
     
     if (sortCol === 'renewal_date') {
-      query += ` ORDER BY ${sortCol} ${sortOrder} NULLS LAST`;
+      query += ` ORDER BY CASE WHEN status = 'Expired' THEN 1 ELSE 0 END ASC, ${sortCol} ${sortOrder} NULLS LAST`;
     } else {
-      query += ` ORDER BY ${sortCol} ${sortOrder}`;
+      query += ` ORDER BY CASE WHEN status = 'Expired' THEN 1 ELSE 0 END ASC, ${sortCol} ${sortOrder}`;
     }
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -146,9 +189,263 @@ router.get('/edits-history', authenticateToken, async (req, res) => {
   }
 });
 
+// Manual scheduler trigger - Admin only
+router.post('/trigger-scheduler', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { processRenewals } = await import('../services/scheduler.js');
+    processRenewals(); // fire async — don't await so HTTP returns immediately
+    res.json({ message: 'Scheduler triggered. Check server logs for email send status.' });
+  } catch (err) {
+    console.error('Manual scheduler trigger error:', err);
+    res.status(500).json({ error: 'Failed to trigger scheduler.' });
+  }
+});
+
+// Get all deleted renewals (Trash) - Admin only
+router.get('/trash', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { rows: trash } = await db.query(`
+      SELECT * FROM trash_renewals 
+      ORDER BY deleted_at DESC
+    `);
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const enriched = trash.map(r => {
+      if (!r.renewal_date) return { ...r, days_left: null, value: parseFloat(r.value) };
+      const renewalDate = new Date(r.renewal_date);
+      renewalDate.setHours(0, 0, 0, 0);
+      const daysLeft = Math.ceil((renewalDate - today) / (1000 * 60 * 60 * 24));
+      return { ...r, days_left: daysLeft, value: parseFloat(r.value) };
+    });
+
+    res.json({ data: enriched });
+  } catch (err) {
+    console.error('Fetch trash error:', err);
+    res.status(500).json({ error: 'Failed to fetch trash data.' });
+  }
+});
+
+// Restore multiple renewals - Admin only
+router.post('/trash/restore-batch', authenticateToken, requireRole('admin'), async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'No IDs provided for restore.' });
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Get all records to restore
+    const { rows: renewals } = await client.query(
+      'SELECT * FROM trash_renewals WHERE id = ANY($1)',
+      [ids]
+    );
+
+    if (renewals.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'No deleted renewals found for provided IDs.' });
+    }
+
+    for (const renewal of renewals) {
+      // Insert back into renewals with original ID
+      await client.query(`
+        INSERT INTO renewals (
+          id, unique_id, client_name, service, renewal_date, value, owner, client_email, sales_email, status, 
+          locked, follow_up_status, follow_up_remarks, day_30_sent, day_20_sent, day_15_sent, day_10_sent, 
+          day_5_sent, day_3_sent, sales_15_sent, sales_5_sent, created_by, created_at, updated_at, 
+          edit_status, edit_reason, renewal_confirmation, contact_number, reference_id, invoice_status
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 
+          $11, $12, $13, $14, $15, $16, $17, 
+          $18, $19, $20, $21, $22, $23, $24, 
+          $25, $26, $27, $28, $29, $30
+        )
+      `, [
+        renewal.original_id, renewal.unique_id, renewal.client_name, renewal.service, renewal.renewal_date, renewal.value, renewal.owner, renewal.client_email, renewal.sales_email, renewal.status,
+        renewal.locked, renewal.follow_up_status, renewal.follow_up_remarks, renewal.day_30_sent, renewal.day_20_sent, renewal.day_15_sent, renewal.day_10_sent,
+        renewal.day_5_sent, renewal.day_3_sent, renewal.sales_15_sent, renewal.sales_5_sent, renewal.created_by, renewal.created_at, renewal.updated_at,
+        renewal.edit_status, renewal.edit_reason, renewal.renewal_confirmation, renewal.contact_number, renewal.reference_id, renewal.invoice_status
+      ]);
+
+      // Remove from trash_renewals
+      await client.query('DELETE FROM trash_renewals WHERE id = $1', [renewal.id]);
+
+      await client.query(`
+        INSERT INTO activity_logs (user_id, action, entity_type, entity_id, details)
+        VALUES ($1, 'restore', 'renewal', $2, $3)
+      `, [req.user.id, renewal.unique_id, `Restored renewal (bulk): ${renewal.client_name} - ${renewal.service}`]);
+    }
+
+    // Update ID sequence to prevent serial collision
+    await client.query(`SELECT setval('renewals_id_seq', COALESCE((SELECT MAX(id) FROM renewals), 1), true)`);
+
+    await client.query('COMMIT');
+    res.json({ message: `${renewals.length} renewals restored successfully.` });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Batch restore error:', err);
+    res.status(500).json({ error: 'Failed to restore renewals in batch.' });
+  } finally {
+    client.release();
+  }
+});
+
+// Permanent delete multiple renewals - Admin only
+router.post('/trash/delete-batch', authenticateToken, requireRole('admin'), async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'No IDs provided for deletion.' });
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Get unique_ids/names for activity logs before deleting
+    const { rows: renewals } = await client.query(
+      'SELECT unique_id, client_name, service FROM trash_renewals WHERE id = ANY($1)',
+      [ids]
+    );
+
+    if (renewals.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'No deleted renewals found for provided IDs.' });
+    }
+
+    // Delete permanently from trash_renewals
+    await client.query('DELETE FROM trash_renewals WHERE id = ANY($1)', [ids]);
+
+    for (const renewal of renewals) {
+      await client.query(`
+        INSERT INTO activity_logs (user_id, action, entity_type, entity_id, details)
+        VALUES ($1, 'permanent_delete', 'renewal', $2, $3)
+      `, [req.user.id, renewal.unique_id, `Permanently deleted renewal (bulk): ${renewal.client_name} - ${renewal.service}`]);
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: `${renewals.length} renewals permanently deleted.` });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Batch delete error:', err);
+    res.status(500).json({ error: 'Failed to permanently delete renewals in batch.' });
+  } finally {
+    client.release();
+  }
+});
+
+// Update invoice status - Finance and Admin
+router.patch('/:id/invoice', authenticateToken, requireRole('finance', 'admin'), async (req, res) => {
+  const { invoice_status } = req.body;
+  if (!['Sent', 'Not'].includes(invoice_status)) {
+    return res.status(400).json({ error: 'Invalid invoice_status. Must be "Sent" or "Not".' });
+  }
+  try {
+    const { rows } = await db.query(
+      `UPDATE renewals SET invoice_status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *`,
+      [invoice_status, req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Renewal not found.' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Invoice status update error:', err);
+    res.status(500).json({ error: 'Failed to update invoice status.' });
+  }
+});
+
+// Restore renewal - Admin only
+router.put('/:id/restore', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT * FROM trash_renewals WHERE id = $1', [req.params.id]);
+    const renewal = rows[0];
+    if (!renewal) return res.status(404).json({ error: 'Deleted renewal not found.' });
+
+    // Insert back into renewals with original ID
+    await db.query(`
+      INSERT INTO renewals (
+        id, unique_id, client_name, service, renewal_date, value, owner, client_email, sales_email, status, 
+        locked, follow_up_status, follow_up_remarks, day_30_sent, day_20_sent, day_15_sent, day_10_sent, 
+        day_5_sent, day_3_sent, sales_15_sent, sales_5_sent, created_by, created_at, updated_at, 
+        edit_status, edit_reason, renewal_confirmation, contact_number, reference_id, invoice_status
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 
+        $11, $12, $13, $14, $15, $16, $17, 
+        $18, $19, $20, $21, $22, $23, $24, 
+        $25, $26, $27, $28, $29, $30
+      )
+    `, [
+      renewal.original_id, renewal.unique_id, renewal.client_name, renewal.service, renewal.renewal_date, renewal.value, renewal.owner, renewal.client_email, renewal.sales_email, renewal.status,
+      renewal.locked, renewal.follow_up_status, renewal.follow_up_remarks, renewal.day_30_sent, renewal.day_20_sent, renewal.day_15_sent, renewal.day_10_sent,
+      renewal.day_5_sent, renewal.day_3_sent, renewal.sales_15_sent, renewal.sales_5_sent, renewal.created_by, renewal.created_at, renewal.updated_at,
+      renewal.edit_status, renewal.edit_reason, renewal.renewal_confirmation, renewal.contact_number, renewal.reference_id, renewal.invoice_status
+    ]);
+
+    // Update ID sequence to prevent serial collision
+    await db.query(`SELECT setval('renewals_id_seq', COALESCE((SELECT MAX(id) FROM renewals), 1), true)`);
+
+    // Remove from trash_renewals
+    await db.query('DELETE FROM trash_renewals WHERE id = $1', [req.params.id]);
+
+    await db.query(`
+      INSERT INTO activity_logs (user_id, action, entity_type, entity_id, details)
+      VALUES ($1, 'restore', 'renewal', $2, $3)
+    `, [req.user.id, renewal.unique_id, `Restored renewal: ${renewal.client_name} - ${renewal.service}`]);
+
+    res.json({ message: 'Renewal restored successfully.' });
+  } catch (err) {
+    console.error('Restore renewal error:', err);
+    res.status(500).json({ error: 'Failed to restore renewal.' });
+  }
+});
+
+// Permanent delete renewal - Admin only
+router.delete('/:id/permanent', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT * FROM trash_renewals WHERE id = $1', [req.params.id]);
+    const renewal = rows[0];
+    if (!renewal) return res.status(404).json({ error: 'Deleted renewal not found.' });
+
+    // Since it was already deleted from renewals, related history/logs were cascade-deleted.
+    // We just delete from trash_renewals.
+    await db.query('DELETE FROM trash_renewals WHERE id = $1', [req.params.id]);
+
+    await db.query(`
+      INSERT INTO activity_logs (user_id, action, entity_type, entity_id, details)
+      VALUES ($1, 'delete_permanent', 'renewal', $2, $3)
+    `, [req.user.id, renewal.unique_id, `Permanently deleted renewal: ${renewal.client_name} - ${renewal.service}`]);
+
+    res.json({ message: 'Renewal permanently deleted.' });
+  } catch (err) {
+    console.error('Permanent delete error:', err);
+    res.status(500).json({ error: 'Failed to permanently delete renewal.' });
+  }
+});
+
 // Get single renewal
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
+    // Auto-revert if renewed but less than 30 days left
+    await db.query(`
+      UPDATE renewals 
+      SET renewal_confirmation = 'pending' 
+      WHERE id = $1
+        AND renewal_confirmation = 'renewed' 
+        AND renewal_date IS NOT NULL 
+        AND (renewal_date - CURRENT_DATE) < 30
+    `, [req.params.id]);
+
+    // Auto-confirm if more than 30 days left
+    await db.query(`
+      UPDATE renewals 
+      SET renewal_confirmation = 'renewed' 
+      WHERE id = $1
+        AND renewal_confirmation != 'renewed' 
+        AND renewal_date IS NOT NULL 
+        AND (renewal_date - CURRENT_DATE) > 30
+    `, [req.params.id]);
+
     const { rows } = await db.query('SELECT * FROM renewals WHERE id = $1', [req.params.id]);
     const renewal = rows[0];
     if (!renewal) return res.status(404).json({ error: 'Renewal not found.' });
@@ -173,7 +470,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 // Create renewal
 router.post('/', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
   try {
-    const { client_name, service, renewal_date, value, owner, client_email, sales_email, contact_number, reference_id } = req.body;
+    const { client_name, service, renewal_date, value, owner, client_email, sales_email, contact_number, reference_id, plan_period } = req.body;
 
     if (!client_name || !service || !renewal_date || !owner || !client_email || !contact_number || !reference_id) {
       return res.status(400).json({ error: 'Client Name, Service, Renewal Date, Contact Person, Client Email, Contact Number, and Reference ID are required.' });
@@ -185,6 +482,7 @@ router.post('/', authenticateToken, requireRole('sales', 'admin'), async (req, r
     rDate.setHours(0, 0, 0, 0);
     const daysLeft = Math.ceil((rDate - today) / (1000 * 60 * 60 * 24));
     const computedStatus = daysLeft < 0 ? 'Expired' : daysLeft <= 30 ? 'Pending Renewal' : 'Active';
+    const computedRenewalConfirmation = daysLeft > 30 ? 'renewed' : 'pending';
 
     // Generate sequential RMT ID (e.g. RMT-01, RMT-02...)
     const { rows: lastRecord } = await db.query(
@@ -200,11 +498,19 @@ router.post('/', authenticateToken, requireRole('sales', 'admin'), async (req, r
     const padNum = String(nextNum).padStart(2, '0');
     const unique_id = `RMT-${padNum}`;
 
+    const flags = getEmailFlags(renewal_date);
     const { rows: result } = await db.query(`
-      INSERT INTO renewals (unique_id, client_name, service, renewal_date, value, owner, client_email, sales_email, contact_number, reference_id, status, locked, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, $12)
+      INSERT INTO renewals (
+        unique_id, client_name, service, renewal_date, value, owner, client_email, sales_email, contact_number, reference_id, status, locked, created_by,
+        day_30_sent, day_20_sent, day_15_sent, day_10_sent, day_5_sent, day_3_sent, sales_15_sent, sales_5_sent, plan_period, renewal_confirmation
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       RETURNING id
-    `, [unique_id, client_name, service, renewal_date, value || 0, owner, client_email, sales_email || '', contact_number || '', reference_id || '', computedStatus, req.user.id]);
+    `, [
+      unique_id, client_name, service, renewal_date, value || 0, owner, client_email, sales_email || '', contact_number || '', reference_id || '', computedStatus, req.user.id,
+      flags.day_30_sent, flags.day_20_sent, flags.day_15_sent, flags.day_10_sent, flags.day_5_sent, flags.day_3_sent, flags.sales_15_sent, flags.sales_5_sent,
+      plan_period || 'yearly_plan', computedRenewalConfirmation
+    ]);
 
     const newId = result[0].id;
 
@@ -216,7 +522,7 @@ router.post('/', authenticateToken, requireRole('sales', 'admin'), async (req, r
     await db.query(`
       INSERT INTO renewal_history (renewal_id, action, new_data, performed_by)
       VALUES ($1, 'created', $2, $3)
-    `, [newId, JSON.stringify({ client_name, service, renewal_date, value, owner, client_email, sales_email, contact_number, reference_id, status: computedStatus }), req.user.id]);
+    `, [newId, JSON.stringify({ client_name, service, renewal_date, value, owner, client_email, sales_email, contact_number, reference_id, status: computedStatus, plan_period: plan_period || 'yearly_plan' }), req.user.id]);
 
     await db.query(`
       INSERT INTO notifications (role, title, message, type)
@@ -304,11 +610,18 @@ router.post('/import', authenticateToken, requireRole('admin'), async (req, res)
       const unique_id = `RMT-${padNum}`;
       nextNum++;
 
+      const flags = getEmailFlags(insertDate);
       const { rows: result } = await client.query(`
-        INSERT INTO renewals (unique_id, client_name, service, renewal_date, value, owner, client_email, sales_email, contact_number, reference_id, status, renewal_confirmation, locked, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 1, $13)
+        INSERT INTO renewals (
+          unique_id, client_name, service, renewal_date, value, owner, client_email, sales_email, contact_number, reference_id, status, renewal_confirmation, locked, created_by,
+          day_30_sent, day_20_sent, day_15_sent, day_10_sent, day_5_sent, day_3_sent, sales_15_sent, sales_5_sent
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 1, $13, $14, $15, $16, $17, $18, $19, $20, $21)
         RETURNING id
-      `, [unique_id, client_name, service, insertDate, insertValue, owner, client_email, sales_email || '', contact_number || '', reference_id || '', computedStatus, confVal, req.user.id]);
+      `, [
+        unique_id, client_name, service, insertDate, insertValue, owner, client_email, sales_email || '', contact_number || '', reference_id || '', computedStatus, confVal, req.user.id,
+        flags.day_30_sent, flags.day_20_sent, flags.day_15_sent, flags.day_10_sent, flags.day_5_sent, flags.day_3_sent, flags.sales_15_sent, flags.sales_5_sent
+      ]);
 
       const newId = result[0].id;
       importedIds.push(newId);
@@ -355,23 +668,28 @@ router.put('/:id/renew', authenticateToken, requireRole('finance', 'admin'), asy
       status: renewal.status,
     });
 
+    const flags = getEmailFlags(renewal_date);
     await db.query(`
       UPDATE renewals SET
         renewal_date = $1,
         service = COALESCE($2, service),
         value = COALESCE($3, value),
         status = COALESCE($4, 'Active'),
-        day_30_sent = 'No',
-        day_20_sent = 'No',
-        day_15_sent = 'No',
-        day_10_sent = 'No',
-        day_5_sent = 'No',
-        day_3_sent = 'No',
-        sales_15_sent = 'No',
-        sales_5_sent = 'No',
+        day_30_sent = $5,
+        day_20_sent = $6,
+        day_15_sent = $7,
+        day_10_sent = $8,
+        day_5_sent = $9,
+        day_3_sent = $10,
+        sales_15_sent = $11,
+        sales_5_sent = $12,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $5
-    `, [renewal_date, service || null, value || null, status || null, req.params.id]);
+      WHERE id = $13
+    `, [
+      renewal_date, service || null, value || null, status || null,
+      flags.day_30_sent, flags.day_20_sent, flags.day_15_sent, flags.day_10_sent, flags.day_5_sent, flags.day_3_sent, flags.sales_15_sent, flags.sales_5_sent,
+      req.params.id
+    ]);
 
     await db.query(`
       INSERT INTO renewal_history (renewal_id, action, previous_data, new_data, performed_by)
@@ -430,7 +748,7 @@ router.put('/:id/follow-up', authenticateToken, requireRole('sales', 'admin'), a
 // Edit renewal basic details
 router.put('/:id', authenticateToken, requireRole('finance', 'sales', 'admin'), async (req, res) => {
   try {
-    const { client_name, service, renewal_date, value, owner, client_email, sales_email, contact_number, reference_id } = req.body;
+    const { client_name, service, renewal_date, value, owner, client_email, sales_email, contact_number, reference_id, plan_period } = req.body;
     const { rows } = await db.query('SELECT * FROM renewals WHERE id = $1', [req.params.id]);
     const renewal = rows[0];
     
@@ -447,6 +765,7 @@ router.put('/:id', authenticateToken, requireRole('finance', 'sales', 'admin'), 
 
     let computedStatus = '-';
     let computedRenewalDate = renewal_date || null;
+    let computedRenewalConfirmation = renewal.renewal_confirmation;
     if (computedRenewalDate) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -454,6 +773,12 @@ router.put('/:id', authenticateToken, requireRole('finance', 'sales', 'admin'), 
       rDate.setHours(0, 0, 0, 0);
       const daysLeft = Math.ceil((rDate - today) / (1000 * 60 * 60 * 24));
       computedStatus = daysLeft < 0 ? 'Expired' : daysLeft <= 30 ? 'Pending Renewal' : 'Active';
+      
+      if (daysLeft > 30) {
+        computedRenewalConfirmation = 'renewed';
+      } else if (daysLeft <= 30 && computedRenewalConfirmation === 'renewed') {
+        computedRenewalConfirmation = 'pending';
+      }
     }
 
     const previousData = JSON.stringify({
@@ -466,7 +791,8 @@ router.put('/:id', authenticateToken, requireRole('finance', 'sales', 'admin'), 
       sales_email: renewal.sales_email,
       contact_number: renewal.contact_number,
       reference_id: renewal.reference_id,
-      status: renewal.status
+      status: renewal.status,
+      plan_period: renewal.plan_period
     });
 
     // Check if renewal_date has changed
@@ -477,9 +803,9 @@ router.put('/:id', authenticateToken, requireRole('finance', 'sales', 'admin'), 
     await db.query(`
       UPDATE renewals SET 
         client_name = $1, service = $2, renewal_date = $3, value = $4, 
-        owner = $5, client_email = $6, sales_email = $7, contact_number = $8, reference_id = $9, status = $10, edit_status = NULL, edit_reason = $11, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $12
-    `, [client_name, service, computedRenewalDate, value || 0, owner, client_email, sales_email || '', contact_number || '', reference_id || '', computedStatus, req.body.reason || null, req.params.id]);
+        owner = $5, client_email = $6, sales_email = $7, contact_number = $8, reference_id = $9, status = $10, edit_status = NULL, edit_reason = $11, plan_period = $12, renewal_confirmation = $13, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $14
+    `, [client_name, service, computedRenewalDate, value || 0, owner, client_email, sales_email || '', contact_number || '', reference_id || '', computedStatus, req.body.reason || null, plan_period || 'yearly_plan', computedRenewalConfirmation, req.params.id]);
 
     // If renewal date changed, recalculate email flags
     if (dateChanged) {
@@ -492,23 +818,7 @@ router.put('/:id', authenticateToken, requireRole('finance', 'sales', 'admin'), 
           WHERE id = $1
         `, [req.params.id]);
       } else {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const newRenewalDate = new Date(computedRenewalDate);
-        newRenewalDate.setHours(0, 0, 0, 0);
-        const daysLeft = Math.ceil((newRenewalDate - today) / (1000 * 60 * 60 * 24));
-
-        // Reset all flags, then mark passed tiers as 'Yes'
-        const flags = {
-          day_30_sent: daysLeft < 30 ? 'Yes' : 'No',
-          day_20_sent: daysLeft < 20 ? 'Yes' : 'No',
-          day_15_sent: daysLeft < 15 ? 'Yes' : 'No',
-          day_10_sent: daysLeft < 10 ? 'Yes' : 'No',
-          day_5_sent: daysLeft < 5 ? 'Yes' : 'No',
-          day_3_sent: daysLeft < 3 ? 'Yes' : 'No',
-          sales_15_sent: daysLeft < 15 ? 'Yes' : 'No',
-          sales_5_sent: daysLeft < 5 ? 'Yes' : 'No',
-        };
+        const flags = getEmailFlags(computedRenewalDate);
 
         await db.query(`
           UPDATE renewals SET 
@@ -523,6 +833,7 @@ router.put('/:id', authenticateToken, requireRole('finance', 'sales', 'admin'), 
           req.params.id
         ]);
 
+        const daysLeft = computedRenewalDate ? Math.ceil((new Date(computedRenewalDate).setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / (1000 * 60 * 60 * 24)) : 'N/A';
         console.log(`📅 Renewal date changed for ${client_name}: ${oldDate} → ${newDate} (${daysLeft} days left). Email flags recalculated.`);
       }
     }
@@ -533,7 +844,7 @@ router.put('/:id', authenticateToken, requireRole('finance', 'sales', 'admin'), 
     `, [
       req.params.id, 
       previousData, 
-      JSON.stringify({ client_name, service, renewal_date, value, owner, client_email, sales_email, contact_number, reference_id, status: computedStatus, reason: req.body.reason }), 
+      JSON.stringify({ client_name, service, renewal_date, value, owner, client_email, sales_email, contact_number, reference_id, status: computedStatus, reason: req.body.reason, plan_period }), 
       req.user.id
     ]);
 
@@ -581,24 +892,44 @@ router.put('/:id', authenticateToken, requireRole('finance', 'sales', 'admin'), 
   }
 });
 
-// Delete renewal
+// Delete renewal (move to trash table)
 router.delete('/:id', authenticateToken, requireRole('finance', 'admin'), async (req, res) => {
   try {
     const { rows } = await db.query('SELECT * FROM renewals WHERE id = $1', [req.params.id]);
     const renewal = rows[0];
     if (!renewal) return res.status(404).json({ error: 'Renewal not found.' });
 
-    await db.query('DELETE FROM email_logs WHERE renewal_id = $1', [req.params.id]);
-    await db.query('DELETE FROM renewal_history WHERE renewal_id = $1', [req.params.id]);
+    // Move to trash_renewals table
+    await db.query(`
+      INSERT INTO trash_renewals (
+        original_id, unique_id, client_name, service, renewal_date, value, owner, client_email, sales_email, status, 
+        locked, follow_up_status, follow_up_remarks, day_30_sent, day_20_sent, day_15_sent, day_10_sent, 
+        day_5_sent, day_3_sent, sales_15_sent, sales_5_sent, created_by, created_at, updated_at, 
+        edit_status, edit_reason, renewal_confirmation, contact_number, reference_id, invoice_status
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 
+        $11, $12, $13, $14, $15, $16, $17, 
+        $18, $19, $20, $21, $22, $23, $24, 
+        $25, $26, $27, $28, $29, $30
+      )
+    `, [
+      renewal.id, renewal.unique_id, renewal.client_name, renewal.service, renewal.renewal_date, renewal.value, renewal.owner, renewal.client_email, renewal.sales_email, renewal.status,
+      renewal.locked, renewal.follow_up_status, renewal.follow_up_remarks, renewal.day_30_sent, renewal.day_20_sent, renewal.day_15_sent, renewal.day_10_sent,
+      renewal.day_5_sent, renewal.day_3_sent, renewal.sales_15_sent, renewal.sales_5_sent, renewal.created_by, renewal.created_at, renewal.updated_at,
+      renewal.edit_status, renewal.edit_reason, renewal.renewal_confirmation, renewal.contact_number, renewal.reference_id, renewal.invoice_status
+    ]);
+
+    // Delete from renewals table
     await db.query('DELETE FROM renewals WHERE id = $1', [req.params.id]);
 
     await db.query(`
       INSERT INTO activity_logs (user_id, action, entity_type, entity_id, details)
-      VALUES ($1, 'delete', 'renewal', $2, $3)
-    `, [req.user.id, renewal.unique_id, `Deleted renewal: ${renewal.client_name} - ${renewal.service}`]);
+      VALUES ($1, 'delete_soft', 'renewal', $2, $3)
+    `, [req.user.id, renewal.unique_id, `Moved renewal to trash: ${renewal.client_name} - ${renewal.service}`]);
 
-    res.json({ message: 'Renewal deleted successfully.' });
+    res.json({ message: 'Renewal moved to trash successfully.' });
   } catch (err) {
+    console.error('Delete renewal error:', err);
     res.status(500).json({ error: 'Failed to delete renewal.' });
   }
 });
@@ -952,22 +1283,27 @@ router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admi
       rDate.setHours(0, 0, 0, 0);
       const computedStatus = 'Active';
 
+      const flags = getEmailFlags(new_renewal_date);
       await db.query(`
         UPDATE renewals SET 
           renewal_confirmation = $1, 
           renewal_date = $2,
           status = $3,
-          day_30_sent = 'No',
-          day_20_sent = 'No',
-          day_15_sent = 'No',
-          day_10_sent = 'No',
-          day_5_sent = 'No',
-          day_3_sent = 'No',
-          sales_15_sent = 'No',
-          sales_5_sent = 'No',
+          day_30_sent = $4,
+          day_20_sent = $5,
+          day_15_sent = $6,
+          day_10_sent = $7,
+          day_5_sent = $8,
+          day_3_sent = $9,
+          sales_15_sent = $10,
+          sales_5_sent = $11,
           updated_at = CURRENT_TIMESTAMP 
-        WHERE id = $4
-      `, [renewal_confirmation, new_renewal_date, computedStatus, req.params.id]);
+        WHERE id = $12
+      `, [
+        renewal_confirmation, new_renewal_date, computedStatus,
+        flags.day_30_sent, flags.day_20_sent, flags.day_15_sent, flags.day_10_sent, flags.day_5_sent, flags.day_3_sent, flags.sales_15_sent, flags.sales_5_sent,
+        req.params.id
+      ]);
 
       const previousData = JSON.stringify({
         renewal_date: renewal.renewal_date,
@@ -1028,7 +1364,7 @@ router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admi
 
     // Format label for display
     const labelMap = {
-      quotation_confirmation: 'Quotation Confirmation',
+      quotation_confirmation: 'Order Confirmation',
       awaiting_client_approval: 'Awaiting Client Approval',
       awaiting_with_vendor: 'Awaiting with Vendor',
       renewed: 'Renewed',
