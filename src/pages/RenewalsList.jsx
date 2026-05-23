@@ -752,7 +752,7 @@ export default function RenewalsList() {
           onMouseMove={handleDragMouseMove}
           className={`max-h-[600px] overflow-auto custom-scrollbar relative select-none ${isDragDown ? 'cursor-grabbing' : 'cursor-grab'}`}
         >
-          <table className="w-full text-left text-sm table-fixed min-w-[1500px]">
+          <table className="w-full text-left text-sm min-w-[1500px]">
             <thead className="bg-surface-50 dark:bg-surface-900 text-surface-500 dark:text-surface-400 border-b border-surface-200 dark:border-surface-700 sticky top-0 z-10 shadow-sm">
               <tr>
                 <th className="px-4 py-3 font-medium w-[7%]">Unique ID</th>
@@ -841,7 +841,7 @@ export default function RenewalsList() {
                         {row.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-center">
                       {row.status === '-' ? (
                         <div className="text-center text-surface-400 dark:text-surface-600 font-medium">—</div>
                       ) : (
@@ -914,7 +914,7 @@ export default function RenewalsList() {
                       )}
                     </td>
                     {!isFinance && (
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-2">
                           {isSales && (
                             <>
@@ -965,11 +965,11 @@ export default function RenewalsList() {
                     )}
                     
                     {isAdmin && (
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-center">
                         {row.edit_status === 'requested' && (
                           <button 
                             onClick={() => handleApproveEdit(row.id)}
-                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"
+                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors flex items-center justify-center gap-1 mx-auto"
                             title="Approve Edit Request"
                           >
                             <CheckCircle className="w-4 h-4" /> Approve
