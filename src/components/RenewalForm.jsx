@@ -248,16 +248,16 @@ export default function RenewalForm({ onClose, onSuccess, editData = null }) {
                 </p>
               </div>
             )}
-            <div className="flex items-start gap-2.5 mt-4">
+             <div className="flex items-center gap-2.5 mt-4">
               <input 
                 type="checkbox" 
                 id="acknowledgement" 
                 required 
-                className="mt-1 w-4 h-4 rounded text-brand-600 border-surface-300 focus:ring-brand-500 dark:border-surface-650 cursor-pointer"
+                className="w-4 h-4 rounded text-brand-600 border-surface-300 focus:ring-brand-500 dark:border-surface-650 cursor-pointer"
                 checked={acknowledged}
                 onChange={(e) => setAcknowledged(e.target.checked)}
               />
-              <label htmlFor="acknowledgement" className="text-xs text-surface-600 dark:text-surface-300 font-medium select-none cursor-pointer">
+              <label htmlFor="acknowledgement" className="text-xs text-surface-600 dark:text-surface-300 font-medium select-none cursor-pointer flex items-center">
                 I acknowledge that the information provided above is correct and verified. <span className="text-red-500">*</span>
               </label>
             </div>
