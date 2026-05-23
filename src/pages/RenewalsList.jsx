@@ -820,7 +820,9 @@ export default function RenewalsList() {
                       >
                         {row.client_name}
                       </button>
-                      <p className="text-xs text-surface-500 mt-0.5 truncate">{row.client_email}</p>
+                      <p className="text-xs text-surface-500 mt-0.5 truncate max-w-[140px] block" title={row.client_email}>
+                        {row.client_email}
+                      </p>
                     </td>
                     <td className="px-4 py-3 overflow-hidden">
                       <p className="text-surface-900 dark:text-white font-medium truncate">{row.service}</p>
