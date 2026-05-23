@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/formatters';
 import { 
   LayoutDashboard, 
@@ -16,7 +18,8 @@ import {
   Moon,
   Sun,
   Home,
-  History
+  History,
+  Trash2
 } from 'lucide-react';
 
 const getRoleLabel = (role) => {
@@ -40,9 +43,13 @@ export default function Layout({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sidebarRef = useRef(null);
   const triggerRef = useRef(null);
+  const notificationsRef = useRef(null);
+  const leaveTimeoutRef = useRef(null);
+  const toastedIdsRef = useRef(new Set());
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -89,26 +96,212 @@ export default function Layout({ children }) {
     }
   };
 
+  // Click outside to close notifications dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleMouseEnter = () => {
+    if (leaveTimeoutRef.current) {
+      clearTimeout(leaveTimeoutRef.current);
+      leaveTimeoutRef.current = null;
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (leaveTimeoutRef.current) {
+      clearTimeout(leaveTimeoutRef.current);
+    }
+    leaveTimeoutRef.current = setTimeout(() => {
+      setShowNotifications(false);
+    }, 450);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (leaveTimeoutRef.current) {
+        clearTimeout(leaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Fetch notifications
   useEffect(() => {
+    let isMounted = true;
+    let isFirstLoad = true;
+
     const fetchNotifications = async () => {
+      if (!token) return;
       try {
         const res = await fetch('/api/dashboard/notifications', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (res.ok) {
+        if (res.ok && isMounted) {
           const data = await res.json();
           setNotifications(data.notifications);
           setUnreadCount(data.unread);
+
+          // If the user is admin or finance, show toast popups for new unread notifications
+          if (user?.role === 'admin' || user?.role === 'finance') {
+            data.notifications.forEach(notif => {
+              if (notif.read === 0 && !toastedIdsRef.current.has(notif.id)) {
+                // If it's not the first load, trigger the toast popup!
+                if (!isFirstLoad) {
+                  toast.custom((t) => (
+                    <div
+                      className={`${
+                        t.visible ? 'animate-enter' : 'animate-leave'
+                      } max-w-md w-full bg-white dark:bg-surface-850 shadow-2xl rounded-xl pointer-events-auto flex border border-surface-200 dark:border-surface-700`}
+                    >
+                      <div className="flex-1 w-0 p-4">
+                        <div className="flex items-start">
+                          <div className="flex-shrink-0 pt-0.5">
+                            <Bell className="h-5 w-5 text-brand-500 animate-bounce" />
+                          </div>
+                          <div className="ml-3 flex-1">
+                            <p className="text-xs font-bold text-surface-900 dark:text-white uppercase tracking-wider">
+                              {notif.title}
+                            </p>
+                            <p className="mt-1 text-xs text-surface-500 dark:text-surface-300">
+                              {notif.message}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex border-l border-surface-200 dark:border-surface-700">
+                        <button
+                          onClick={() => toast.dismiss(t.id)}
+                          className="w-full border border-transparent rounded-none rounded-r-xl px-4 py-2 flex items-center justify-center text-xs font-semibold text-brand-600 dark:text-brand-400 hover:bg-surface-50 dark:hover:bg-surface-900 transition-colors focus:outline-none"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                  ), { duration: 6000, id: `notif-${notif.id}` });
+                }
+                // Mark as seen in toastedIds set
+                toastedIdsRef.current.add(notif.id);
+              }
+            });
+          }
+
+          if (isFirstLoad) {
+            isFirstLoad = false;
+          }
         }
       } catch (err) {
         console.error(err);
       }
     };
+
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 60000);
-    return () => clearInterval(interval);
-  }, [token]);
+    const interval = setInterval(fetchNotifications, 8000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [token, user]);
+
+  const handleMarkAsRead = async (id) => {
+    try {
+      const res = await fetch(`/api/dashboard/notifications/${id}/read`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      const res = await fetch('/api/dashboard/notifications/read-all', {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setNotifications(notifications.map(n => ({ ...n, read: true })));
+        setUnreadCount(0);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const extractClientFromNotification = (notif) => {
+    if (notif.link) return notif.link;
+
+    const msg = notif.message;
+    
+    // 1. Edit Access Requested: "CST team requested edit access for [client]"
+    if (msg.includes('CST team requested edit access for ')) {
+      return '/renewals?search=' + encodeURIComponent(msg.split('CST team requested edit access for ')[1].trim());
+    }
+    
+    // 2. Edit Approved: "Edit approved for [client]"
+    if (msg.includes('Edit approved for ')) {
+      return '/renewals?search=' + encodeURIComponent(msg.split('Edit approved for ')[1].trim());
+    }
+
+    // 3. New renewal created: "New renewal created for [client] ([service])..."
+    if (msg.includes('New renewal created for ')) {
+      const after = msg.split('New renewal created for ')[1];
+      const client = after.split(' (')[0];
+      return '/renewals?search=' + encodeURIComponent(client.trim());
+    }
+
+    // 4. Follow-Up Required: "Please meet [client] regarding [service]..."
+    if (msg.includes('Please meet ')) {
+      const after = msg.split('Please meet ')[1];
+      const client = after.split(' regarding')[0];
+      return '/renewals?search=' + encodeURIComponent(client.trim());
+    }
+
+    // 5. Email Sent: "[N]-day reminder sent for [client] ([service])."
+    if (msg.includes(' reminder sent for ')) {
+      const after = msg.split(' reminder sent for ')[1];
+      const client = after.split(' (')[0];
+      return '/renewals?search=' + encodeURIComponent(client.trim());
+    }
+
+    // 6. Renewal Expired: "[client]'s [service] renewal has expired."
+    if (msg.includes("'s ") && msg.includes(" renewal has expired")) {
+      const client = msg.split("'s ")[0];
+      return '/renewals?search=' + encodeURIComponent(client.trim());
+    }
+
+    // 7. Client Renewed: "Renewal processed for [client]."
+    if (msg.includes('Renewal processed for ')) {
+      const after = msg.split('Renewal processed for ')[1];
+      const client = after.split('.')[0];
+      return '/renewals?search=' + encodeURIComponent(client.trim());
+    }
+
+    return null;
+  };
+
+  const handleNotificationClick = async (notif) => {
+    if (!notif.read) {
+      await handleMarkAsRead(notif.id);
+    }
+    const path = extractClientFromNotification(notif);
+    if (path) {
+      navigate(path);
+      setShowNotifications(false);
+      setIsNotificationsModalOpen(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -121,8 +314,12 @@ export default function Layout({ children }) {
     { name: 'Reports & Logs', path: '/reports', icon: BarChart3 },
   ];
 
-  if (user?.role === 'finance' || user?.role === 'admin') {
+  if (user?.role === 'finance' || user?.role === 'admin' || user?.role === 'sales') {
     navItems.push({ name: 'Record Details', path: '/edits-history', icon: History });
+  }
+
+  if (user?.role === 'admin') {
+    navItems.push({ name: 'Trash Data', path: '/trash', icon: Trash2 });
   }
 
   const getInitials = (name) => {
@@ -181,7 +378,7 @@ export default function Layout({ children }) {
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     isActive
                       ? 'bg-brand-600 text-white dark:bg-brand-600 dark:text-white shadow-sm'
-                      : 'text-surface-700 hover:bg-white/40 hover:text-surface-950 dark:text-surface-200 dark:hover:bg-white/10 dark:hover:text-white'
+                      : 'text-surface-700 hover:bg-white/40 hover:text-surface-900 dark:text-surface-200 dark:hover:bg-white/10 dark:hover:text-white'
                   }`}
                   onClick={() => { setSidebarOpen(false); setIsMobileMenuOpen(false); }}
                 >
@@ -261,7 +458,12 @@ export default function Layout({ children }) {
             </button>
 
             {/* Notifications */}
-            <div className="relative">
+            <div 
+              ref={notificationsRef}
+              className="relative"
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
+            >
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
                 className="relative p-2.5 text-surface-700 hover:text-surface-900 dark:text-surface-200 dark:hover:text-white rounded-xl transition-colors shadow-sm"
@@ -282,10 +484,10 @@ export default function Layout({ children }) {
               {showNotifications && (
                 <div className="absolute right-0 mt-2 w-80 rounded-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200 shadow-xl"
                   style={{
-                    background: isDarkMode ? 'rgba(28, 25, 23, 0.82)' : 'rgba(255, 248, 240, 0.65)',
+                    background: isDarkMode ? 'rgba(28, 25, 23, 0.98)' : 'rgba(255, 255, 255, 0.98)',
                     backdropFilter: 'blur(24px)',
                     WebkitBackdropFilter: 'blur(24px)',
-                    border: isDarkMode ? '1px solid rgba(255, 255, 255, 0.10)' : '1px solid rgba(255, 255, 255, 0.55)',
+                    border: isDarkMode ? '1px solid rgba(255, 255, 255, 0.15)' : '1px solid rgba(0, 0, 0, 0.08)',
                   }}
                 >
                   <div className="px-4 py-3 flex justify-between items-center"
@@ -304,8 +506,12 @@ export default function Layout({ children }) {
                       </div>
                     ) : (
                       notifications.slice(0, 5).map(notif => (
-                        <div key={notif.id} className={`p-4 last:border-0 hover:bg-white/30 dark:hover:bg-white/5 transition-colors ${notif.read ? 'opacity-60' : ''}`}
-                          style={{borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.3)'}}>
+                        <div 
+                          key={notif.id} 
+                          onClick={() => handleNotificationClick(notif)}
+                          className={`p-4 last:border-0 hover:bg-white/30 dark:hover:bg-white/5 transition-colors cursor-pointer ${notif.read ? 'opacity-60' : ''}`}
+                          style={{borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.3)'}}
+                        >
                           <p className="text-sm font-medium text-surface-900 dark:text-white">{notif.title}</p>
                           <p className="text-xs text-surface-500 dark:text-surface-400 mt-1 line-clamp-2">{notif.message}</p>
                           <p className="text-[10px] text-surface-400 dark:text-surface-500 mt-2">
@@ -316,7 +522,10 @@ export default function Layout({ children }) {
                     )}
                   </div>
                   <div className="p-2" style={{borderTop: isDarkMode ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(255,255,255,0.4)'}}>
-                    <button className="w-full text-center text-xs font-medium text-brand-600 dark:text-brand-400 py-1.5 hover:underline">
+                    <button 
+                      onClick={() => { setIsNotificationsModalOpen(true); setShowNotifications(false); }}
+                      className="w-full text-center text-xs font-medium text-brand-600 dark:text-brand-400 py-1.5 hover:underline"
+                    >
                       View all notifications
                     </button>
                   </div>
@@ -348,6 +557,94 @@ export default function Layout({ children }) {
           </div>
         </main>
       </div>
+      
+      {/* Notifications Full View Modal */}
+      {isNotificationsModalOpen && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-surface-800 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden border border-surface-200 dark:border-surface-700 flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
+            
+            <div className="px-6 py-4 border-b border-surface-200 dark:border-surface-700 flex justify-between items-center bg-surface-50 dark:bg-surface-900/50">
+              <div>
+                <h2 className="text-lg font-bold text-surface-900 dark:text-white flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+                  All Notifications
+                </h2>
+                <p className="text-xs text-surface-500 mt-1">
+                  You have {unreadCount} unread notifications
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                {unreadCount > 0 && (
+                  <button 
+                    onClick={handleMarkAllAsRead}
+                    className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                  >
+                    Mark all as read
+                  </button>
+                )}
+                <button onClick={() => setIsNotificationsModalOpen(false)} className="p-2 text-surface-400 hover:text-surface-600 rounded-full hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-4">
+              {notifications.length === 0 ? (
+                <div className="py-12 text-center text-surface-500 dark:text-surface-400">
+                  No notifications found.
+                </div>
+              ) : (
+                notifications.map(notif => (
+                  <div 
+                    key={notif.id} 
+                    onClick={() => handleNotificationClick(notif)}
+                    className={`p-4 rounded-xl border transition-all flex justify-between items-start gap-4 cursor-pointer hover:border-brand-300 dark:hover:border-brand-700 ${
+                      notif.read 
+                        ? 'bg-surface-50/50 dark:bg-surface-900/10 border-surface-100 dark:border-surface-800 opacity-75' 
+                        : 'bg-brand-50/30 dark:bg-brand-950/10 border-brand-100 dark:border-brand-900/30 shadow-sm'
+                    }`}
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-semibold text-surface-900 dark:text-white">{notif.title}</h4>
+                        {!notif.read && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-600 dark:bg-brand-400"></span>
+                        )}
+                        <span className="text-[10px] bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 px-1.5 py-0.5 rounded font-medium">
+                          {notif.type || 'system'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-surface-600 dark:text-surface-300 leading-relaxed">{notif.message}</p>
+                      <p className="text-[10px] text-surface-400 dark:text-surface-500">
+                        {formatDateTime(notif.created_at)}
+                      </p>
+                    </div>
+
+                    {!notif.read && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMarkAsRead(notif.id);
+                        }}
+                        className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors whitespace-nowrap flex-shrink-0"
+                      >
+                        Mark read
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900/50 flex justify-end">
+              <button onClick={() => setIsNotificationsModalOpen(false)} className="btn-secondary">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
