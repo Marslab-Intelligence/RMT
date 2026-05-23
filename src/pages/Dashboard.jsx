@@ -184,7 +184,7 @@ export default function Dashboard() {
         } gap-6`}
       >
         <div className="card p-6">
-          <h2 className="text-lg font-bold text-surface-900 dark:text-white mb-4">Recent Activity</h2>
+          <h2 className="text-lg font-bold text-surface-900 dark:text-white mb-4">Logs</h2>
           <div className="space-y-4">
              {activityLogs.length === 0 ? (
                <p className="text-sm text-surface-500">No recent activity.</p>
@@ -207,7 +207,7 @@ export default function Dashboard() {
         {(user?.role === 'finance' || user?.role === 'admin' || user?.role === 'sales') && (
           <div className="card p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-surface-900 dark:text-white">Recent Edits (CST & Admin)</h2>
+              <h2 className="text-lg font-bold text-surface-900 dark:text-white">Recent Edits</h2>
               <button 
                 onClick={() => navigate('/edits-history')} 
                 className="text-xs text-brand-600 dark:text-brand-400 font-semibold hover:underline"
@@ -265,7 +265,7 @@ export default function Dashboard() {
                 </span>
               )}
             </div>
-            <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+            <div className="space-y-3 pr-1">
               {filteredNotifications.length === 0 ? (
                 <p className="text-sm text-surface-500">No recent updates.</p>
               ) : (
