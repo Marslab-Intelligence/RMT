@@ -28,7 +28,7 @@ const getEmailFlags = (renewalDate) => {
     day_5_sent: daysLeft < 5 ? 'Yes' : 'No',
     day_3_sent: daysLeft < 3 ? 'Yes' : 'No',
     sales_15_sent: daysLeft < 15 ? 'Yes' : 'No',
-    sales_5_sent: daysLeft < 5 ? 'Yes' : 'No'
+  };
 };
 
 const notifyAdminAndFinance = async (title, message, type = 'info') => {
