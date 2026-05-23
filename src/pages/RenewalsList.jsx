@@ -984,17 +984,9 @@ export default function RenewalsList() {
                             Inv: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(row.invoice_value)}</span> • Bal: <span className="font-semibold text-surface-750 dark:text-surface-200">{formatCurrency(row.value - row.invoice_value)}</span>
                           </div>
                           {parseFloat(row.value) > 0 && (
-                            <>
-                              <div className="text-[9px] text-surface-400 dark:text-surface-500 font-mono whitespace-nowrap">
-                                {Math.round((row.invoice_value / row.value) * 100)}% Paid ({Math.round((1 - row.invoice_value / row.value) * 100)}% to pay)
-                              </div>
-                              <div className="w-full bg-zinc-200 dark:bg-zinc-700 h-[3px] rounded-full overflow-hidden mt-0.5">
-                                <div 
-                                  className="bg-emerald-500 h-full rounded-full" 
-                                  style={{ width: `${Math.min(100, Math.max(0, (row.invoice_value / row.value) * 100))}%` }}
-                                ></div>
-                              </div>
-                            </>
+                            <div className="text-[9px] text-surface-400 dark:text-surface-500 font-mono whitespace-nowrap">
+                              {Math.round((row.invoice_value / row.value) * 100)}% Paid ({Math.round((1 - row.invoice_value / row.value) * 100)}% to pay)
+                            </div>
                           )}
                         </div>
                       ) : (
