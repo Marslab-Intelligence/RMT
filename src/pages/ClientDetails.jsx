@@ -130,6 +130,9 @@ export default function ClientDetails() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
+            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+              Quotation No: {client.quotation_number ? `#${client.quotation_number}` : '-'}
+            </span>
             {client.invoice_number && (
               <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                 Invoice No: #{client.invoice_number}
@@ -176,17 +179,17 @@ export default function ClientDetails() {
               </div>
             </div>
 
-            {client.quotation_number && (
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-lg mt-0.5">
-                  <FileText className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-0.5">Quotation Number</p>
-                  <p className="text-sm font-semibold text-surface-900 dark:text-white">#{client.quotation_number}</p>
-                </div>
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-lg mt-0.5">
+                <FileText className="w-4 h-4" />
               </div>
-            )}
+              <div>
+                <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-0.5">Quotation Number</p>
+                <p className="text-sm font-semibold text-surface-900 dark:text-white">
+                  {client.quotation_number ? `#${client.quotation_number}` : 'Not Added'}
+                </p>
+              </div>
+            </div>
 
             <div className="flex items-start gap-3">
               <div className="p-2 bg-orange-50 dark:bg-orange-900/20 text-orange-600 rounded-lg mt-0.5">
@@ -392,6 +395,53 @@ export default function ClientDetails() {
           </div>
         </div>
       )}
+
+      {/* Dedicated Quotation & Commercial Details Card */}
+      <div className="card p-6 space-y-4 bg-gradient-to-br from-indigo-50/30 via-transparent to-transparent dark:from-indigo-950/10 border-l-4 border-indigo-500">
+        <div className="flex items-center justify-between border-b border-surface-150 dark:border-surface-700 pb-2">
+          <h2 className="text-base font-bold text-surface-900 dark:text-white flex items-center gap-2">
+            <FileText className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Quotation & Commercial Information
+          </h2>
+          <button
+            onClick={() => setIsSalesQuickEditOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            Edit Quotation No. & Costs
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white dark:bg-surface-900/50 p-4 rounded-xl border border-surface-200/60 dark:border-surface-700">
+            <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-1">Quotation Number</p>
+            <p className="text-base font-extrabold text-indigo-600 dark:text-indigo-400">
+              {client.quotation_number ? `#${client.quotation_number}` : 'Not Added'}
+            </p>
+          </div>
+          <div className="bg-white dark:bg-surface-900/50 p-4 rounded-xl border border-surface-200/60 dark:border-surface-700">
+            <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-1">Quotation Confirmation</p>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 inline-block mt-0.5">
+              {client.renewal_confirmation === 'quotation_confirmation' ? 'Order Confirmation' :
+               client.renewal_confirmation === 'awaiting_client_approval' ? 'Awaiting Client Approval' :
+               client.renewal_confirmation === 'awaiting_with_vendor' ? 'Awaiting with Vendor' :
+               client.renewal_confirmation === 'renewed' ? 'Renewed' :
+               client.renewal_confirmation === 'service_discontinued' ? 'Discontinued' : 'Pending'}
+            </span>
+          </div>
+          <div className="bg-white dark:bg-surface-900/50 p-4 rounded-xl border border-surface-200/60 dark:border-surface-700">
+            <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-1">Quotation / Sales Value</p>
+            <p className="text-base font-bold text-surface-900 dark:text-white">
+              {formatCurrency(client.total_sales_cost || client.value)}
+            </p>
+          </div>
+          <div className="bg-white dark:bg-surface-900/50 p-4 rounded-xl border border-surface-200/60 dark:border-surface-700">
+            <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-1">Unit Sales Price & Qty</p>
+            <p className="text-sm font-semibold text-surface-900 dark:text-white">
+              {formatCurrency(client.sales_cost || 0)} × {client.quantity || 1}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Product & Financial Information Card */}
       <div className="card p-6 space-y-4">

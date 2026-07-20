@@ -135,17 +135,17 @@ export default function ClientDetailsModal({ client, onClose }) {
               </div>
             )}
 
-            {client.quotation_number && (
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-lg">
-                  <FileText className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-0.5">Quotation Number</p>
-                  <p className="text-sm font-medium text-surface-900 dark:text-white">{client.quotation_number}</p>
-                </div>
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-lg">
+                <FileText className="w-4 h-4" />
               </div>
-            )}
+              <div>
+                <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-0.5">Quotation Number</p>
+                <p className="text-sm font-medium text-surface-900 dark:text-white">
+                  {client.quotation_number ? `#${client.quotation_number}` : 'Not Added'}
+                </p>
+              </div>
+            </div>
 
             {client.reference_id && (
               <div className="flex items-start gap-3">
