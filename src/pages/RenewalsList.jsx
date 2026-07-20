@@ -169,7 +169,7 @@ export default function RenewalsList() {
     if (!silent) setLoading(true);
     setSelectedIds([]); // Clear selection when fetching new dataset
     try {
-      const res = await fetch(`/api/renewals?page=${page}&limit=25&search=${search}&status=${statusColFilter !== 'all' ? statusColFilter : statusFilter}&dateRange=${dateRangeFilter}&valueRange=${valueFilter}&renewalConfirmation=${renewedFilter}&clientName=${encodeURIComponent(clientFilter)}&serviceName=${encodeURIComponent(serviceFilter)}`, {
+      const res = await fetch(`/api/renewals?page=1&limit=10000&search=${search}&status=${statusColFilter !== 'all' ? statusColFilter : statusFilter}&dateRange=${dateRangeFilter}&valueRange=${valueFilter}&renewalConfirmation=${renewedFilter}&clientName=${encodeURIComponent(clientFilter)}&serviceName=${encodeURIComponent(serviceFilter)}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -1478,26 +1478,13 @@ export default function RenewalsList() {
           </table>
         </div>
         
-        {/* Pagination */}
+        {/* Table Footer */}
         <div className="px-6 py-4 border-t border-surface-200 dark:border-surface-700 flex items-center justify-between bg-white dark:bg-surface-800">
           <div className="text-sm text-surface-500 dark:text-surface-400">
-            Showing <span className="font-medium text-surface-900 dark:text-white">{Math.min((page - 1) * 25 + 1, totalRecords)}</span> to <span className="font-medium text-surface-900 dark:text-white">{Math.min(page * 25, totalRecords)}</span> of <span className="font-medium text-surface-900 dark:text-white">{totalRecords}</span> results
+            Showing all <span className="font-bold text-surface-900 dark:text-white">{renewals.length}</span> renewals
           </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="p-2 border border-surface-300 rounded-lg disabled:opacity-50 hover:bg-surface-50 dark:border-surface-600 dark:hover:bg-surface-700"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages || totalPages === 0}
-              className="p-2 border border-surface-300 rounded-lg disabled:opacity-50 hover:bg-surface-50 dark:border-surface-600 dark:hover:bg-surface-700"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+          <div className="text-xs text-surface-400 dark:text-surface-500 font-medium">
+            Full List • Scroll to view all records
           </div>
         </div>
       </div>

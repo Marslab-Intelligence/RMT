@@ -207,9 +207,10 @@ router.get('/', authenticateToken, async (req, res) => {
       query += ` ORDER BY CASE WHEN status = 'Expired' THEN 1 ELSE 0 END ASC, ${sortCol} ${sortOrder}`;
     }
 
-    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const parsedLimit = limit === 'all' ? 100000 : (parseInt(limit) || 10000);
+    const offset = (parseInt(page) - 1) * parsedLimit;
     query += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
-    params.push(parseInt(limit), offset);
+    params.push(parsedLimit, offset);
 
     const { rows: renewals } = await db.query(query, params);
 
