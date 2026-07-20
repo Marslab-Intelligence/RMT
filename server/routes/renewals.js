@@ -157,6 +157,22 @@ router.get('/', authenticateToken, async (req, res) => {
         const end = new Date(now); end.setDate(end.getDate() + 90);
         query += ` AND renewal_date >= $${paramIndex++} AND renewal_date <= $${paramIndex++}`;
         params.push(today, end.toISOString().split('T')[0]);
+      } else if (dateRange === 'this_month') {
+        query += ` AND renewal_date >= DATE_TRUNC('month', CURRENT_DATE) AND renewal_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'`;
+      } else if (dateRange === 'next_month') {
+        query += ` AND renewal_date >= DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month' AND renewal_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '2 month'`;
+      } else if (dateRange === 'prev_month') {
+        query += ` AND renewal_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month' AND renewal_date < DATE_TRUNC('month', CURRENT_DATE)`;
+      } else if (dateRange.startsWith('m_')) {
+        const m = parseInt(dateRange.replace('m_', ''), 10);
+        if (m >= 1 && m <= 12) {
+          query += ` AND EXTRACT(MONTH FROM renewal_date) = $${paramIndex++}`;
+          params.push(m);
+        }
+      } else if (/^\d{4}-\d{2}$/.test(dateRange)) {
+        const [yr, mo] = dateRange.split('-').map(Number);
+        query += ` AND EXTRACT(YEAR FROM renewal_date) = $${paramIndex++} AND EXTRACT(MONTH FROM renewal_date) = $${paramIndex++}`;
+        params.push(yr, mo);
       }
     }
 

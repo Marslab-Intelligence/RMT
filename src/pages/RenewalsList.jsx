@@ -351,20 +351,29 @@ export default function RenewalsList() {
           </svg>
         </button>
         {openFilterCol === col && (
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-lg min-w-[160px] py-1 animate-in fade-in slide-in-from-top-1 duration-150">
-            {options.map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => { onChange(opt.value); setOpenFilterCol(null); setPage(1); }}
-                className={`w-full text-left px-3 py-2 text-xs transition-colors ${
-                  value === opt.value
-                    ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-semibold'
-                    : 'text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-lg min-w-[170px] max-h-72 overflow-y-auto custom-scrollbar py-1 animate-in fade-in slide-in-from-top-1 duration-150">
+            {options.map((opt, i) => {
+              if (opt.isHeader) {
+                return (
+                  <div key={`header-${i}`} className="px-3 pt-2 pb-1 text-[10px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-wider border-t border-surface-150 dark:border-surface-700/60 first:border-0 first:pt-1">
+                    {opt.label}
+                  </div>
+                );
+              }
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => { onChange(opt.value); setOpenFilterCol(null); setPage(1); }}
+                  className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
+                    value === opt.value
+                      ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-semibold'
+                      : 'text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -384,6 +393,23 @@ export default function RenewalsList() {
     { value: 'next30', label: 'Next 30 Days' },
     { value: 'next60', label: 'Next 60 Days' },
     { value: 'next90', label: 'Next 90 Days' },
+    { isHeader: true, label: 'Monthwise' },
+    { value: 'this_month', label: 'This Month' },
+    { value: 'next_month', label: 'Next Month' },
+    { value: 'prev_month', label: 'Previous Month' },
+    { isHeader: true, label: 'By Calendar Month' },
+    { value: 'm_1', label: 'January' },
+    { value: 'm_2', label: 'February' },
+    { value: 'm_3', label: 'March' },
+    { value: 'm_4', label: 'April' },
+    { value: 'm_5', label: 'May' },
+    { value: 'm_6', label: 'June' },
+    { value: 'm_7', label: 'July' },
+    { value: 'm_8', label: 'August' },
+    { value: 'm_9', label: 'September' },
+    { value: 'm_10', label: 'October' },
+    { value: 'm_11', label: 'November' },
+    { value: 'm_12', label: 'December' },
   ];
 
   const VALUE_OPTIONS = [
