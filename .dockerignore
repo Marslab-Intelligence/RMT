@@ -1,6 +1,41 @@
+# Dependencies (rebuilt inside the image)
 node_modules
 dist
+
+# Secrets — NEVER bake these into the image
 .env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Development / CI artifacts
 .DS_Store
 *.log
+*.md
+coverage
+.nyc_output
+.github
+.git
+
+# Build utilities not needed at runtime
+aws
+awscliv2.zip
+db_backup
 data
+
+# Test files
+test-*.js
+*.test.js
+*.spec.js
+
+# Scratch / generated files
+generate-pdf.js
+sample_*.csv
+rmt-walkthrough.*
+push.sh
+clear-records.cjs
+update-*.js
+update-*.cjs

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { createPortal } from 'react-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency, formatDate, getStatusColor, getDaysLeftColor } from '../utils/formatters';
 import { 
@@ -11,18 +12,30 @@ import RenewalForm from '../components/RenewalForm';
 import RenewActionModal from '../components/RenewActionModal';
 import ClientDetailsModal from '../components/ClientDetailsModal';
 import InvoiceDetailsModal from '../components/InvoiceDetailsModal';
+import IndianDateInput from '../components/IndianDateInput';
 
 const normalizeHeader = (h) => {
   const clean = h.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
   if (clean === 'clientname') return 'client_name';
   if (clean === 'service' || clean === 'servicename' || clean === 'serviceplan') return 'service';
   if (clean === 'renewaldate') return 'renewal_date';
-  if (clean === 'value' || clean === 'contractvalue' || clean.includes('value')) return 'value';
+  if (clean === 'value' || clean === 'contractvalue' || clean.includes('contractvalue')) return 'value';
   if (clean === 'clientemail') return 'client_email';
   if (clean === 'salesemail' || clean === 'clientsecondarymail' || clean === 'secondaryemail' || clean.includes('secondarymail')) return 'sales_email';
-  if (clean === 'owner' || clean === 'contactperson' || clean === 'accountmanager' || clean.includes('person')) return 'owner';
+  if (clean === 'owner' || clean === 'contactperson' || clean === 'accountmanager' || clean.includes('contactperson')) return 'owner';
   if (clean === 'contactnumber' || clean === 'phone' || clean.includes('contactnumber') || clean.includes('phone')) return 'contact_number';
-  if (clean === 'referenceid' || clean === 'invoiceno' || clean.includes('reference') || clean.includes('invoice')) return 'reference_id';
+  if (clean === 'referenceid' || clean === 'referenceidinvoiceno' || clean.includes('referenceid')) return 'reference_id';
+  if (clean === 'invoicenumber') return 'invoice_number';
+  if (clean === 'quotationnumber' || clean === 'quotationno' || clean === 'quotation') return 'quotation_number';
+  if (clean === 'planperiod') return 'plan_period';
+  if (clean === 'plandurationyears' || clean === 'planduration') return 'plan_duration';
+  if (clean === 'product') return 'product';
+  if (clean === 'vendor') return 'vendor';
+  if (clean === 'description') return 'description';
+  if (clean === 'entity') return 'entity';
+  if (clean === 'quantity') return 'quantity';
+  if (clean.includes('purchasecost')) return 'purchase_cost';
+  if (clean.includes('salescost')) return 'sales_cost';
   if (clean === 'renewed') return 'renewed';
   return clean;
 };
@@ -52,6 +65,7 @@ const parseCSVDate = (dateStr) => {
 
 export default function RenewalsList() {
   const { token, user } = useAuth();
+  const navigate = useNavigate();
   const [renewals, setRenewals] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -66,6 +80,8 @@ export default function RenewalsList() {
   const [valueFilter, setValueFilter] = useState('all');
   const [statusColFilter, setStatusColFilter] = useState('all');
   const [renewedFilter, setRenewedFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState('');
+  const [serviceFilter, setServiceFilter] = useState('all');
   const [openFilterCol, setOpenFilterCol] = useState(null); // which column dropdown is open
   const filterRef = useRef(null);
 
@@ -99,7 +115,13 @@ export default function RenewalsList() {
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [showBatchDeleteModal, setShowBatchDeleteModal] = useState(false);
   const [newRenewalDate, setNewRenewalDate] = useState('');
+  const [selectedPaymentRenewal, setSelectedPaymentRenewal] = useState(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentAmountInput, setPaymentAmountInput] = useState('');
+  const [paymentDateInput, setPaymentDateInput] = useState('');
   const datePickerRef = useRef(null);
 
   const tableContainerRef = useRef(null);
@@ -140,31 +162,85 @@ export default function RenewalsList() {
     setNewRenewalDate(`${day}/${month}/${year}`);
   };
 
-  const fetchRenewals = async () => {
-    setLoading(true);
+  const fetchRenewals = async (silent = false) => {
+    if (!token) return;
+    if (!silent) setLoading(true);
+    setSelectedIds([]); // Clear selection when fetching new dataset
     try {
-      const res = await fetch(`/api/renewals?page=${page}&limit=25&search=${search}&status=${statusColFilter !== 'all' ? statusColFilter : statusFilter}&dateRange=${dateRangeFilter}&valueRange=${valueFilter}&renewalConfirmation=${renewedFilter}`, {
+      const res = await fetch(`/api/renewals?page=${page}&limit=25&search=${search}&status=${statusColFilter !== 'all' ? statusColFilter : statusFilter}&dateRange=${dateRangeFilter}&valueRange=${valueFilter}&renewalConfirmation=${renewedFilter}&clientName=${encodeURIComponent(clientFilter)}&serviceName=${encodeURIComponent(serviceFilter)}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
-        const data = await res.json();
-        setRenewals(data.data);
-        setTotalPages(data.pagination.totalPages);
-        setTotalRecords(data.pagination.total);
+        const contentType = res.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await res.json();
+          setRenewals(data.data || []);
+          setTotalPages(data.pagination?.totalPages || 1);
+          setTotalRecords(data.pagination?.total || 0);
+        } else {
+          toast.error('Server returned invalid response format.');
+        }
+      } else {
+        const contentType = res.headers.get('content-type');
+        let errMsg = 'Failed to load renewals';
+        if (contentType && contentType.includes('application/json')) {
+          const errData = await res.json().catch(() => ({}));
+          errMsg = errData.error || errMsg;
+        }
+        toast.error(errMsg);
       }
     } catch (err) {
-      toast.error('Failed to load renewals');
+      toast.error('Network or server connection error');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
+    }
+  };
+
+  // Real-time synchronization event listener
+  useEffect(() => {
+    const handleRealTimeUpdate = () => {
+      console.log('📡 UI Refetching renewals in background from SSE event...');
+      fetchRenewals(true);
+    };
+
+    window.addEventListener('rmt_renewals_updated', handleRealTimeUpdate);
+    return () => {
+      window.removeEventListener('rmt_renewals_updated', handleRealTimeUpdate);
+    };
+  }, [page, search, statusFilter, dateRangeFilter, valueFilter, statusColFilter, renewedFilter, clientFilter, serviceFilter, token]);
+
+  const confirmDeleteBatch = async () => {
+    try {
+      const res = await fetch('/api/renewals/delete-batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ ids: selectedIds })
+      });
+
+      if (res.ok) {
+        toast.success(`${selectedIds.length} renewals moved to trash`);
+        setSelectedIds([]);
+        setShowBatchDeleteModal(false);
+        fetchRenewals();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Failed to delete renewals');
+      }
+    } catch (err) {
+      toast.error('Network error during batch delete');
     }
   };
 
   useEffect(() => {
+    if (!token) return;
     const delayDebounceFn = setTimeout(() => {
       fetchRenewals();
     }, 300);
     return () => clearTimeout(delayDebounceFn);
-  }, [page, search, statusFilter, dateRangeFilter, valueFilter, statusColFilter, renewedFilter, token]);
+  }, [page, search, statusFilter, dateRangeFilter, valueFilter, statusColFilter, renewedFilter, clientFilter, serviceFilter, token]);
 
   // Close filter dropdown when clicking outside
   useEffect(() => {
@@ -178,6 +254,82 @@ export default function RenewalsList() {
   }, []);
 
   const toggleFilter = (col) => setOpenFilterCol(prev => prev === col ? null : col);
+
+  const ClientFilterDropdown = ({ value, onChange }) => {
+    const [tempValue, setTempValue] = useState(value);
+    const isActive = Boolean(value && value.trim() !== '');
+
+    useEffect(() => {
+      setTempValue(value);
+    }, [value]);
+
+    const handleApply = () => {
+      onChange(tempValue.trim());
+      setOpenFilterCol(null);
+      setPage(1);
+    };
+
+    const handleClear = () => {
+      setTempValue('');
+      onChange('');
+      setOpenFilterCol(null);
+      setPage(1);
+    };
+
+    return (
+      <div className="relative inline-block" ref={openFilterCol === 'client' ? filterRef : null}>
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleFilter('client'); }}
+          className={`ml-1.5 p-0.5 rounded transition-colors ${
+            isActive
+              ? 'text-brand-500 dark:text-brand-400 font-bold bg-brand-50 dark:bg-brand-900/30'
+              : 'text-surface-300 dark:text-surface-600 hover:text-surface-500'
+          }`}
+          title={isActive ? `Filtered by: "${value}"` : 'Filter Client Info'}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+          </svg>
+        </button>
+
+        {openFilterCol === 'client' && (
+          <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-xl min-w-[220px] p-3 animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="text-xs font-semibold text-surface-700 dark:text-surface-300 mb-2">
+              Filter Client Info
+            </div>
+            <div className="relative mb-3">
+              <input
+                type="text"
+                value={tempValue}
+                onChange={(e) => setTempValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleApply(); }}
+                placeholder="Search client name..."
+                autoFocus
+                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+              />
+              <Search className="w-3.5 h-3.5 text-surface-400 absolute left-2.5 top-2.5" />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={handleClear}
+                className="px-2.5 py-1 text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={handleApply}
+                className="px-3 py-1 text-xs font-medium bg-brand-600 hover:bg-brand-700 text-white rounded-lg transition-colors shadow-sm"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const FilterDropdown = ({ col, value, onChange, options }) => {
     const isActive = value !== 'all';
@@ -216,6 +368,11 @@ export default function RenewalsList() {
       </div>
     );
   };
+
+  const SERVICE_OPTIONS = [
+    { value: 'all', label: 'All Services' },
+    ...['AWS', 'AMC', 'BDR Suite', 'Domain', 'Firewall', 'GWS', 'LSH', 'M365', 'Plesk', 'Seqrite', 'Storage', 'SSL', 'Tally', 'Untangle', 'Zoho'].map(s => ({ value: s, label: s }))
+  ];
 
   const DATE_OPTIONS = [
     { value: 'all', label: 'All Dates' },
@@ -271,20 +428,48 @@ export default function RenewalsList() {
 
   const handleDownloadTemplate = () => {
     const headers = [
+      'Invoice Number',
       'Client Name',
       'Service Name',
       'Renewal Date',
-      'Contract Value (₹)',
+      'Contract Value (Rs)',
       'Client Email',
       'Client Secondary Mail',
       'Contact Person',
       'Contact Number',
       'Reference ID (Invoice No)',
+      'Plan Period',
+      'Plan Duration (Years)',
+      'Entity',
+      'Product',
+      'Vendor',
+      'Description',
+      'Quantity',
+      'Purchase Cost (Rs)',
+      'Sales Cost (Rs)',
       'Renewed'
     ];
     const sampleData = [
-      ['ABC Technologies Pvt Ltd', 'Cloud Hosting Service', '2026-08-15', '125000', 'admin@abctech.com', 'support@abctech.com', 'Rahul Sharma', '9876543210', 'INV-2026-001', 'Awaiting with vendor'],
-      ['Global Media Solutions', 'Digital Marketing Subscription', '2026-09-05', '85000', 'contact@globalmedia.com', 'accounts@globalmedia.com', 'Priya Menon', '9123456780', 'INV-2026-002', 'Service Discontinued']
+      [
+        'INV-2026-001', 'ABC Technologies Pvt Ltd', 'Amazon Web Services',
+        '15/08/2026', '125000',
+        'admin@abctech.com', 'support@abctech.com',
+        'Rahul Sharma', '9876543210', 'REF-001',
+        'yearly_plan', '1',
+        'MIPL', 'AWS EC2', 'Amazon', 'Cloud compute instances',
+        '5', '20000', '25000',
+        'Awaiting with vendor'
+      ],
+      [
+        'INV-2026-002', 'Global Media Solutions', 'Microsoft Azure',
+        '05/09/2026', '85000',
+        'contact@globalmedia.com', 'accounts@globalmedia.com',
+        'Priya Menon', '9123456780', 'REF-002',
+        'monthly_plan', '1',
+        'SIDCORPTECH', 'Azure VM', 'Microsoft', 'Virtual machine subscription',
+        '2', '35000', '42500',
+        'Pending'
+      ]
     ];
     const csvContent = [
       headers.join(','),
@@ -293,7 +478,7 @@ export default function RenewalsList() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', 'Renewal_Sample_Data.csv');
+    link.setAttribute('download', 'RenewalPro_Bulk_Upload_Template.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -378,89 +563,114 @@ export default function RenewalsList() {
       }
 
       try {
-        const lines = csvText.split(/\r?\n/);
-        if (lines.length < 2) {
+        // RFC 4180-compliant CSV parser: handles multi-line quoted fields
+        const parseCSVText = (text) => {
+          const rows = [];
+          let row = [];
+          let cell = '';
+          let inQuotes = false;
+          for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            const next = text[i + 1];
+            if (inQuotes) {
+              if (ch === '"' && next === '"') { cell += '"'; i++; }
+              else if (ch === '"') { inQuotes = false; }
+              else { cell += ch; }
+            } else {
+              if (ch === '"') { inQuotes = true; }
+              else if (ch === ',') { row.push(cell.trim()); cell = ''; }
+              else if (ch === '\r' && next === '\n') {
+                row.push(cell.trim()); rows.push(row); row = []; cell = ''; i++;
+              } else if (ch === '\n') {
+                row.push(cell.trim()); rows.push(row); row = []; cell = '';
+              } else { cell += ch; }
+            }
+          }
+          row.push(cell.trim());
+          if (row.some(v => v)) rows.push(row);
+          return rows;
+        };
+
+        const allRows = parseCSVText(csvText);
+        if (allRows.length < 2) {
           toast.error('CSV file must contain a header row and at least one data row.');
           return;
         }
 
-        const parseRow = (line) => {
-          const row = [];
-          let inQuotes = false;
-          let cell = '';
-          for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            if (char === '"') {
-              inQuotes = !inQuotes;
-            } else if (char === ',' && !inQuotes) {
-              row.push(cell.trim());
-              cell = '';
-            } else {
-              cell += char;
-            }
-          }
-          row.push(cell.trim());
-          return row;
-        };
-
-        const rawHeaders = parseRow(lines[0]);
-        const headers = rawHeaders.map(h => normalizeHeader(h));
+        const headers = allRows[0].map(h => normalizeHeader(h));
 
         const records = [];
-        for (let i = 1; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (!line) continue;
-          
-          const rowData = parseRow(lines[i]);
+        for (let i = 1; i < allRows.length; i++) {
+          const rowData = allRows[i];
+          if (!rowData.some(v => v)) continue;
+
           const record = {};
-          
           headers.forEach((header, index) => {
-            if (header) {
-              let val = rowData[index] || '';
-              if (val.startsWith('"') && val.endsWith('"')) {
-                val = val.slice(1, -1);
-              }
-              record[header] = val;
-            }
+            if (header) record[header] = rowData[index] || '';
           });
 
-          // Check if it has any data
-          if (Object.values(record).some(v => v)) {
-            // Validate required columns
-            if (!record.client_name || !record.service || !record.renewal_date || !record.owner || !record.client_email || !record.contact_number || !record.reference_id) {
-              throw new Error(`Row ${i + 1}: Missing required fields (Client Name, Service, Renewal Date, Contact Person, Client Email, Contact Number, or Reference ID).`);
+          // Normalize service name (e.g. MS365 -> M365)
+          if (record.service) {
+            record.service = record.service.trim();
+            if (record.service.toUpperCase() === 'MS365') {
+              record.service = 'M365';
             }
+          }
 
-            // Normalise date
-            const parsedDate = parseCSVDate(record.renewal_date);
-            if (!parsedDate) {
-              throw new Error(`Row ${i + 1}: Invalid date value: ${record.renewal_date}. Support formats: DD/MM/YYYY or YYYY-MM-DD.`);
-            }
-            record.renewal_date = parsedDate;
-            record.value = parseFloat(record.value) || 0;
-            
-            // Normalize renewed option if present
-            if (record.renewed) {
-              const rClean = record.renewed.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-              if (rClean.includes('quotation')) {
-                record.renewal_confirmation = 'quotation_confirmation';
-              } else if (rClean.includes('clientapproval') || rClean.includes('awaitingclient')) {
-                record.renewal_confirmation = 'awaiting_client_approval';
-              } else if (rClean.includes('withvendor') || rClean.includes('awaitingwith')) {
-                record.renewal_confirmation = 'awaiting_with_vendor';
-              } else if (rClean === 'renewed') {
-                record.renewal_confirmation = 'renewed';
-              } else if (rClean.includes('discontinued')) {
-                record.renewal_confirmation = 'service_discontinued';
-              } else {
-                record.renewal_confirmation = 'pending';
-              }
+          // Validate required columns
+          if (!record.client_name || !record.service || !record.renewal_date || !record.owner || !record.client_email || !record.contact_number) {
+            throw new Error(`Row ${i + 1}: Missing required fields (Client Name, Service, Renewal Date, Contact Person, Client Email, or Contact Number).`);
+          }
+
+          // Normalise date
+          const parsedDate = parseCSVDate(record.renewal_date);
+          if (!parsedDate) {
+            throw new Error(`Row ${i + 1}: Invalid date value: ${record.renewal_date}. Supported formats: DD/MM/YYYY or YYYY-MM-DD.`);
+          }
+          record.renewal_date = parsedDate;
+          record.value        = parseFloat(record.value) || 0;
+          record.quantity     = parseInt(record.quantity) || 1;
+          record.purchase_cost = parseFloat(record.purchase_cost) || 0;
+          record.sales_cost   = parseFloat(record.sales_cost) || 0;
+          record.total_purchase_cost = record.quantity * record.purchase_cost;
+          record.total_sales_cost    = record.quantity * record.sales_cost;
+          record.profit              = record.total_sales_cost - record.total_purchase_cost;
+          record.plan_duration = parseInt(record.plan_duration) || 1;
+          // Validate entity
+          if (record.entity) {
+            record.entity = record.entity.trim().toUpperCase();
+          }
+          const validEntities = ['MIPL', 'SIDCORPTECH', 'SPIOT'];
+          if (record.entity && !validEntities.includes(record.entity)) {
+            throw new Error(`Row ${i + 1}: Invalid entity "${record.entity}". Must be one of: MIPL, SIDCORPTECH, SPIOT.`);
+          }
+          // Validate plan period
+          const validPlans = ['monthly_plan', 'quarterly_plan', 'halfly_plan', 'yearly_plan'];
+          if (record.plan_period && !validPlans.includes(record.plan_period)) {
+            record.plan_period = 'yearly_plan'; // default
+          }
+
+          // Normalize renewed status
+          if (record.renewed) {
+            const rClean = record.renewed.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (rClean.includes('quotation')) {
+              record.renewal_confirmation = 'quotation_confirmation';
+            } else if (rClean.includes('clientapproval') || rClean.includes('awaitingclient')) {
+              record.renewal_confirmation = 'awaiting_client_approval';
+            } else if (rClean.includes('withvendor') || rClean.includes('awaitingwith')) {
+              record.renewal_confirmation = 'awaiting_with_vendor';
+            } else if (rClean === 'renewed') {
+              record.renewal_confirmation = 'renewed';
+            } else if (rClean.includes('discontinued') || rClean === 'cancelled') {
+              record.renewal_confirmation = 'service_discontinued';
             } else {
               record.renewal_confirmation = 'pending';
             }
-
-            records.push(record);
+          } else {
+            record.renewal_confirmation = 'pending';
           }
+
+          records.push(record);
         }
 
         if (records.length === 0) {
@@ -500,26 +710,64 @@ export default function RenewalsList() {
   const isSales = user?.role === 'sales';
   const isAdmin = user?.role === 'admin';
 
+  const getColWidth = (colName) => {
+    if (isFinance) {
+      switch (colName) {
+        case 'id': return 'w-[5%]';
+        case 'client': return 'w-[10%]';
+        case 'service': return 'w-[8%]';
+        case 'quotation': return 'w-[8%]';
+        case 'date': return 'w-[8%]';
+        case 'value': return 'w-[8%]';
+        case 'status': return 'w-[8%]';
+        case 'timeline': return 'w-[9%]';
+        case 'renewed': return 'w-[8%]';
+        case 'invoice': return 'w-[8%]';
+        case 'payment': return 'w-[8%]';
+        case 'bal': return 'w-[10%]';
+        default: return '';
+      }
+    }
+    switch (colName) {
+      case 'id': return 'w-[5%]';
+      case 'client': return 'w-[9%]';
+      case 'service': return 'w-[8%]';
+      case 'quotation': return 'w-[8%]';
+      case 'date': return 'w-[8%]';
+      case 'value': return 'w-[8%]';
+      case 'status': return 'w-[8%]';
+      case 'timeline': return 'w-[10%]';
+      case 'renewed': return 'w-[10%]';
+      case 'invoice': return 'w-[8%]';
+      case 'payment': return 'w-[8%]';
+      case 'actions': return 'w-[7%]';
+      case 'approvals': return 'w-[8%]';
+      case 'bal': return 'w-[11%]';
+      default: return '';
+    }
+  };
+
   const handleRenewalConfirmation = async (id, confirmation) => {
     if (confirmation === 'renewed') {
       const current = renewals.find(r => r.id === id);
       let currentFormatted = '';
       try {
         let baseDate = new Date();
-        if (current?.invoice_sent_date) {
-          baseDate = new Date(current.invoice_sent_date);
-        } else if (current?.renewal_date) {
+        if (current?.renewal_date) {
           baseDate = new Date(current.renewal_date);
         }
 
         const plan = current?.plan_period;
+        const duration = parseInt(current?.plan_duration || 1, 10);
         let monthsToAdd = 12; // default to yearly
-        if (plan === 'quarterly_plan') {
+        if (plan === 'monthly_plan') {
+          monthsToAdd = 1;
+        } else if (plan === 'quarterly_plan') {
           monthsToAdd = 3;
         } else if (plan === 'halfly_plan') {
           monthsToAdd = 6;
         } else if (plan === 'yearly_plan') {
-          monthsToAdd = 12;
+          monthsToAdd = 12 * duration;
         }
 
         const newDate = new Date(baseDate);
@@ -590,6 +838,71 @@ export default function RenewalsList() {
       } else {
         const data = await res.json();
         toast.error(data.error || 'Failed to update invoice status');
+      }
+    } catch (err) {
+      toast.error('Network error');
+    }
+  };
+
+  const handlePaymentStatus = async (id, status) => {
+    if (status === 'Yes') {
+      const rec = renewals.find(r => r.id === id);
+      if (rec) {
+        setSelectedPaymentRenewal(rec);
+        setPaymentAmountInput(rec.value ? String(rec.value) : '');
+        setPaymentDateInput(new Date().toISOString().substring(0, 10));
+        setIsPaymentModalOpen(true);
+      }
+      return;
+    }
+    try {
+      const res = await fetch(`/api/renewals/${id}/payment`, {
+        method: 'PATCH',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ payment_status: 'No' })
+      });
+      if (res.ok) {
+        toast.success('Payment status updated to No');
+        fetchRenewals();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Failed to update payment status');
+      }
+    } catch (err) {
+      toast.error('Network error');
+    }
+  };
+
+  const submitPaymentDetails = async () => {
+    if (!selectedPaymentRenewal) return;
+    if (!paymentAmountInput || !paymentDateInput) {
+      toast.error('Payment Amount and Date are required');
+      return;
+    }
+    try {
+      const res = await fetch(`/api/renewals/${selectedPaymentRenewal.id}/payment`, {
+        method: 'PATCH',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          payment_status: 'Yes',
+          payment_amount: paymentAmountInput,
+          payment_received_date: paymentDateInput
+        })
+      });
+      if (res.ok) {
+        toast.success('Payment details recorded');
+        setIsPaymentModalOpen(false);
+        setSelectedPaymentRenewal(null);
+        fetchRenewals();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Failed to update payment details');
       }
     } catch (err) {
       toast.error('Network error');
@@ -678,6 +991,8 @@ export default function RenewalsList() {
     }
   };
 
+  const totalCols = isAdmin ? 15 : (isSales ? 13 : 12);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header Actions */}
@@ -720,6 +1035,7 @@ export default function RenewalsList() {
               <option value="Active" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Active</option>
               <option value="Pending Renewal" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Pending Renewal</option>
               <option value="Expired" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Expired</option>
+              <option value="Renewed" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Renewed</option>
             </select>
             <Filter className="w-3.5 h-3.5 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-surface-400 pointer-events-none z-10" />
           </div>
@@ -748,6 +1064,15 @@ export default function RenewalsList() {
             </>
           )}
 
+          {isAdmin && selectedIds.length > 0 && (
+            <button 
+              onClick={() => setShowBatchDeleteModal(true)}
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold flex-shrink-0 flex items-center gap-1.5 py-1.5 px-2.5 text-xs whitespace-nowrap rounded-md transition-colors shadow-sm cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Delete Selected ({selectedIds.length})
+            </button>
+          )}
+
           {(isSales || isAdmin) && (
             <button 
               onClick={() => { setSelectedRenewalToEdit(null); setIsFormOpen(true); }}
@@ -759,7 +1084,7 @@ export default function RenewalsList() {
         </div>
       </div>
 
-      <div className="card overflow-hidden dark:bg-surface-800 dark:border-surface-700">
+      <div className="card overflow-hidden">
         <div 
           ref={tableContainerRef}
           onMouseDown={handleDragMouseDown}
@@ -768,124 +1093,189 @@ export default function RenewalsList() {
           onMouseMove={handleDragMouseMove}
           className={`max-h-[600px] overflow-auto custom-scrollbar relative select-none ${isDragDown ? 'cursor-grabbing' : 'cursor-grab'}`}
         >
-          <table className="w-full text-left text-sm min-w-[1500px]">
+          <table className="w-full text-left text-xs">
             <thead className="bg-surface-50 dark:bg-surface-900 text-surface-500 dark:text-surface-400 border-b border-surface-200 dark:border-surface-700 sticky top-0 z-10 shadow-sm">
               <tr>
-                <th className="px-4 py-3 font-medium w-[7%]">Unique ID</th>
-                <th className="px-4 py-3 font-medium w-[13%]">Client Info</th>
-                <th className="px-4 py-3 font-medium w-[9%]">Service</th>
-                <th className="px-4 py-3 font-medium w-[9%]">
-                  <div className="flex items-center">
+                {isAdmin && (
+                  <th className="w-10 px-3 py-2 text-center">
+                    <input 
+                      type="checkbox"
+                      checked={renewals.length > 0 && selectedIds.length === renewals.length}
+                      ref={el => {
+                        if (el) {
+                          el.indeterminate = selectedIds.length > 0 && selectedIds.length < renewals.length;
+                        }
+                      }}
+                      onChange={() => {
+                        if (selectedIds.length === renewals.length) {
+                          setSelectedIds([]);
+                        } else {
+                          setSelectedIds(renewals.map(r => r.id));
+                        }
+                      }}
+                      className="rounded border-surface-300 text-brand-600 focus:ring-brand-500 cursor-pointer w-3.5 h-3.5"
+                    />
+                  </th>
+                )}
+                <th className={`px-3 py-2 font-medium ${getColWidth('id')}`}>
+                  <div className="flex items-center h-5">Unique ID</div>
+                </th>
+                <th className={`px-3 py-2 font-medium ${getColWidth('client')}`}>
+                  <div className="flex items-center h-5">
+                    Client Info
+                    <ClientFilterDropdown value={clientFilter} onChange={setClientFilter} />
+                  </div>
+                </th>
+                <th className={`px-3 py-2 font-medium ${getColWidth('service')}`}>
+                  <div className="flex items-center h-5">
+                    Service
+                    <FilterDropdown col="service" value={serviceFilter} onChange={setServiceFilter} options={SERVICE_OPTIONS} />
+                  </div>
+                </th>
+                <th className={`px-3 py-2 font-medium ${getColWidth('quotation')}`}>
+                  <div className="flex items-center h-5">
+                    Quotation No.
+                  </div>
+                </th>
+                <th className={`px-3 py-2 font-medium ${getColWidth('date')}`}>
+                  <div className="flex items-center h-5">
                     Renewal Date
                     <FilterDropdown col="date" value={dateRangeFilter} onChange={setDateRangeFilter} options={DATE_OPTIONS} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-right w-[8%]">
-                  <div className="flex items-center justify-end">
+                <th className={`px-3 py-2 font-medium ${getColWidth('value')}`}>
+                  <div className="flex items-center h-5 w-full">
                     Value
                     <FilterDropdown col="value" value={valueFilter} onChange={setValueFilter} options={VALUE_OPTIONS} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-center w-[8%]">
-                  <div className="flex items-center justify-center">
+                <th className={`px-3 py-2 font-medium text-center ${getColWidth('status')}`}>
+                  <div className="flex items-center justify-center h-5 w-full">
                     Status
                     <FilterDropdown col="status" value={statusColFilter} onChange={setStatusColFilter} options={STATUS_COL_OPTIONS} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-center w-[6%]">Timeline</th>
-                <th className="px-4 py-3 font-medium text-center w-[10%]">
-                  <div className="flex items-center justify-center">
+                 <th className={`px-3 py-2 font-medium text-center ${getColWidth('timeline')}`}>
+                   <div className="flex items-center justify-center h-5 w-full">Timeline</div>
+                 </th>
+                <th className={`px-3 py-2 font-medium text-center ${getColWidth('renewed')}`}>
+                  <div className="flex items-center justify-center h-5 w-full">
                     Renewed
                     <FilterDropdown col="renewed" value={renewedFilter} onChange={setRenewedFilter} options={RENEWED_OPTIONS} />
                   </div>
                 </th>
-                <th className="px-4 py-3 font-medium text-center w-[9%]">
-                  <div className="flex items-center justify-center">
-                    Invoice
-                  </div>
+                <th className={`px-3 py-2 font-medium text-center ${getColWidth('invoice')}`}>
+                  <div className="flex items-center justify-center h-5 w-full">Invoice</div>
                 </th>
-                {!isFinance && <th className="px-4 py-3 font-medium text-center w-[5%]">Actions</th>}
-                {isAdmin && <th className="px-4 py-3 font-medium text-center w-[5%]">Approvals</th>}
-                <th className="px-4 py-3 font-medium text-right w-[13%]">Invoice Value / Bal</th>
+                <th className={`px-3 py-2 font-medium text-center ${getColWidth('payment')}`}>
+                  <div className="flex items-center justify-center h-5 w-full">Payment</div>
+                </th>
+                {!isFinance && (
+                  <th className={`px-3 py-2 font-medium text-center ${getColWidth('actions')}`}>
+                    <div className="flex items-center justify-center h-5 w-full">Actions</div>
+                  </th>
+                )}
+                {isAdmin && (
+                  <th className={`px-3 py-2 font-medium text-center ${getColWidth('approvals')}`}>
+                    <div className="flex items-center justify-center h-5 w-full">Approvals</div>
+                  </th>
+                )}
+                <th className={`px-3 py-2 font-medium text-right ${getColWidth('bal')}`}>
+                  <div className="flex items-center justify-end h-5 w-full whitespace-nowrap">Invoice Value / Bal</div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-200 dark:divide-surface-700">
               {loading ? (
                 <tr>
-                  <td colSpan="13" className="px-6 py-12 text-center text-surface-500">
+                  <td colSpan={totalCols} className="px-6 py-12 text-center text-surface-500">
                     <div className="flex justify-center mb-2"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-600"></div></div>
                     Loading records...
                   </td>
                 </tr>
               ) : renewals.length === 0 ? (
                 <tr>
-                  <td colSpan="13" className="px-6 py-12 text-center text-surface-500">
+                  <td colSpan={totalCols} className="px-6 py-12 text-center text-surface-500">
                     No renewal records found matching your criteria.
                   </td>
                 </tr>
               ) : (
                 renewals.map((row) => (
                   <tr key={row.id} className="hover:bg-surface-50 dark:hover:bg-surface-700/30 transition-colors">
-                    <td className="px-4 py-3 font-mono text-xs text-brand-600 dark:text-brand-400 font-medium" title={row.unique_id}>
+                    {isAdmin && (
+                      <td className="w-10 px-3 py-1.5 text-center">
+                        <input 
+                          type="checkbox"
+                          checked={selectedIds.includes(row.id)}
+                          onChange={() => {
+                            setSelectedIds(prev => 
+                              prev.includes(row.id) ? prev.filter(id => id !== row.id) : [...prev, row.id]
+                            );
+                          }}
+                          className="rounded border-surface-300 text-brand-600 focus:ring-brand-500 cursor-pointer w-3.5 h-3.5"
+                        />
+                      </td>
+                    )}
+                    <td className={`px-3 py-1.5 font-mono text-xs text-brand-600 dark:text-brand-400 font-medium truncate ${getColWidth('id')}`} title={row.unique_id}>
                       {row.unique_id.length > 10 ? row.unique_id.substring(0, 10) + '...' : row.unique_id}
                     </td>
-                    <td className="px-4 py-3 overflow-hidden">
+                    <td className={`px-3 py-1.5 overflow-hidden ${getColWidth('client')}`}>
                       <button 
-                        onClick={() => setSelectedClientDetails(row)}
+                        onClick={() => navigate(`/renewals/${row.id}`)}
                         className="text-left font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors truncate block max-w-full"
                       >
                         {row.client_name}
                       </button>
-                      <p className="text-xs text-surface-500 mt-0.5 truncate max-w-[140px] block" title={row.client_email}>
-                        {row.client_email}
-                      </p>
                     </td>
-                    <td className="px-4 py-3 overflow-hidden">
+                    <td className={`px-3 py-1.5 overflow-hidden ${getColWidth('service')}`}>
                       <p className="text-surface-900 dark:text-white font-medium truncate">{row.service}</p>
                     </td>
-                    <td className="px-4 py-3">
-                      <p className="text-surface-900 dark:text-white">{row.renewal_date ? formatDate(row.renewal_date) : '-'}</p>
+                    <td className={`px-3 py-1.5 overflow-hidden ${getColWidth('quotation')}`}>
+                      <p className="text-surface-700 dark:text-surface-300 font-medium truncate" title={row.quotation_number || '-'}>{row.quotation_number || '-'}</p>
+                    </td>
+                    <td className={`px-3 py-1.5 ${getColWidth('date')}`}>
+                      <p className="text-surface-900 dark:text-white whitespace-nowrap">{row.renewal_date ? formatDate(row.renewal_date) : '-'}</p>
                       {row.renewal_date && (
-                        <p className={`text-xs mt-0.5 ${getDaysLeftColor(row.days_left)}`}>
+                        <p className={`text-[11px] mt-0.5 whitespace-nowrap ${getDaysLeftColor(row.days_left)}`}>
                           {row.days_left < 0 ? 'Expired' : row.days_left === 0 ? 'Due Today' : `${row.days_left} days left`}
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right font-medium text-surface-900 dark:text-white">
+                    <td className={`px-3 py-1.5 font-medium text-surface-900 dark:text-white whitespace-nowrap ${getColWidth('value')}`}>
                       {formatCurrency(row.value)}
                     </td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${getStatusColor(row.status)}`}>
+                    <td className={`px-3 py-1.5 text-center whitespace-nowrap ${getColWidth('status')}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium border whitespace-nowrap ${getStatusColor(row.status)}`}>
                         {row.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      {row.status === '-' ? (
-                        <div className="text-center text-surface-400 dark:text-surface-600 font-medium">—</div>
-                      ) : (
-                        /* Visual Email Tracking timeline */
-                        <div className="flex justify-center gap-1">
-                          {['30','20','15','10','5','3'].map(day => {
-                            const sent = row[`day_${day}_sent`] === 'Yes';
-                            return (
-                              <div 
-                                key={day} 
-                                title={`${day} Day Reminder: ${sent ? 'Sent' : 'Pending'}`}
-                                className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold ${sent ? 'bg-green-500 text-white' : 'bg-surface-200 dark:bg-surface-700 text-surface-400'}`}
-                              >
-                                {sent && <MailCheck className="w-2.5 h-2.5" />}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center overflow-hidden">
-                      {((isSales || isAdmin) && !(row.renewal_confirmation === 'renewed' && row.days_left !== null && row.days_left !== undefined && row.days_left >= 30)) ? (
+                     <td className={`px-3 py-1.5 text-center overflow-hidden ${getColWidth('timeline')}`}>
+                       {row.status === '-' ? (
+                         <div className="text-center text-surface-400 dark:text-surface-600 font-medium">—</div>
+                       ) : (
+                         /* Visual Email Tracking timeline */
+                         <div className="flex justify-center gap-0.5 w-full flex-nowrap">
+                           {['30','20','15','10','5','3'].map(day => {
+                             const sent = row[`day_${day}_sent`] === 'Yes';
+                             return (
+                               <div 
+                                 key={day} 
+                                 title={`${day} Day Reminder: ${sent ? 'Sent' : 'Pending'}`}
+                                 className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold ${sent ? 'bg-green-500 text-white' : 'bg-surface-200 dark:bg-surface-700 text-surface-400'}`}
+                               >
+                                 {sent && <MailCheck className="w-2 h-2" />}
+                               </div>
+                             );
+                           })}
+                         </div>
+                       )}
+                     </td>
+                    <td className={`px-3 py-1.5 text-center overflow-hidden ${getColWidth('renewed')}`}>
+                      {((isSales || isAdmin) && !(row.renewal_confirmation === 'renewed' && row.days_left !== null && row.days_left !== undefined && row.days_left > 30)) ? (
                         <select
                           value={row.renewal_confirmation || 'pending'}
                           onChange={(e) => handleRenewalConfirmation(row.id, e.target.value)}
-                          className={`text-xs font-medium px-2 py-1.5 rounded-lg border cursor-pointer outline-none transition-all w-full ${
+                          className={`text-[10px] font-medium px-1 py-0.5 rounded-lg border cursor-pointer outline-none transition-all w-full ${
                             row.renewal_confirmation === 'quotation_confirmation' ? 'bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-900/20 dark:text-blue-400' :
                             row.renewal_confirmation === 'awaiting_client_approval' ? 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900/20 dark:text-amber-400' :
                             row.renewal_confirmation === 'awaiting_with_vendor' ? 'bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-900/20 dark:text-purple-400' :
@@ -902,17 +1292,17 @@ export default function RenewalsList() {
                           <option value="service_discontinued" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Service Discontinued</option>
                         </select>
                       ) : (
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${getRenewalConfirmationBadge(row.renewal_confirmation).color}`}>
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium border inline-block truncate max-w-full ${getRenewalConfirmationBadge(row.renewal_confirmation).color}`}>
                           {getRenewalConfirmationBadge(row.renewal_confirmation).label}
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className={`px-3 py-1.5 text-center overflow-hidden ${getColWidth('invoice')}`}>
                       {(isFinance || isAdmin) ? (
                         <select
                           value={row.invoice_status || 'Not'}
                           onChange={(e) => handleInvoiceStatus(row.id, e.target.value)}
-                          className={`text-[11px] font-medium px-1.5 py-1 rounded-md border cursor-pointer outline-none transition-all w-20 mx-auto block ${
+                          className={`text-[10px] font-medium px-1 py-0.5 rounded-md border cursor-pointer outline-none transition-all w-full max-w-[64px] mx-auto block ${
                             row.invoice_status === 'Sent'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/20 dark:text-emerald-400'
                               : 'bg-surface-100 text-surface-500 border-surface-300 dark:bg-surface-700 dark:text-surface-200'
@@ -922,7 +1312,7 @@ export default function RenewalsList() {
                           <option value="Sent" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Sent</option>
                         </select>
                       ) : (
-                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-medium border w-20 mx-auto block text-center ${
+                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-medium border w-full max-w-[64px] mx-auto block text-center truncate ${
                           row.invoice_status === 'Sent'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
                             : 'bg-surface-100 text-surface-500 border-surface-200 dark:bg-surface-700 dark:text-surface-300 dark:border-surface-600'
@@ -931,30 +1321,54 @@ export default function RenewalsList() {
                         </span>
                       )}
                     </td>
+                    <td className={`px-3 py-1.5 text-center overflow-hidden ${getColWidth('payment')}`}>
+                      {(isFinance || isAdmin) ? (
+                        <select
+                          value={row.payment_status || 'No'}
+                          onChange={(e) => handlePaymentStatus(row.id, e.target.value)}
+                          className={`text-[10px] font-medium px-1 py-0.5 rounded-md border cursor-pointer outline-none transition-all w-full max-w-[64px] mx-auto block ${
+                            row.payment_status === 'Yes'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/20 dark:text-emerald-400'
+                              : 'bg-surface-100 text-surface-500 border-surface-300 dark:bg-surface-700 dark:text-surface-200'
+                          }`}
+                        >
+                          <option value="No" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">No</option>
+                          <option value="Yes" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Yes</option>
+                        </select>
+                      ) : (
+                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-medium border w-full max-w-[64px] mx-auto block text-center truncate ${
+                          row.payment_status === 'Yes'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
+                            : 'bg-surface-100 text-surface-500 border-surface-200 dark:bg-surface-700 dark:text-surface-300 dark:border-surface-600'
+                        }`}>
+                          {row.payment_status === 'Yes' ? 'Yes' : 'No'}
+                        </span>
+                      )}
+                    </td>
                     {!isFinance && (
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-2">
+                      <td className={`px-3 py-1.5 text-center overflow-hidden ${getColWidth('actions')}`}>
+                        <div className="flex items-center justify-center gap-1">
                           {isSales && (
                             <>
                               {row.edit_status === 'approved' ? (
                                 <button 
                                   onClick={() => { setSelectedRenewalToEdit(row); setIsFormOpen(true); }}
-                                  className="p-1.5 text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
+                                  className="p-1 text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
                                   title="Edit Record"
                                 >
-                                  <Edit className="w-4 h-4" />
+                                  <Edit className="w-3.5 h-3.5" />
                                 </button>
                               ) : row.edit_status === 'requested' ? (
-                                <span className="text-xs font-medium text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded">
+                                <span className="text-[10px] font-medium text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded">
                                   Pending
                                 </span>
                               ) : (
                                 <button 
                                   onClick={() => handleRequestEdit(row.id)}
-                                  className="p-1.5 text-surface-500 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
+                                  className="p-1 text-surface-500 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
                                   title="Request Edit Access"
                                 >
-                                  <ShieldAlert className="w-4 h-4" />
+                                  <ShieldAlert className="w-3.5 h-3.5" />
                                 </button>
                               )}
                             </>
@@ -964,17 +1378,17 @@ export default function RenewalsList() {
                             <>
                               <button 
                                 onClick={() => { setSelectedRenewalToEdit(row); setIsFormOpen(true); }}
-                                className="p-1.5 text-surface-500 hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
-                                title="Edit Record (Admin)"
+                                className="p-1 text-surface-500 hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
+                                  title="Edit Record (Admin)"
                               >
-                                <Edit className="w-4 h-4" />
+                                <Edit className="w-3.5 h-3.5" />
                               </button>
                               <button 
                                 onClick={() => handleDelete(row.id)}
-                                className="p-1.5 text-surface-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                className="p-1 text-surface-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                                 title="Delete Record (Admin)"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </>
                           )}
@@ -983,30 +1397,41 @@ export default function RenewalsList() {
                     )}
                     
                     {isAdmin && (
-                      <td className="px-4 py-3 text-center">
+                      <td className={`px-3 py-1.5 text-center overflow-hidden ${getColWidth('approvals')}`}>
                         {row.edit_status === 'requested' && (
                           <button 
                             onClick={() => handleApproveEdit(row.id)}
-                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors flex items-center justify-center gap-1 mx-auto"
+                            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors flex items-center justify-center gap-0.5 mx-auto text-[10px]"
                             title="Approve Edit Request"
                           >
-                            <CheckCircle className="w-4 h-4" /> Approve
+                            <CheckCircle className="w-3.5 h-3.5" /> Approve
                           </button>
                         )}
                       </td>
                     )}
-                    <td className="px-4 py-3 text-right">
+                    <td className={`px-3 py-1.5 text-right overflow-hidden ${getColWidth('bal')}`}>
                       {row.invoice_status === 'Sent' && row.invoice_value !== null && row.invoice_value !== undefined ? (
-                        <div className="flex flex-col items-end space-y-0.5 w-full max-w-[160px] ml-auto text-right">
-                          <div className="text-[11px] text-surface-500 dark:text-surface-400 whitespace-nowrap">
-                            Inv: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(row.invoice_value)}</span> • Bal: <span className="font-semibold text-surface-750 dark:text-surface-200">{formatCurrency(row.value - row.invoice_value)}</span>
-                          </div>
-                          {parseFloat(row.value) > 0 && (
-                            <div className="text-[9px] text-surface-400 dark:text-surface-500 font-mono whitespace-nowrap">
-                              {Math.round((row.invoice_value / row.value) * 100)}% Paid ({Math.round((1 - row.invoice_value / row.value) * 100)}% to pay)
+                        (() => {
+                          const valueVal = parseFloat(row.value) || 0;
+                          const paymentAmt = row.payment_status === 'Yes' ? (parseFloat(row.payment_amount) || 0) : 0;
+                          const balanceVal = valueVal - paymentAmt;
+                          const percentPaid = valueVal > 0 ? Math.round((paymentAmt / valueVal) * 100) : 0;
+                          return (
+                            <div className="flex flex-col items-end space-y-0.5 w-full ml-auto text-right leading-none">
+                              <div className="text-[10px] text-surface-500 dark:text-surface-400 whitespace-nowrap">
+                                Inv: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(row.invoice_value)}</span>
+                              </div>
+                              <div className="text-[10px] text-surface-500 dark:text-surface-400 whitespace-nowrap mt-0.5">
+                                Bal: <span className="font-semibold text-surface-700 dark:text-surface-200">{formatCurrency(balanceVal)}</span>
+                              </div>
+                              {valueVal > 0 && (
+                                <div className="text-[9px] text-surface-400 dark:text-surface-500 font-mono mt-0.5 whitespace-nowrap">
+                                  {percentPaid}% Paid
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
+                          );
+                        })()
                       ) : (
                         <span className="text-surface-400 dark:text-surface-600 block text-center">—</span>
                       )}
@@ -1058,10 +1483,6 @@ export default function RenewalsList() {
         />
       )}
 
-      <ClientDetailsModal 
-        client={selectedClientDetails} 
-        onClose={() => setSelectedClientDetails(null)} 
-      />
 
       <InvoiceDetailsModal
         isOpen={isInvoiceModalOpen}
@@ -1070,7 +1491,85 @@ export default function RenewalsList() {
         onSuccess={() => { setIsInvoiceModalOpen(false); setSelectedInvoiceRenewal(null); fetchRenewals(); }}
       />
 
-      {showRenewConfirmationModal && (
+      {isPaymentModalOpen && selectedPaymentRenewal && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-surface-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-surface-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-surface-200 dark:border-surface-700 flex flex-col">
+            <div className="px-6 py-4 border-b border-surface-200 dark:border-surface-700 flex justify-between items-center bg-surface-50 dark:bg-surface-900/50">
+              <h2 className="text-lg font-bold text-surface-900 dark:text-white">
+                Enter Payment Details
+              </h2>
+              <button 
+                onClick={() => { setIsPaymentModalOpen(false); setSelectedPaymentRenewal(null); fetchRenewals(); }}
+                className="p-1 rounded-lg text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4 flex-1">
+              <div>
+                <label className="block text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-1">
+                  Client Name
+                </label>
+                <div className="text-sm font-medium text-surface-900 dark:text-white">
+                  {selectedPaymentRenewal.client_name}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-1">
+                  Service
+                </label>
+                <div className="text-sm font-medium text-surface-950 dark:text-surface-100">
+                  {selectedPaymentRenewal.service}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-1">
+                  Payment Received Amount (₹) <span className="text-red-500">*</span>
+                </label>
+                <input 
+                  type="number"
+                  placeholder="e.g. 15000"
+                  value={paymentAmountInput}
+                  onChange={(e) => setPaymentAmountInput(e.target.value)}
+                  className="w-full px-3 py-2 border border-surface-300 dark:border-surface-600 rounded-lg bg-transparent text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-1">
+                  Payment Received Date <span className="text-red-500">*</span>
+                </label>
+                <IndianDateInput 
+                  value={paymentDateInput}
+                  onChange={(e) => setPaymentDateInput(e.target.value)}
+                  className="w-full px-3 py-2 border border-surface-300 dark:border-surface-600 rounded-lg bg-transparent text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-surface-50 dark:bg-surface-900/50 border-t border-surface-200 dark:border-surface-700 flex justify-end gap-3">
+              <button 
+                onClick={() => { setIsPaymentModalOpen(false); setSelectedPaymentRenewal(null); fetchRenewals(); }}
+                className="px-4 py-2 text-sm font-semibold text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 rounded-lg transition-colors border border-surface-300 dark:border-surface-700"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={submitPaymentDetails}
+                className="px-4 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 active:bg-brand-800 rounded-lg transition-all shadow-md shadow-brand-500/10 flex items-center gap-1.5"
+              >
+                Save Details
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {showRenewConfirmationModal && createPortal(
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-surface-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-surface-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-surface-200 dark:border-surface-700 flex flex-col">
             
@@ -1101,7 +1600,7 @@ export default function RenewalsList() {
                     required 
                     value={newRenewalDate} 
                     onChange={handleNewRenewalDateChange} 
-                    className="w-full pl-3 pr-10 py-2 border border-surface-300 dark:border-surface-650 rounded-lg bg-white dark:bg-surface-700 text-surface-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500" 
+                    className="w-full pl-3 pr-10 py-2 border border-surface-300 dark:border-surface-700 rounded-lg bg-white dark:bg-surface-700 text-surface-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500" 
                   />
                   <button
                     type="button"
@@ -1130,7 +1629,7 @@ export default function RenewalsList() {
               <button 
                 type="button" 
                 onClick={() => { setShowRenewConfirmationModal(false); setConfirmRenewalId(null); }} 
-                className="px-4 py-2 border border-surface-300 dark:border-surface-650 rounded-lg text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+                className="px-4 py-2 border border-surface-300 dark:border-surface-700 rounded-lg text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
               >
                 Cancel
               </button>
@@ -1144,10 +1643,11 @@ export default function RenewalsList() {
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {showDeleteModal && (
+      {showDeleteModal && createPortal(
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-surface-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-surface-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-surface-200 dark:border-surface-700 flex flex-col">
             
@@ -1186,7 +1686,7 @@ export default function RenewalsList() {
               <button 
                 type="button" 
                 onClick={() => { setShowDeleteModal(false); setDeleteId(null); }} 
-                className="px-4 py-2 border border-surface-300 dark:border-surface-650 rounded-lg text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+                className="px-4 py-2 border border-surface-300 dark:border-surface-700 rounded-lg text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
               >
                 Cancel
               </button>
@@ -1203,7 +1703,64 @@ export default function RenewalsList() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {showBatchDeleteModal && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-surface-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-surface-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-surface-200 dark:border-surface-700 flex flex-col">
+            
+            <div className="px-6 py-4 border-b border-surface-200 dark:border-surface-700 flex justify-between items-center bg-surface-50 dark:bg-surface-900/50">
+              <div>
+                <h2 className="text-lg font-bold text-surface-900 dark:text-white">
+                  Confirm Batch Delete
+                </h2>
+                <p className="text-xs text-surface-500 mt-1">Move selected renewals to trash.</p>
+              </div>
+              <button 
+                onClick={() => setShowBatchDeleteModal(false)} 
+                className="p-2 text-surface-400 hover:text-surface-600 rounded-full hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 rounded-full">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm text-surface-700 dark:text-surface-300 font-medium">
+                    Are you sure you want to delete {selectedIds.length} selected renewals?
+                  </p>
+                  <p className="text-xs text-surface-500 mt-1 leading-relaxed">
+                    The selected records will be moved to the Trash bin. You can restore them later or delete them permanently from there.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900/50 flex justify-end gap-3">
+              <button 
+                type="button" 
+                onClick={() => setShowBatchDeleteModal(false)} 
+                className="px-4 py-2 border border-surface-300 dark:border-surface-700 rounded-lg text-sm text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                onClick={confirmDeleteBatch}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+              >
+                Yes, Delete All Selected
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

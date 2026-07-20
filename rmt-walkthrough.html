@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RMT — Renewal Management Tool: Complete Project Walkthrough</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; color: #1e293b; background: #fff; line-height: 1.7; padding: 48px 56px; font-size: 13px; }
+  h1 { font-size: 28px; font-weight: 800; color: #4f46e5; margin-bottom: 4px; letter-spacing: -0.5px; }
+  h1 span { font-size: 14px; color: #64748b; font-weight: 400; display: block; margin-top: 4px; }
+  h2 { font-size: 18px; font-weight: 700; color: #1e293b; margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; }
+  h2 .num { color: #6366f1; margin-right: 6px; }
+  h3 { font-size: 14px; font-weight: 600; color: #334155; margin: 20px 0 8px; }
+  p { margin-bottom: 10px; color: #475569; }
+  .subtitle { color: #64748b; font-size: 14px; margin-bottom: 24px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 12px; }
+  th { background: #f1f5f9; color: #334155; font-weight: 600; text-align: left; padding: 8px 12px; border: 1px solid #e2e8f0; }
+  td { padding: 7px 12px; border: 1px solid #e2e8f0; color: #475569; }
+  td:first-child { font-weight: 500; color: #1e293b; }
+  tr:nth-child(even) { background: #f8fafc; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-red { background: #fee2e2; color: #991b1b; }
+  .badge-yellow { background: #fef3c7; color: #92400e; }
+  .badge-blue { background: #dbeafe; color: #1e40af; }
+  .note { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 6px; margin: 14px 0; font-size: 12px; color: #1e40af; }
+  .note strong { color: #1e3a8a; }
+  .tip { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 12px 16px; border-radius: 6px; margin: 14px 0; font-size: 12px; color: #166534; }
+  .important { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 6px; margin: 14px 0; font-size: 12px; color: #92400e; }
+  .mermaid { margin: 16px 0; text-align: center; }
+  .mermaid svg { max-width: 100% !important; }
+  .page-break { page-break-before: always; }
+  ul, ol { margin: 8px 0 14px 20px; }
+  li { margin-bottom: 4px; color: #475569; }
+  li strong { color: #1e293b; }
+  code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: 11px; color: #6366f1; font-family: 'SF Mono', monospace; }
+  .header-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 3px solid #6366f1; }
+  .header-bar .logo { font-size: 32px; }
+  .section-icon { font-size: 16px; margin-right: 6px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+  .card h4 { font-size: 13px; font-weight: 600; color: #4f46e5; margin-bottom: 8px; }
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 2px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<div class="header-bar">
+  <div>
+    <h1>🏗️ RMT — Renewal Management Tool</h1>
+    <span class="subtitle">Complete Project Architecture & Working Flow Documentation</span>
+  </div>
+  <div style="text-align:right;color:#94a3b8;font-size:11px;">
+    MarsLab Internal<br>
+    Generated: June 2026
+  </div>
+</div>
+
+<div class="note"><strong>RMT</strong> is a full-stack Renewal Management System built for MarsLab to automate the tracking, notification, and lifecycle management of client service renewals.</div>
+
+<!-- ============================== SECTION 1 ============================== -->
+<h2><span class="num">1.</span> 🏛️ High-Level Architecture</h2>
+
+<div class="mermaid">
+graph TB
+    subgraph "Client Browser"
+        FE["React SPA<br/>(Vite + TailwindCSS)"]
+    end
+    subgraph "Express Server"
+        API["REST API :3001"]
+        AUTH["Auth Routes"]
+        REN["Renewals Routes"]
+        DASH["Dashboard Routes"]
+        WH["Webhook Routes"]
+        SCHED["Cron Scheduler"]
+        EMAIL_SVC["Email Service"]
+        CLIQ_SVC["Cliq Service"]
+    end
+    subgraph "Data Layer"
+        PG[("PostgreSQL 15")]
+    end
+    subgraph "External Integrations"
+        ZOHO_SSO["Zoho SSO"]
+        ZOHO_SMTP["Zoho Mail SMTP"]
+        ZOHO_CLIQ["Zoho Cliq"]
+        ZOHO_BOOKS["Zoho Books"]
+    end
+    FE -->|"API Calls"| API
+    API --> AUTH & REN & DASH & WH
+    AUTH -->|"OAuth2"| ZOHO_SSO
+    AUTH & REN & DASH & WH --> PG
+    SCHED -->|"Queries"| PG
+    SCHED --> EMAIL_SVC & CLIQ_SVC
+    EMAIL_SVC -->|"SMTP"| ZOHO_SMTP
+    CLIQ_SVC -->|"Webhook"| ZOHO_CLIQ
+    ZOHO_BOOKS -->|"Invoice Webhook"| WH
+    style FE fill:#818cf8,color:#fff
+    style PG fill:#3b82f6,color:#fff
+    style SCHED fill:#f59e0b,color:#fff
+</div>
+
+<!-- ============================== SECTION 2 ============================== -->
+<h2><span class="num">2.</span> ⚙️ Technology Stack</h2>
+
+<table>
+<tr><th>Layer</th><th>Technology</th><th>Purpose</th></tr>
+<tr><td>Frontend</td><td>React 18, Vite 5, TailwindCSS 3</td><td>SPA with responsive UI</td></tr>
+<tr><td>UI Libraries</td><td>Framer Motion, Recharts, Lucide React</td><td>Animations, charts, icons</td></tr>
+<tr><td>Backend</td><td>Express 4, Node.js 20</td><td>REST API server</td></tr>
+<tr><td>Database</td><td>PostgreSQL 15 (Alpine)</td><td>Persistent data store</td></tr>
+<tr><td>Authentication</td><td>Zoho OAuth2 SSO + JWT</td><td>Secure login with token rotation</td></tr>
+<tr><td>Email</td><td>Nodemailer → Zoho Mail SMTP</td><td>Automated reminders</td></tr>
+<tr><td>Notifications</td><td>Zoho Cliq Webhooks</td><td>Team channel alerts</td></tr>
+<tr><td>Scheduling</td><td>node-cron</td><td>Hourly automated tasks</td></tr>
+<tr><td>Invoice Sync</td><td>Zoho Books Webhooks</td><td>Auto-sync invoice data</td></tr>
+<tr><td>Export</td><td>jsPDF, xlsx</td><td>PDF & Excel reports</td></tr>
+<tr><td>Deployment</td><td>Docker Compose → AWS ECR</td><td>Containerized deployment</td></tr>
+</table>
+
+<!-- ============================== SECTION 3 ============================== -->
+<h2><span class="num">3.</span> 🗃️ Database Schema (8 Tables)</h2>
+
+<div class="mermaid">
+erDiagram
+    USERS {
+        int id PK
+        varchar email UK
+        varchar full_name
+        varchar role "admin | finance | sales"
+    }
+    RENEWALS {
+        int id PK
+        varchar unique_id UK "RMT-01..."
+        varchar client_name
+        varchar service
+        date renewal_date
+        numeric value
+        varchar status "Active | Pending | Renewed | Expired"
+        varchar renewal_confirmation "pending | renewed"
+        varchar invoice_status "Sent | Not"
+        varchar payment_status "Yes | No"
+    }
+    RENEWAL_HISTORY {
+        int id PK
+        int renewal_id FK
+        varchar action
+        text previous_data
+        text new_data
+    }
+    EMAIL_LOGS {
+        int id PK
+        int renewal_id FK
+        varchar recipient_email
+        varchar email_type
+        varchar status "sent | failed"
+    }
+    NOTIFICATIONS {
+        int id PK
+        varchar role
+        varchar title
+        text message
+        varchar type "info | warning | success | error"
+    }
+    ACTIVITY_LOGS {
+        int id PK
+        int user_id FK
+        varchar action
+        text details
+    }
+    REFRESH_TOKENS {
+        int id PK
+        int user_id FK
+        varchar token_hash UK
+    }
+    TRASH_RENEWALS {
+        int id PK
+        int original_id
+        timestamp deleted_at
+    }
+    USERS ||--o{ RENEWALS : creates
+    USERS ||--o{ ACTIVITY_LOGS : performs
+    USERS ||--o{ REFRESH_TOKENS : has
+    RENEWALS ||--o{ RENEWAL_HISTORY : tracks
+    RENEWALS ||--o{ EMAIL_LOGS : generates
+</div>
+
+<div class="page-break"></div>
+
+<!-- ============================== SECTION 4 ============================== -->
+<h2><span class="num">4.</span> 🚀 Application Startup Flow</h2>
+
+<div class="mermaid">
+flowchart TD
+    A["docker compose up"] --> B["PostgreSQL 15 starts + health check"]
+    B --> C["Node.js app starts"]
+    C --> D["initDb: Create 8 tables + ALTER for new columns"]
+    D --> E["Auto-update renewal statuses based on dates"]
+    E --> F["Auto-seed default users: admin, sales, finance"]
+    F --> G["SMTP connection verified"]
+    G --> H["startScheduler: cron every hour + initial run after 3s"]
+    H --> I["Server listening on :3001"]
+    style A fill:#6366f1,color:#fff
+    style I fill:#10b981,color:#fff
+</div>
+
+<div class="important"><strong>On every startup</strong>, the system auto-recalculates all renewal statuses: <strong>Expired</strong> (past date), <strong>Pending Renewal</strong> (≤30 days), <strong>Active</strong> (>30 days).</div>
+
+<!-- ============================== SECTION 5 ============================== -->
+<h2><span class="num">5.</span> 🔐 Authentication Flow (Zoho SSO)</h2>
+
+<div class="mermaid">
+flowchart LR
+    A["User clicks Login with Zoho"] --> B["GET /api/auth/zoho"]
+    B --> C["Redirect to Zoho OAuth2"]
+    C --> D["User authorizes"]
+    D --> E["Callback with auth code"]
+    E --> F["Exchange code for token"]
+    F --> G["Fetch profile email"]
+    G --> H{"Email in users table?"}
+    H -->|No| I["Access Denied"]
+    H -->|Yes| J["Issue 8h Access Token"]
+    J --> K["Issue Refresh Token → HttpOnly cookie"]
+    K --> L["Redirect to app with token"]
+    L --> M["Schedule silent refresh"]
+    style A fill:#818cf8,color:#fff
+    style M fill:#10b981,color:#fff
+</div>
+
+<h3>Token Security Design</h3>
+<ul>
+  <li><strong>Access Token</strong>: 8-hour lifespan, stored in React state (memory only), sent via <code>Authorization: Bearer</code></li>
+  <li><strong>Refresh Token</strong>: 10-year lifespan, HttpOnly/Secure/SameSite=Strict cookie, SHA-256 hashed in DB</li>
+  <li><strong>Token Rotation</strong>: On each refresh, old token revoked in DB, new one issued</li>
+  <li><strong>Silent Refresh</strong>: Scheduled 2 minutes before access token expiry</li>
+</ul>
+
+<!-- ============================== SECTION 6 ============================== -->
+<h2><span class="num">6.</span> 📋 Renewal Lifecycle (Core Business Logic)</h2>
+
+<div class="mermaid">
+flowchart TD
+    subgraph "CREATE"
+        C1["Sales/Admin creates renewal"] --> C2["Generate RMT-XX ID"]
+        C2 --> C3["Calculate status + email flags"]
+        C3 --> C4["Insert into DB"]
+        C4 --> C5["Notify all roles + Cliq"]
+    end
+    subgraph "MONITOR - Hourly Cron"
+        M1["Scan Active + Pending renewals"] --> M2["Calculate daysLeft"]
+        M2 --> M3{"Expired?"}
+        M3 -->|Yes| M4["Mark Expired + Alert all teams"]
+        M3 -->|No| M5{"Email tier due?"}
+        M5 -->|Yes| M6["Send client email + CC CST + Cliq"]
+        M5 -->|No| M7["Skip"]
+    end
+    subgraph "RENEW"
+        R1["Finance/Admin renews"] --> R2["Set new date + reset flags"]
+        R2 --> R3["Status = Active + Notify"]
+    end
+    subgraph "EXPIRE"
+        E1["Renewal expires"] --> E2["Sales provides reason"]
+    end
+    style C1 fill:#10b981,color:#fff
+    style M1 fill:#f59e0b,color:#fff
+    style R1 fill:#3b82f6,color:#fff
+    style E1 fill:#ef4444,color:#fff
+</div>
+
+<div class="page-break"></div>
+
+<!-- ============================== SECTION 7 ============================== -->
+<h2><span class="num">7.</span> 📧 Automated Email Reminder Schedule</h2>
+
+<p>The scheduler runs <strong>every hour</strong> via <code>node-cron</code> and sends tiered reminders:</p>
+
+<table>
+<tr><th>Days Left</th><th>Client Email</th><th>Sales Special Email</th><th>Cliq Alert</th></tr>
+<tr><td><strong>≤ 30 days</strong></td><td>✅ 30-day reminder (CC: CST)</td><td>—</td><td>✅ Both channels</td></tr>
+<tr><td><strong>≤ 20 days</strong></td><td>✅ 20-day reminder (CC: CST)</td><td>—</td><td>✅ Both channels</td></tr>
+<tr><td><strong>≤ 15 days</strong></td><td>✅ 15-day reminder (CC: CST)</td><td>✅ "Meet client" to CST</td><td>✅ Both channels</td></tr>
+<tr><td><strong>≤ 10 days</strong></td><td>✅ 10-day reminder (CC: CST)</td><td>—</td><td>✅ Both channels</td></tr>
+<tr><td><strong>≤ 5 days</strong></td><td>✅ 5-day reminder (CC: CST)</td><td>✅ "Meet client" to CST</td><td>✅ Both channels</td></tr>
+<tr><td><strong>≤ 3 days</strong></td><td>✅ 3-day reminder (CC: CST)</td><td>—</td><td>✅ Both channels</td></tr>
+<tr><td><strong>< 0 (Expired)</strong></td><td>—</td><td>—</td><td>✅ Expiry alert + Email to Admin (CC: CST)</td></tr>
+</table>
+
+<div class="tip"><strong>Catch-Up Mechanism:</strong> If the server was down and missed a tier, the next run fires the email for any tier not yet sent. It also marks all larger tiers as sent to prevent duplicates.</div>
+
+<!-- ============================== SECTION 8 ============================== -->
+<h2><span class="num">8.</span> 🧾 Zoho Books Invoice Sync</h2>
+
+<div class="mermaid">
+flowchart LR
+    A["Zoho Books: Invoice Sent"] --> B["POST /api/webhooks/zoho-books"]
+    B --> C{"Has RMT ID custom field?"}
+    C -->|No| D["Return 400"]
+    C -->|Yes| E["Find renewal by unique_id"]
+    E --> F["Update invoice_status, number, value, date"]
+    F --> G["Log history + Notify Admin/Finance + Cliq"]
+    style A fill:#10b981,color:#fff
+    style G fill:#6366f1,color:#fff
+</div>
+
+<div class="important"><strong>Zoho Books invoices must include a custom field named "RMT ID"</strong> (e.g., RMT-01) to be linked to the correct renewal record.</div>
+
+<!-- ============================== SECTION 9 ============================== -->
+<h2><span class="num">9.</span> 💰 Payment Tracking Flow</h2>
+
+<div class="mermaid">
+flowchart LR
+    A["Finance/Admin records payment"] --> B["PATCH /api/renewals/:id/payment"]
+    B --> C["Update payment_status, amount, date"]
+    C --> D["Cliq notifications to both channels"]
+    D --> E["Email to Admins + CC Sales"]
+    style A fill:#10b981,color:#fff
+</div>
+
+<!-- ============================== SECTION 10 ============================== -->
+<h2><span class="num">10.</span> 🔒 Role-Based Access Control (RBAC)</h2>
+
+<table>
+<tr><th>Action</th><th>Admin</th><th>Finance</th><th>Sales (CST)</th></tr>
+<tr><td>Create renewal</td><td>✅</td><td>❌</td><td>✅</td></tr>
+<tr><td>Edit renewal</td><td>✅</td><td>✅</td><td>✅</td></tr>
+<tr><td>Renew client</td><td>✅</td><td>✅</td><td>❌</td></tr>
+<tr><td>Delete → Trash</td><td>✅</td><td>❌</td><td>❌</td></tr>
+<tr><td>Restore from Trash</td><td>✅</td><td>❌</td><td>❌</td></tr>
+<tr><td>Permanent Delete</td><td>✅</td><td>❌</td><td>❌</td></tr>
+<tr><td>CSV Bulk Import</td><td>✅</td><td>❌</td><td>❌</td></tr>
+<tr><td>Update Invoice</td><td>✅</td><td>✅</td><td>❌</td></tr>
+<tr><td>Record Payment</td><td>✅</td><td>✅</td><td>❌</td></tr>
+<tr><td>Follow-up Updates</td><td>✅</td><td>❌</td><td>✅</td></tr>
+<tr><td>Trigger Scheduler</td><td>✅</td><td>❌</td><td>❌</td></tr>
+<tr><td>View Trash</td><td>✅</td><td>❌</td><td>❌</td></tr>
+</table>
+
+<div class="page-break"></div>
+
+<!-- ============================== SECTION 11 ============================== -->
+<h2><span class="num">11.</span> 🖥️ Frontend Architecture</h2>
+
+<div class="mermaid">
+flowchart TD
+    MAIN["main.jsx"] --> AUTH_P["AuthProvider Context"]
+    AUTH_P --> APP["App.jsx Router"]
+    APP --> LOGIN["Login"] & DASH["Dashboard"] & REN["RenewalsList"] & REP["Reports"]
+    APP --> EDITS["EditsHistory"] & TRASH["Trash"] & NOTIF["Notifications"] & ACT["ActivityLogs"] & SET["Settings"]
+    REN --> FORM["RenewalForm"] & CM["ClientDetailsModal"] & IM["InvoiceDetailsModal"] & RM["RenewActionModal"]
+    style MAIN fill:#818cf8,color:#fff
+    style REN fill:#f59e0b,color:#fff
+</div>
+
+<h3>Pages Overview</h3>
+<table>
+<tr><th>Page</th><th>Purpose</th><th>Access</th></tr>
+<tr><td>Dashboard</td><td>KPI cards + status/monthly charts</td><td>All roles</td></tr>
+<tr><td>RenewalsList</td><td>Main data grid with search, filters, pagination, actions</td><td>All roles</td></tr>
+<tr><td>Reports</td><td>PDF & Excel export of renewal data</td><td>All roles</td></tr>
+<tr><td>EditsHistory</td><td>Audit trail of all record modifications</td><td>All roles</td></tr>
+<tr><td>Notifications</td><td>In-app notification center (role-based)</td><td>All roles</td></tr>
+<tr><td>ActivityLogs</td><td>System-wide activity audit log</td><td>All roles</td></tr>
+<tr><td>Trash</td><td>Soft-deleted records: restore or permanent delete</td><td>Admin only</td></tr>
+<tr><td>Settings</td><td>Password change and profile</td><td>All roles</td></tr>
+</table>
+
+<!-- ============================== SECTION 12 ============================== -->
+<h2><span class="num">12.</span> 🚢 Deployment Pipeline</h2>
+
+<div class="mermaid">
+flowchart LR
+    A["push.sh"] --> B["AWS ECR Login"]
+    B --> C["docker compose build"]
+    C --> D["Multi-stage Dockerfile"]
+    D --> E["Stage 1: Vite build"]
+    E --> F["Stage 2: Node 20 Alpine + prod deps + dist"]
+    F --> G["Tag: dev-rmt-frontend:latest.final"]
+    G --> H["Push to AWS ECR ap-south-1"]
+    style A fill:#6366f1,color:#fff
+    style H fill:#f59e0b,color:#fff
+</div>
+
+<h3>Docker Compose Services</h3>
+<ul>
+  <li><strong>app</strong> — Node.js server serving both API and static frontend on port 3001</li>
+  <li><strong>db</strong> — PostgreSQL 15 Alpine with health checks, persistent volume, and init script</li>
+</ul>
+
+<!-- ============================== SECTION 13 ============================== -->
+<h2><span class="num">13.</span> 🔑 Key Configuration (.env)</h2>
+
+<table>
+<tr><th>Variable</th><th>Purpose</th></tr>
+<tr><td><code>ZOHO_CLIENT_ID</code> / <code>ZOHO_CLIENT_SECRET</code></td><td>Zoho OAuth2 SSO credentials</td></tr>
+<tr><td><code>ZOHO_REDIRECT_URI</code></td><td>OAuth callback URL</td></tr>
+<tr><td><code>JWT_SECRET</code> / <code>REFRESH_SECRET</code></td><td>Token signing secrets</td></tr>
+<tr><td><code>PG*</code> vars</td><td>PostgreSQL connection config</td></tr>
+<tr><td><code>EMAIL_ENABLED</code></td><td>Toggle email sending (true/false)</td></tr>
+<tr><td><code>SMTP_HOST / PORT / USER / PASS</code></td><td>Zoho Mail SMTP config</td></tr>
+<tr><td><code>ZOHO_CLIQ_WEBHOOK_URL</code></td><td>Finance Cliq channel webhook</td></tr>
+<tr><td><code>ZOHO_CLIQ_SALES_WEBHOOK_URL</code></td><td>Sales Cliq channel webhook</td></tr>
+</table>
+
+<!-- ============================== SECTION 14 ============================== -->
+<h2><span class="num">14.</span> 💡 Key Design Decisions</h2>
+
+<div class="two-col">
+  <div class="card">
+    <h4>🔐 Zoho SSO (No Passwords)</h4>
+    <p>Users authenticate via Zoho org account. The users table is a pre-seeded allowlist.</p>
+  </div>
+  <div class="card">
+    <h4>🍪 HttpOnly Refresh Cookies</h4>
+    <p>Refresh tokens stored as HttpOnly cookies — never accessible to JS, eliminating XSS theft.</p>
+  </div>
+  <div class="card">
+    <h4>⏰ Hourly Cron with Catch-Up</h4>
+    <p>Uses ≤ comparison with 'No' flags. If server was down, next run catches up without duplicates.</p>
+  </div>
+  <div class="card">
+    <h4>🗑️ Soft Delete → Trash</h4>
+    <p>Renewals move to trash_renewals. Only admins can restore or permanently delete.</p>
+  </div>
+  <div class="card">
+    <h4>🧾 Zoho Books Webhook Bridge</h4>
+    <p>RMT ID custom field in Zoho Books invoices creates a seamless accounting-to-RMT bridge.</p>
+  </div>
+  <div class="card">
+    <h4>📢 Dual Cliq Channels</h4>
+    <p>Every event posted to both Finance (rmt) and Sales (rmtsales) channels.</p>
+  </div>
+</div>
+
+<div class="footer">
+  <p>RMT — Renewal Management Tool | MarsLab | Architecture Documentation</p>
+</div>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose', flowchart: { curve: 'basis', useMaxWidth: true } });
+</script>
+</body>
+</html>

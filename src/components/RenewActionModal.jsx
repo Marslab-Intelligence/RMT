@@ -223,10 +223,10 @@ export default function RenewActionModal({ renewal, onClose, onSuccess }) {
                 <select 
                   value={formData.status} 
                   onChange={(e) => setFormData({...formData, status: e.target.value})} 
-                  className="input-field bg-white dark:bg-surface-800"
+                  className="input-field bg-white dark:bg-surface-800 text-zinc-900 dark:text-white"
                 >
-                  <option value="Active">Active</option>
-                  <option value="Renewed">Renewed</option>
+                  <option value="Active" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Active</option>
+                  <option value="Renewed" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Renewed</option>
                 </select>
               </div>
             </form>
@@ -238,15 +238,15 @@ export default function RenewActionModal({ renewal, onClose, onSuccess }) {
                   required
                   value={followUpData.follow_up_status} 
                   onChange={(e) => setFollowUpData({...followUpData, follow_up_status: e.target.value})} 
-                  className="input-field bg-white dark:bg-surface-800"
+                  className="input-field bg-white dark:bg-surface-800 text-zinc-900 dark:text-white"
                 >
-                  <option value="">Select Status...</option>
-                  <option value="Meeting Scheduled">Meeting Scheduled</option>
-                  <option value="Proposal Sent">Proposal Sent</option>
-                  <option value="Negotiation">Negotiation</option>
-                  <option value="Verbal Agreement">Verbal Agreement</option>
-                  <option value="At Risk">At Risk</option>
-                  <option value="Completed">Completed (Pending Finance)</option>
+                  <option value="" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Select Status...</option>
+                  <option value="Meeting Scheduled" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Meeting Scheduled</option>
+                  <option value="Proposal Sent" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Proposal Sent</option>
+                  <option value="Negotiation" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Negotiation</option>
+                  <option value="Verbal Agreement" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Verbal Agreement</option>
+                  <option value="At Risk" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">At Risk</option>
+                  <option value="Completed" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Completed (Pending Finance)</option>
                 </select>
               </div>
               <div>

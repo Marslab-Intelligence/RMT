@@ -3,39 +3,55 @@ version: '3.8'
 services:
   app:
     build: .
-    ports:
-      - "3001:3001"
+    network_mode: "host"
     env_file:
       - .env
     environment:
       - NODE_ENV=production
       - PORT=3001
-      - PGHOST=db
+      - PGHOST=localhost
     depends_on:
       db:
         condition: service_healthy
-    dns:
-      - 192.168.1.1
-      - 100.100.100.100
-      - 8.8.8.8
-      - 1.1.1.1
     restart: unless-stopped
+    # SECURITY: Run as non-root user (matches Dockerfile USER node, uid=1000)
+    user: "1000:1000"
+    # SECURITY: Read-only filesystem — app only needs to write nothing at runtime
+    # (logs go to stdout, no local file writes needed)
+    read_only: true
+    tmpfs:
+      - /tmp:size=50m,noexec,nosuid,nodev
+    # SECURITY: Drop ALL Linux capabilities; add back only what's strictly needed
+    cap_drop:
+      - ALL
+    # SECURITY: Prevent privilege escalation
+    security_opt:
+      - no-new-privileges:true
+    # SECURITY: Resource limits to prevent DoS / container breakout amplification
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
 
   db:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_USER=marslab_user
-      - POSTGRES_PASSWORD=marslab123
-      - POSTGRES_DB=marslab_db
+      - POSTGRES_USER=${PGUSER:-marslab_user}
+      - POSTGRES_PASSWORD=${PGPASSWORD:-marslab123}
+      - POSTGRES_DB=${PGDATABASE:-marslab_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U marslab_user -d marslab_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-marslab_user} -d ${PGDATABASE:-marslab_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    # SECURITY: Do not expose the DB port to the host machine
+    # Only the app container communicates with it via the internal network
+    # ports:  <-- intentionally commented out
 
 volumes:
   postgres_data:

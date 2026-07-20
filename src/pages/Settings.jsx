@@ -71,7 +71,7 @@ export default function Settings() {
         <div className="md:col-span-2 space-y-6">
           
           {/* Profile Card */}
-          <div className="card p-6 dark:bg-surface-800 dark:border-surface-700">
+          <div className="card p-6">
             <h2 className="text-lg font-bold text-surface-900 dark:text-white mb-6 flex items-center gap-2">
               <User className="w-5 h-5 text-brand-500" /> Account Details
             </h2>
@@ -85,15 +85,12 @@ export default function Settings() {
               <div>
                 <h3 className="text-xl font-bold text-surface-900 dark:text-white">{user?.fullName}</h3>
                 <p className="text-surface-500 dark:text-surface-400">{user?.email}</p>
-                <span className="inline-block mt-2 px-3 py-1 bg-surface-100 dark:bg-surface-700 text-surface-700 dark:text-surface-300 text-xs font-semibold rounded-full capitalize">
-                  {user?.role === 'sales' ? 'CST' : user?.role} Team
-                </span>
               </div>
             </div>
           </div>
 
           {/* Security Card */}
-          <div className="card p-6 dark:bg-surface-800 dark:border-surface-700">
+          <div className="card p-6">
             <h2 className="text-lg font-bold text-surface-900 dark:text-white mb-6 flex items-center gap-2">
               <Shield className="w-5 h-5 text-brand-500" /> Change Password
             </h2>

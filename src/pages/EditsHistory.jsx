@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { jsPDF } from 'jspdf';
 import { useAuth } from '../context/AuthContext';
-import { History, User, Calendar, Edit, ArrowRight, Shield, RefreshCw, PlusCircle, CheckCircle, X, Download } from 'lucide-react';
+import { History, User, Calendar, Edit, ArrowRight, Shield, RefreshCw, PlusCircle, CheckCircle, X, Download, Tag, Mail, CalendarClock } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { formatCurrency, formatDate, formatDateTime } from '../utils/formatters';
+import { formatCurrency, formatDate, formatDateTime, getStatusColor } from '../utils/formatters';
 
 export default function EditsHistory() {
   const { token, user } = useAuth();
@@ -11,6 +13,7 @@ export default function EditsHistory() {
   const [selectedLog, setSelectedLog] = useState(null);
 
   const fetchLogs = async () => {
+    if (!token) return;
     setLoading(true);
     try {
       const res = await fetch('/api/renewals/edits-history', {
@@ -30,8 +33,19 @@ export default function EditsHistory() {
   };
 
   useEffect(() => {
-    fetchLogs();
+    if (token) {
+      fetchLogs();
+    }
   }, [token]);
+
+  const getCreatedDetails = (log) => {
+    if (!log || !log.new_data) return null;
+    try {
+      return typeof log.new_data === 'string' ? JSON.parse(log.new_data) : log.new_data;
+    } catch (e) {
+      return null;
+    }
+  };
 
   // Fallback helper to fetch details of the record (even if deleted)
   const getRecordDetails = (log) => {
@@ -83,7 +97,7 @@ export default function EditsHistory() {
         value: 'Contract Value',
         renewal_date: 'Renewal Date',
         owner: 'Account Owner',
-        sales_email: 'CST Email',
+        sales_email: 'Client secondary mail',
         contact_number: 'Contact Number',
         reference_id: 'Reference ID',
         status: 'Status',
@@ -141,54 +155,218 @@ export default function EditsHistory() {
     }
   };
 
-  const downloadTextLog = (log) => {
+  const downloadPDFLog = (log) => {
     if (!log) return;
     try {
       const details = getRecordDetails(log);
       const uniqueId = getUniqueId(log);
       const changes = getChanges(log);
       const reason = getReason(log);
-      const actorRole = log.performed_by_role === 'sales' ? 'CST' : log.performed_by_role;
+      const actorRole = log.performed_by_role === 'sales' ? 'CST / Sales' : log.performed_by_role;
 
-      let changesText = '';
-      if (log.action === 'created') {
-        changesText = 'Initial record created.';
-      } else if (log.action === 'renewed' && changes.length === 0) {
-        changesText = 'Record renewed successfully.';
+      const doc = new jsPDF();
+
+      // Color Palette
+      const primaryColor = [16, 185, 129]; // Emerald-500
+      const textColor = [51, 51, 51];
+      const lightGray = [245, 245, 245];
+      const darkGray = [100, 116, 139];
+
+      // Header Banner
+      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.rect(0, 0, 210, 35, 'F');
+
+      // Title
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.text('AUDIT LOG DETAILS', 15, 22);
+
+      // Subtitle
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text('MarsLab Renewal Management System', 15, 28);
+
+      // Document Metadata
+      doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text('REPORT METADATA', 15, 48);
+
+      // Draw a line under title
+      doc.setDrawColor(220, 220, 220);
+      doc.line(15, 51, 195, 51);
+
+      // Metadata details grid
+      let y = 60;
+      const drawMetaRow = (label, val, nextValLabel = null, nextVal = null) => {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(darkGray[0], darkGray[1], darkGray[2]);
+        doc.text(label, 15, y);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+        doc.text(String(val), 55, y);
+
+        if (nextValLabel && nextVal) {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9);
+          doc.setTextColor(darkGray[0], darkGray[1], darkGray[2]);
+          doc.text(nextValLabel, 110, y);
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+          doc.text(String(nextVal), 150, y);
+        }
+        y += 8;
+      };
+
+      drawMetaRow('Unique ID:', uniqueId, 'Action Type:', log.action.toUpperCase());
+      drawMetaRow('Client Name:', details.client_name, 'Service Plan:', details.service);
+      drawMetaRow('Performed By:', `${log.performed_by_name} (${actorRole?.toUpperCase()})`, 'Timestamp:', formatDateTime(log.performed_at));
+      
+      // If edited, add Reason
+      if (log.action === 'edited') {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(darkGray[0], darkGray[1], darkGray[2]);
+        doc.text('Reason for Edit:', 15, y);
+        
+        doc.setFont('helvetica', 'oblique');
+        doc.setFontSize(9.5);
+        doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+        const splitReason = doc.splitTextToSize(`"${reason}"`, 140);
+        doc.text(splitReason, 55, y);
+        y += (splitReason.length * 5) + 3;
       } else {
-        changesText = changes.map(c => `- ${c.field}: ${c.old} -> ${c.new}`).join('\n');
+        y += 2;
       }
 
-      const fileContent = `==================================================
-AUDIT LOG REPORT: RECORD MODIFICATION
-==================================================
-Record ID:       ${uniqueId}
-Client Name:     ${details.client_name}
-Service:         ${details.service}
-Action Type:     ${log.action}
-Performed By:    ${log.performed_by_name} (${actorRole?.toUpperCase()})
-Timestamp:       ${formatDateTime(log.performed_at)}
-Reason/Remarks:  ${reason}
+      // Changes Description Section
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+      doc.text('CHANGES DESCRIPTION', 15, y);
+      
+      doc.setDrawColor(220, 220, 220);
+      doc.line(15, y + 3, 195, y + 3);
+      y += 10;
 
-CHANGES DESCRIPTION:
---------------------------------------------------
-${changesText}
-==================================================
-Generated on ${new Date().toLocaleString('en-IN')}
-`;
+      if (log.action === 'created') {
+        const createdData = getCreatedDetails(log);
+        if (createdData) {
+          // Render creation key-value details in a box
+          doc.setFillColor(lightGray[0], lightGray[1], lightGray[2]);
+          doc.rect(15, y, 180, 75, 'F');
+          
+          doc.setDrawColor(200, 200, 200);
+          doc.rect(15, y, 180, 75, 'S');
 
-      const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `audit_log_${uniqueId}_${new Date(log.performed_at).toISOString().split('T')[0]}.txt`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      toast.success('Audit log downloaded successfully');
+          const boxY = y + 8;
+          const drawBoxDetail = (label, val, x1, x2, currY) => {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(darkGray[0], darkGray[1], darkGray[2]);
+            doc.text(label, x1, currY);
+            
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9.5);
+            doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+            doc.text(String(val), x2, currY);
+          };
+
+          drawBoxDetail('Status:', createdData.status || '—', 20, 55, boxY);
+          drawBoxDetail('Contract Value:', formatCurrency(createdData.value || 0).replace('₹', 'Rs. '), 110, 150, boxY);
+          
+          drawBoxDetail('Service Plan:', createdData.service || '—', 20, 55, boxY + 12);
+          drawBoxDetail('Renewal Date:', formatDate(createdData.renewal_date) || '—', 110, 150, boxY + 12);
+          
+          drawBoxDetail('Contact Person:', createdData.owner || '—', 20, 55, boxY + 24);
+          drawBoxDetail('Contact Phone:', createdData.contact_number || '—', 110, 150, boxY + 24);
+          
+          drawBoxDetail('Client Email:', createdData.client_email || '—', 20, 55, boxY + 36);
+          drawBoxDetail('Secondary Email:', createdData.sales_email || '—', 110, 150, boxY + 36);
+          
+          drawBoxDetail('Reference ID:', createdData.reference_id || '—', 20, 55, boxY + 48);
+
+          y += 85;
+        } else {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          doc.text('Initial record created.', 15, y);
+          y += 10;
+        }
+      } else if (log.action === 'renewed' && changes.length === 0) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text('Record renewed successfully.', 15, y);
+        y += 10;
+      } else {
+        if (changes.length === 0) {
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(10);
+          doc.text('No field differences logged.', 15, y);
+          y += 10;
+        } else {
+          // Draw table header for changes
+          doc.setFillColor(lightGray[0], lightGray[1], lightGray[2]);
+          doc.rect(15, y, 180, 8, 'F');
+          
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9);
+          doc.setTextColor(darkGray[0], darkGray[1], darkGray[2]);
+          doc.text('FIELD NAME', 20, y + 5.5);
+          doc.text('PREVIOUS VALUE', 75, y + 5.5);
+          doc.text('NEW VALUE', 140, y + 5.5);
+          
+          y += 8;
+
+          // Draw table rows
+          changes.forEach((c) => {
+            // Draw border line
+            doc.setDrawColor(240, 240, 240);
+            doc.line(15, y, 195, y);
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+            doc.text(c.field, 20, y + 6);
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            const oldVal = String(c.old).replace('₹', 'Rs. ');
+            const newVal = String(c.new).replace('₹', 'Rs. ');
+
+            doc.setTextColor(185, 28, 28); // Red text for old value
+            doc.text(oldVal, 75, y + 6);
+
+            doc.setTextColor(4, 120, 87); // Green text for new value
+            doc.text(newVal, 140, y + 6);
+
+            y += 9;
+          });
+
+          // Draw bottom border
+          doc.setDrawColor(200, 200, 200);
+          doc.line(15, y, 195, y);
+          y += 15;
+        }
+      }
+
+      // Footer
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(8);
+      doc.setTextColor(darkGray[0], darkGray[1], darkGray[2]);
+      doc.text(`Generated on ${new Date().toLocaleString('en-IN')}`, 15, y);
+
+      doc.save(`audit_log_${uniqueId}_${new Date(log.performed_at).toISOString().split('T')[0]}.pdf`);
+      toast.success('Audit log downloaded as PDF successfully');
     } catch (e) {
-      toast.error('Failed to generate text file');
+      console.error(e);
+      toast.error('Failed to generate PDF file');
     }
   };
 
@@ -212,16 +390,16 @@ Generated on ${new Date().toLocaleString('en-IN')}
         </button>
       </div>
 
-      <div className="card overflow-hidden dark:bg-surface-800 dark:border-surface-700">
+      <div className="card overflow-hidden">
         <div className="max-h-[700px] overflow-y-auto custom-scrollbar relative">
-          <table className="w-full text-left text-sm table-fixed">
+          <table className="w-full text-left text-xs table-fixed">
             <thead className="bg-surface-50 dark:bg-surface-900 text-surface-500 dark:text-surface-400 border-b border-surface-200 dark:border-surface-700 sticky top-0 z-10 shadow-sm">
               <tr>
-                <th className="px-4 py-3 font-medium w-[12%]">Unique ID</th>
-                <th className="px-4 py-3 font-medium w-[22%]">Record Details</th>
-                <th className="px-4 py-3 font-medium w-[18%]">Performed By</th>
-                <th className="px-4 py-3 font-medium w-[14%]">Action At</th>
-                <th className="px-4 py-3 font-medium w-[34%]">Changes Description</th>
+                <th className="px-3 py-1.5 font-medium w-[12%]">Unique ID</th>
+                <th className="px-3 py-1.5 font-medium w-[22%]">Record Details</th>
+                <th className="px-3 py-1.5 font-medium w-[18%]">Performed By</th>
+                <th className="px-3 py-1.5 font-medium w-[14%]">Action At</th>
+                <th className="px-3 py-1.5 font-medium w-[34%]">Changes Description</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-200 dark:divide-surface-700">
@@ -254,12 +432,12 @@ Generated on ${new Date().toLocaleString('en-IN')}
                       className="cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-700/30 transition-colors"
                     >
                       {/* Unique ID */}
-                      <td className="px-4 py-3 font-mono text-xs text-brand-600 dark:text-brand-400 font-medium truncate" title={unique_id}>
+                      <td className="px-3 py-1.5 font-mono text-xs text-brand-600 dark:text-brand-400 font-medium truncate" title={unique_id}>
                         {unique_id}
                       </td>
 
                       {/* Current Record Details */}
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-1.5">
                         <div className="font-semibold text-surface-900 dark:text-white truncate" title={client_name}>
                           {client_name}
                         </div>
@@ -269,7 +447,7 @@ Generated on ${new Date().toLocaleString('en-IN')}
                       </td>
 
                       {/* Performed By Role Badge */}
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-1.5">
                         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                           <span 
                             className="w-7 h-7 rounded-full bg-brand-100 dark:bg-brand-900/20 text-brand-700 dark:text-brand-400 flex items-center justify-center text-xs font-semibold"
@@ -287,19 +465,19 @@ Generated on ${new Date().toLocaleString('en-IN')}
                                     : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800'
                               }`}
                             >
-                              {log.performed_by_role === 'sales' ? 'CST' : log.performed_by_role}
+                              {log.performed_by_role === 'sales' ? 'CST / Sales' : log.performed_by_role}
                             </span>
                           </div>
                         </div>
                       </td>
 
                       {/* Edited At Date/Time */}
-                      <td className="px-4 py-3 text-xs text-surface-600 dark:text-surface-400">
+                      <td className="px-3 py-1.5 text-xs text-surface-600 dark:text-surface-400">
                         {formatDateTime(log.performed_at)}
                       </td>
 
                       {/* Changes Details */}
-                      <td className="px-4 py-3 space-y-2">
+                      <td className="px-3 py-1.5 space-y-2">
                         {log.action === 'created' ? (
                           <div className="flex items-center gap-1.5 text-xs text-brand-700 dark:text-brand-400 font-semibold bg-brand-50 dark:bg-brand-900/20 px-2 py-1 rounded w-fit">
                             <PlusCircle className="w-3.5 h-3.5" /> Initial Record Created
@@ -345,8 +523,8 @@ Generated on ${new Date().toLocaleString('en-IN')}
       </div>
 
       {/* Modal Popup */}
-      {selectedLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/60 backdrop-blur-sm p-4">
+      {selectedLog && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-surface-900/60 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden animate-scale-up">
             {/* Modal Header */}
             <div className="flex justify-between items-center px-6 py-4 border-b border-surface-200 dark:border-surface-700">
@@ -395,7 +573,7 @@ Generated on ${new Date().toLocaleString('en-IN')}
                     </span>
                     <div>
                       <p className="text-sm font-semibold text-surface-900 dark:text-white">{selectedLog.performed_by_name}</p>
-                      <p className="text-[10px] text-surface-400 capitalize">{selectedLog.performed_by_role === 'sales' ? 'CST Team' : selectedLog.performed_by_role + ' Team'}</p>
+                      <p className="text-[10px] text-surface-400 capitalize">{selectedLog.performed_by_role === 'sales' ? 'Customer Success Team / Sales' : selectedLog.performed_by_role + ' Team'}</p>
                     </div>
                   </div>
                 </div>
@@ -408,7 +586,7 @@ Generated on ${new Date().toLocaleString('en-IN')}
                 {selectedLog.action === 'edited' && (
                   <div>
                     <span className="block text-[10px] text-surface-400 uppercase font-semibold mb-1">Reason for Edit</span>
-                    <p className="text-sm bg-surface-50 dark:bg-surface-900/40 p-3 rounded-lg border border-surface-150 dark:border-surface-800 text-surface-700 dark:text-surface-300 italic">
+                    <p className="text-sm bg-surface-50 dark:bg-surface-900/40 p-3 rounded-lg border border-surface-200 dark:border-surface-800 text-surface-700 dark:text-surface-300 italic">
                       "{getReason(selectedLog)}"
                     </p>
                   </div>
@@ -416,18 +594,103 @@ Generated on ${new Date().toLocaleString('en-IN')}
 
                 <div>
                   <span className="block text-[10px] text-surface-400 uppercase font-semibold mb-2">Changes Description</span>
-                  {selectedLog.action === 'created' ? (
-                    <div className="text-sm text-brand-600 dark:text-brand-400 bg-brand-50/50 dark:bg-brand-900/10 p-3 rounded-lg border border-brand-150 dark:border-brand-900/30 flex items-center gap-2">
-                      <PlusCircle className="w-4 h-4" /> Initial creation of the record with pre-populated fields.
-                    </div>
-                  ) : selectedLog.action === 'renewed' && getChanges(selectedLog).length === 0 ? (
+                  {selectedLog.action === 'created' ? (() => {
+                    const createdData = getCreatedDetails(selectedLog);
+                    return (
+                      <div className="space-y-4">
+                        {createdData && (
+                          <div className="bg-surface-50 dark:bg-surface-900/30 p-4 rounded-xl border border-surface-200 dark:border-surface-800 space-y-4 text-left">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="bg-white dark:bg-surface-800 p-3 rounded-lg border border-surface-100 dark:border-surface-700">
+                                <p className="text-[10px] text-surface-500 font-bold uppercase tracking-wider mb-1">Status</p>
+                                <span className={`px-2.5 py-1 rounded text-xs font-semibold border inline-block ${getStatusColor(createdData.status)}`}>
+                                  {createdData.status}
+                                </span>
+                              </div>
+                              <div className="bg-white dark:bg-surface-800 p-3 rounded-lg border border-surface-100 dark:border-surface-700">
+                                <p className="text-[10px] text-surface-500 font-bold uppercase tracking-wider mb-1">Contract Value</p>
+                                <p className="text-sm font-bold text-surface-900 dark:text-white">
+                                  {formatCurrency(createdData.value || 0)}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3 pt-2">
+                              <div className="flex items-start gap-3">
+                                <div className="p-1.5 bg-brand-50 dark:bg-brand-900/20 text-brand-600 rounded">
+                                  <Tag className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-surface-500 font-bold uppercase tracking-wider mb-0.5">Service Plan</p>
+                                  <p className="text-sm font-medium text-surface-900 dark:text-white">{createdData.service}</p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-start gap-3">
+                                <div className="p-1.5 bg-orange-50 dark:bg-orange-900/20 text-orange-600 rounded">
+                                  <CalendarClock className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-surface-500 font-bold uppercase tracking-wider mb-0.5">Renewal Date</p>
+                                  <p className="text-sm font-medium text-surface-900 dark:text-white">{formatDate(createdData.renewal_date)}</p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-start gap-3">
+                                <div className="p-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded">
+                                  <User className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-surface-500 font-bold uppercase tracking-wider mb-0.5">Contact person</p>
+                                  <p className="text-sm font-medium text-surface-900 dark:text-white">{createdData.owner}</p>
+                                  {createdData.contact_number && (
+                                    <p className="text-xs text-surface-500 mt-0.5">
+                                      <span className="font-semibold">Phone:</span> {createdData.contact_number}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-start gap-3">
+                                <div className="p-1.5 bg-purple-50 dark:bg-purple-900/20 text-purple-600 rounded">
+                                  <Mail className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-surface-500 font-bold uppercase tracking-wider mb-0.5">Client email</p>
+                                  <p className="text-sm font-medium text-surface-900 dark:text-white">{createdData.client_email}</p>
+                                  {createdData.sales_email && (
+                                    <p className="text-xs text-surface-500 mt-0.5">
+                                      <span className="font-semibold">Secondary:</span> {createdData.sales_email}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {createdData.reference_id && (
+                                <div className="flex items-start gap-3">
+                                  <div className="p-1.5 bg-green-50 dark:bg-green-900/20 text-green-600 rounded">
+                                    <Tag className="w-4 h-4" />
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] text-surface-500 font-bold uppercase tracking-wider mb-0.5">Reference ID (Invoice NO)</p>
+                                    <p className="text-sm font-medium text-surface-900 dark:text-white">{createdData.reference_id}</p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()
+                  : selectedLog.action === 'renewed' && getChanges(selectedLog).length === 0 ? (
                     <div className="text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/10 p-3 rounded-lg border border-emerald-150 dark:border-emerald-900/30 flex items-center gap-2">
                       <CheckCircle className="w-4 h-4" /> Record renewed successfully with updated dates.
                     </div>
                   ) : (
                     <div className="space-y-2 max-h-[180px] overflow-y-auto custom-scrollbar bg-surface-50 dark:bg-surface-900/30 p-4 rounded-xl border border-surface-100 dark:border-surface-800">
                       {getChanges(selectedLog).map((c, i) => (
-                        <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 py-1.5 border-b border-surface-200/50 dark:border-surface-750/30 last:border-0 text-sm">
+                        <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 py-1.5 border-b border-surface-200/50 dark:border-surface-700/30 last:border-0 text-sm">
                           <span className="font-semibold text-surface-600 dark:text-surface-400">{c.field}</span>
                           <div className="flex items-center gap-2">
                             <span className="px-2 py-0.5 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 rounded line-through text-xs font-mono">{c.old}</span>
@@ -451,14 +714,15 @@ Generated on ${new Date().toLocaleString('en-IN')}
                 Close
               </button>
               <button 
-                onClick={() => downloadTextLog(selectedLog)}
+                onClick={() => downloadPDFLog(selectedLog)}
                 className="btn-primary flex items-center gap-2 px-4 py-2 text-sm font-semibold"
               >
-                <Download className="w-4 h-4" /> Download Text
+                <Download className="w-4 h-4" /> Download PDF
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

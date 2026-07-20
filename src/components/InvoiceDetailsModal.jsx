@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { X, FileText, Calendar, CheckCircle } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
+import IndianDateInput from './IndianDateInput';
 
 export default function InvoiceDetailsModal({ isOpen, renewal, onClose, onSuccess }) {
   const { token } = useAuth();
@@ -99,7 +100,7 @@ export default function InvoiceDetailsModal({ isOpen, renewal, onClose, onSucces
               <input 
                 type="text" 
                 required
-                placeholder="e.g. INV-2026-001"
+                placeholder="Enter Invoice Number"
                 value={formData.invoice_number} 
                 onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })} 
                 className="input-field" 
@@ -126,12 +127,10 @@ export default function InvoiceDetailsModal({ isOpen, renewal, onClose, onSucces
                 Invoice Sent Date <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <input 
-                  type="date"
+                <IndianDateInput 
                   required
                   value={formData.invoice_sent_date} 
                   onChange={(e) => setFormData({ ...formData, invoice_sent_date: e.target.value })} 
-                  className="input-field" 
                 />
               </div>
             </div>

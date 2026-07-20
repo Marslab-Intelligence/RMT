@@ -6,10 +6,11 @@ import {
 } from 'recharts';
 import { motion } from 'framer-motion';
 import { 
-  BarChart3, TrendingUp, Mail, AlertCircle, CheckCircle2, Clock, 
+  BarChart3, TrendingUp, TrendingDown, Mail, AlertCircle, CheckCircle2, Clock, 
   Activity, Zap, Users, ArrowUpRight
 } from 'lucide-react';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
+import ThreeDGraph from '../components/ThreeDGraph';
 
 const STATUS_COLORS = {
   'Active': '#3b82f6',          // Blue
@@ -30,6 +31,7 @@ export default function Reports() {
 
   useEffect(() => {
     const fetchReports = async () => {
+      if (!token) return;
       try {
         const [statsRes, stRes, moRes, actRes, emRes] = await Promise.all([
           fetch('/api/dashboard/stats', { headers: { 'Authorization': `Bearer ${token}` } }),
@@ -50,7 +52,9 @@ export default function Reports() {
         setLoading(false);
       }
     };
-    fetchReports();
+    if (token) {
+      fetchReports();
+    }
   }, [token]);
 
   if (loading) {
@@ -110,24 +114,21 @@ export default function Reports() {
             Real-time visual insights, performance metrics, and compliance logs.
           </p>
         </div>
-        <div className="text-xs px-3 py-1.5 rounded-full bg-brand-50 text-brand-700 border border-brand-100 dark:bg-brand-900/20 dark:text-brand-300 dark:border-brand-800 flex items-center gap-1.5 font-medium">
-          <Activity className="w-3 h-3 text-brand-500" /> Auto-updates live
-        </div>
       </div>
 
       {/* KPI Highlight grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="card p-5 bg-white dark:bg-surface-800 flex items-center gap-4 border border-surface-200 dark:border-surface-700 relative overflow-hidden group">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-5">
+        <div className="card p-5 flex items-center gap-4 relative overflow-hidden group">
           <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
             <Users className="w-5 h-5" />
           </div>
           <div>
             <p className="text-xs text-surface-500 font-medium uppercase tracking-wider">Active Portfolio</p>
-            <p className="text-xl font-bold text-surface-900 dark:text-white mt-0.5">{stats?.active || 0} Clients</p>
+            <p className="text-xl font-bold text-surface-900 dark:text-white mt-0.5">{stats?.active || 0} Services</p>
           </div>
         </div>
 
-        <div className="card p-5 bg-white dark:bg-surface-800 flex items-center gap-4 border border-surface-200 dark:border-surface-700 relative overflow-hidden group">
+        <div className="card p-5 flex items-center gap-4 relative overflow-hidden group">
           <div className="p-3 rounded-xl bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400">
             <Clock className="w-5 h-5" />
           </div>
@@ -137,7 +138,7 @@ export default function Reports() {
           </div>
         </div>
 
-        <div className="card p-5 bg-white dark:bg-surface-800 flex items-center gap-4 border border-surface-200 dark:border-surface-700 relative overflow-hidden group">
+        <div className="card p-5 flex items-center gap-4 relative overflow-hidden group">
           <div className="p-3 rounded-xl bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400">
             <Mail className="w-5 h-5" />
           </div>
@@ -147,8 +148,8 @@ export default function Reports() {
           </div>
         </div>
 
-        <div className="card p-5 bg-white dark:bg-surface-800 flex items-center gap-4 border border-surface-200 dark:border-surface-700 relative overflow-hidden group">
-          <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
+        <div className="card p-5 flex items-center gap-4 relative overflow-hidden group">
+          <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400">
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
@@ -156,12 +157,32 @@ export default function Reports() {
             <p className="text-xl font-bold text-surface-900 dark:text-white mt-0.5">{formatCurrency(stats?.revenue || 0)}</p>
           </div>
         </div>
+
+        <div className="card p-5 flex items-center gap-4 relative overflow-hidden group">
+          <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
+            <TrendingUp className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-surface-500 font-medium uppercase tracking-wider">Total Profit</p>
+            <p className="text-xl font-bold text-surface-900 dark:text-white mt-0.5">{formatCurrency(stats?.profit || 0)}</p>
+          </div>
+        </div>
+
+        <div className="card p-5 flex items-center gap-4 relative overflow-hidden group">
+          <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-450">
+            <TrendingDown className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-surface-500 font-medium uppercase tracking-wider">Total Loss (Expired)</p>
+            <p className="text-xl font-bold text-surface-900 dark:text-white mt-0.5">{formatCurrency(stats?.loss || 0)}</p>
+          </div>
+        </div>
       </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Pie Chart: Status Distribution */}
-        <div className="card p-6 dark:bg-surface-800 dark:border-surface-700 lg:col-span-5 h-[380px] flex flex-col justify-between">
+        <div className="card p-6 lg:col-span-5 h-[380px] flex flex-col justify-between">
           <div>
             <h2 className="text-lg font-bold text-surface-900 dark:text-white">Renewal Status Distribution</h2>
             <p className="text-xs text-surface-500">Overview of status across all active renewals</p>
@@ -192,7 +213,7 @@ export default function Reports() {
               <span className="text-2xl font-extrabold text-surface-900 dark:text-white">
                 {statusData.reduce((acc, curr) => acc + curr.count, 0)}
               </span>
-              <p className="text-[10px] text-surface-500 uppercase tracking-wider font-semibold">Total Contracts</p>
+              <p className="text-[10px] text-surface-500 uppercase tracking-wider font-semibold">Total Services</p>
             </div>
           </div>
           
@@ -208,7 +229,7 @@ export default function Reports() {
         </div>
 
         {/* Composed Chart: Renewals and Revenue */}
-        <div className="card p-6 dark:bg-surface-800 dark:border-surface-700 lg:col-span-7 h-[380px] flex flex-col justify-between">
+        <div className="card p-6 lg:col-span-7 h-[380px] flex flex-col justify-between">
           <div>
             <h2 className="text-lg font-bold text-surface-900 dark:text-white">Volume & Revenue Forecast</h2>
             <p className="text-xs text-surface-500">Projected contract values and counts by month</p>
@@ -236,10 +257,21 @@ export default function Reports() {
         </div>
       </div>
 
+      {/* 3D Profit & Loss Visualizer Section */}
+      <div className="card p-6 flex flex-col h-[450px] justify-between shadow-sm">
+        <div>
+          <h2 className="text-lg font-bold text-surface-900 dark:text-white">3D Profit & Loss Visualizer</h2>
+          <p className="text-xs text-surface-500">Interactive WebGL comparison of total portfolio profit against expired portfolio value loss</p>
+        </div>
+        <div className="flex-1 min-h-0 mt-4">
+          <ThreeDGraph profit={stats?.profit || 0} loss={stats?.loss || 0} />
+        </div>
+      </div>
+
       {/* Logs Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Email Logs */}
-        <div className="card dark:bg-surface-800 dark:border-surface-700 flex flex-col h-[500px] overflow-hidden shadow-sm">
+        <div className="card flex flex-col h-[500px] overflow-hidden shadow-sm">
           <div className="p-4 border-b border-surface-200 dark:border-surface-700 flex justify-between items-center bg-surface-50/50 dark:bg-surface-900/20">
             <div>
               <h2 className="text-lg font-bold text-surface-900 dark:text-white">Email Automation Logs</h2>
@@ -247,9 +279,9 @@ export default function Reports() {
             </div>
             <Mail className="w-5 h-5 text-surface-400" />
           </div>
-          <div className="flex-1 overflow-y-auto p-0 custom-scrollbar">
+          <div className="flex-1 overflow-auto p-0 custom-scrollbar">
             <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-surface-50 dark:bg-surface-900/50 sticky top-0 border-b border-surface-150 dark:border-surface-700">
+              <thead className="bg-surface-50 dark:bg-surface-900/50 sticky top-0 border-b border-surface-200 dark:border-surface-700">
                 <tr>
                   <th className="px-4 py-3 font-semibold text-surface-500 uppercase tracking-wider">Time</th>
                   <th className="px-4 py-3 font-semibold text-surface-500 uppercase tracking-wider">Client/Type</th>
@@ -285,7 +317,7 @@ export default function Reports() {
         </div>
 
         {/* Activity Logs */}
-        <div className="card dark:bg-surface-800 dark:border-surface-700 flex flex-col h-[500px] overflow-hidden shadow-sm">
+        <div className="card flex flex-col h-[500px] overflow-hidden shadow-sm">
           <div className="p-4 border-b border-surface-200 dark:border-surface-700 flex justify-between items-center bg-surface-50/50 dark:bg-surface-900/20">
             <div>
               <h2 className="text-lg font-bold text-surface-900 dark:text-white">Audit Trail (Activity)</h2>

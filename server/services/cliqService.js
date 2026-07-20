@@ -18,7 +18,11 @@ export async function sendCliqNotification(message, isSalesChannel = false, butt
 
   try {
     const payload = {
-      text: message
+      text: message,
+      bot: {
+        name: "Renewal_management",
+        image: "https://img.icons8.com/fluency/96/automatic.png"
+      }
     };
 
     if (buttons) {

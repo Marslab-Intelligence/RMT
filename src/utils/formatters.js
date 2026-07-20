@@ -10,7 +10,7 @@ export const formatDate = (dateString) => {
   if (!dateString) return '';
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('en-GB', {
+  return new Intl.DateTimeFormat('en-IN', {
     timeZone: 'Asia/Kolkata',
     day: '2-digit',
     month: '2-digit',
@@ -58,5 +58,5 @@ export const formatDateTime = (dateString, options = {}) => {
     ...options
   };
   
-  return date.toLocaleString('en-GB', defaultOptions);
+  return date.toLocaleString('en-IN', defaultOptions);
 };

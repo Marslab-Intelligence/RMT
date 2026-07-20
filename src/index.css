@@ -166,3 +166,48 @@ tr:hover td {
 button, a {
   transition: all 0.15s ease;
 }
+
+/* ── Custom Theme-Aware Profit & Loss Cards ───────────────────── */
+.card-profit {
+  background: rgba(16, 185, 129, 0.08) !important;
+  border: 1px solid rgba(16, 185, 129, 0.25) !important;
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.05) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.card-profit:hover {
+  background: rgba(16, 185, 129, 0.14) !important;
+  border-color: rgba(16, 185, 129, 0.45) !important;
+  box-shadow: 0 10px 25px rgba(16, 185, 129, 0.12) !important;
+  transform: translateY(-2px);
+}
+.dark .card-profit {
+  background: rgba(16, 185, 129, 0.06) !important;
+  border-color: rgba(16, 185, 129, 0.15) !important;
+}
+.dark .card-profit:hover {
+  background: rgba(16, 185, 129, 0.10) !important;
+  border-color: rgba(16, 185, 129, 0.30) !important;
+}
+
+.card-loss {
+  background: rgba(244, 63, 94, 0.08) !important;
+  border: 1px solid rgba(244, 63, 94, 0.25) !important;
+  box-shadow: 0 4px 20px rgba(244, 63, 94, 0.05) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.card-loss:hover {
+  background: rgba(244, 63, 94, 0.14) !important;
+  border-color: rgba(244, 63, 94, 0.45) !important;
+  box-shadow: 0 10px 25px rgba(244, 63, 94, 0.12) !important;
+  transform: translateY(-2px);
+}
+.dark .card-loss {
+  background: rgba(244, 63, 94, 0.06) !important;
+  border-color: rgba(244, 63, 94, 0.15) !important;
+}
+.dark .card-loss:hover {
+  background: rgba(244, 63, 94, 0.10) !important;
+  border-color: rgba(244, 63, 94, 0.30) !important;
+}
+
+

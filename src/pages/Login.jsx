@@ -3,17 +3,29 @@ import { useSearchParams } from 'react-router-dom';
 import { ShieldCheck, ShieldX, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+import LiquidEther from '../components/LiquidEther';
 
 export default function Login() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showAccessDenied, setShowAccessDenied] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const err = searchParams.get('error');
     if (err) {
       if (err === 'access_denied') {
         setShowAccessDenied(true);
+      } else if (err === 'account_deactivated') {
+        setErrorMessage('Your account has been deactivated. Please contact administrator.');
       } else if (err === 'sso_failed') {
         setErrorMessage('SSO authentication failed. Please try again.');
       } else if (err === 'token_exchange_failed') {
@@ -36,10 +48,26 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100 dark:from-stone-900 dark:via-slate-900 dark:to-rose-950">
-      {/* Decorative blobs */}
-      <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-amber-300/35 dark:bg-amber-700/20 blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-20 right-0 w-80 h-80 rounded-full bg-orange-300/30 dark:bg-orange-800/15 blur-3xl pointer-events-none" />
-      <div className="absolute top-1/2 left-1/3 w-72 h-72 rounded-full bg-rose-300/25 dark:bg-rose-800/15 blur-3xl pointer-events-none" />
+      {/* LiquidEther animated background */}
+      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0 }}>
+        <LiquidEther
+          colors={isDark ? ['#5227FF', '#9b59b6', '#1a0533'] : ['#f59e0b', '#fb923c', '#e11d48']}
+          mouseForce={20}
+          cursorSize={120}
+          isViscous
+          viscous={30}
+          iterationsViscous={32}
+          iterationsPoisson={32}
+          resolution={0.4}
+          isBounce={false}
+          autoDemo
+          autoSpeed={0.4}
+          autoIntensity={2.0}
+          takeoverDuration={0.25}
+          autoResumeDelay={2000}
+          autoRampDuration={0.8}
+        />
+      </div>
       {/* Access Denied Popup Modal */}
       <AnimatePresence>
         {showAccessDenied && (
@@ -105,13 +133,13 @@ export default function Login() {
           animate={{ opacity: 1, y: 0 }}
           className="flex justify-center"
         >
-          <img src="/logo.png" alt="MarsLab Logo" className="h-16 w-auto object-contain" />
+          <img src="/logo.png" alt="MarsLab Logo" className="h-16 w-auto object-contain dark:invert dark:hue-rotate-180" />
         </motion.div>
         <motion.p 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className="mt-2 text-center text-sm text-surface-600 dark:text-surface-400"
+          className="mt-2 text-center text-sm font-medium text-surface-700 dark:text-surface-200"
         >
           Enterprise Renewal Management System
         </motion.p>
@@ -123,17 +151,18 @@ export default function Login() {
         transition={{ delay: 0.3 }}
         className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10"
       >
-        <div className="py-8 px-4 sm:rounded-2xl sm:px-10 shadow-xl"
+        <div
+          className="py-8 px-4 sm:rounded-2xl sm:px-10 shadow-xl"
           style={{
-            background: 'rgba(255, 248, 240, 0.55)',
+            background: isDark ? 'rgba(20,16,30,0.80)' : 'rgba(255,248,240,0.70)',
             backdropFilter: 'blur(24px)',
             WebkitBackdropFilter: 'blur(24px)',
-            border: '1px solid rgba(255, 255, 255, 0.60)',
+            border: isDark ? '1px solid rgba(255,255,255,0.10)' : '1px solid rgba(255,255,255,0.25)',
           }}
         >
           <div className="text-center mb-6">
-            <h3 className="text-lg font-medium text-surface-900 dark:text-white">Single Sign-On</h3>
-            <p className="mt-1 text-xs text-surface-500">Sign in securely using your official MarsLab corporate Zoho identity.</p>
+            <h3 className="text-lg font-semibold text-surface-900 dark:text-white">Single Sign-On</h3>
+            <p className="mt-1 text-xs text-surface-600 dark:text-surface-300">Sign in securely using your official MarsLab corporate Zoho identity.</p>
           </div>
 
           {errorMessage && (
@@ -152,7 +181,7 @@ export default function Login() {
           </div>
 
           <div className="mt-8 border-t border-surface-200 dark:border-surface-700 pt-6">
-            <div className="text-xs text-center text-surface-400">
+            <div className="text-xs text-center text-surface-500 dark:text-surface-300">
               Only authorized employees can access this portal.<br />
               If you don't have access, contact the administrator.
             </div>
