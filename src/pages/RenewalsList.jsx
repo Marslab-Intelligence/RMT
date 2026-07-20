@@ -1119,7 +1119,7 @@ export default function RenewalsList() {
           onMouseLeave={handleDragMouseLeave}
           onMouseUp={handleDragMouseUp}
           onMouseMove={handleDragMouseMove}
-          className={`max-h-[600px] overflow-auto custom-scrollbar relative select-none ${isDragDown ? 'cursor-grabbing' : 'cursor-grab'}`}
+          className={`overflow-x-auto relative select-none ${isDragDown ? 'cursor-grabbing' : 'cursor-grab'}`}
         >
           <table className="w-full text-left text-xs">
             <thead className="bg-surface-50 dark:bg-surface-900 text-surface-500 dark:text-surface-400 border-b border-surface-200 dark:border-surface-700 sticky top-0 z-10 shadow-sm">
