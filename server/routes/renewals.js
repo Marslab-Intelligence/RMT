@@ -1362,10 +1362,10 @@ router.put('/:id', authenticateToken, requireRole('finance', 'sales', 'admin'), 
   }
 });
 
-// Sales: Update only product cost fields (quantity, purchase_cost, sales_cost + derived totals/profit)
+// Sales & Admin: Update product cost fields and quotation_number
 router.patch('/:id/product-costs', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
   try {
-    const { quantity, purchase_cost, total_purchase_cost, sales_cost, total_sales_cost, profit } = req.body;
+    const { quantity, purchase_cost, total_purchase_cost, sales_cost, total_sales_cost, profit, quotation_number } = req.body;
     const { rows } = await db.query('SELECT * FROM renewals WHERE id = $1', [req.params.id]);
     const renewal = rows[0];
     if (!renewal) return res.status(404).json({ error: 'Renewal not found.' });
@@ -1377,14 +1377,16 @@ router.patch('/:id/product-costs', authenticateToken, requireRole('sales', 'admi
       sales_cost: renewal.sales_cost,
       total_sales_cost: renewal.total_sales_cost,
       profit: renewal.profit,
+      quotation_number: renewal.quotation_number,
     });
 
     await db.query(`
       UPDATE renewals SET
         quantity = $1, purchase_cost = $2, total_purchase_cost = $3,
         sales_cost = $4, total_sales_cost = $5, profit = $6,
+        quotation_number = COALESCE($7, quotation_number),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7
+      WHERE id = $8
     `, [
       parseInt(quantity) || 1,
       parseFloat(purchase_cost) || 0,
@@ -1392,6 +1394,7 @@ router.patch('/:id/product-costs', authenticateToken, requireRole('sales', 'admi
       parseFloat(sales_cost) || 0,
       parseFloat(total_sales_cost) || 0,
       parseFloat(profit) || 0,
+      quotation_number !== undefined ? (quotation_number || '') : renewal.quotation_number,
       req.params.id,
     ]);
 
@@ -1401,21 +1404,21 @@ router.patch('/:id/product-costs', authenticateToken, requireRole('sales', 'admi
     `, [
       req.params.id,
       previousData,
-      JSON.stringify({ quantity, purchase_cost, total_purchase_cost, sales_cost, total_sales_cost, profit }),
+      JSON.stringify({ quantity, purchase_cost, total_purchase_cost, sales_cost, total_sales_cost, profit, quotation_number }),
       req.user.id,
     ]);
 
     await db.query(`
       INSERT INTO activity_logs (user_id, action, entity_type, entity_id, details)
       VALUES ($1, 'edit', 'renewal', $2, $3)
-    `, [req.user.id, renewal.unique_id, `CST updated product cost fields for ${renewal.client_name}`]);
+    `, [req.user.id, renewal.unique_id, `Updated cost and quotation details for ${renewal.client_name}`]);
 
     const { rows: updatedRows } = await db.query('SELECT * FROM renewals WHERE id = $1', [req.params.id]);
     broadcastEvent('renewals_updated', updatedRows[0]);
     res.json(updatedRows[0]);
   } catch (err) {
     console.error('Product cost patch error:', err);
-    res.status(500).json({ error: 'Failed to update product costs.' });
+    res.status(500).json({ error: 'Failed to update details.' });
   }
 });
 

@@ -5,13 +5,14 @@ import { useAuth } from '../context/AuthContext';
 import { formatCurrency, formatDate, getStatusColor, getDaysLeftColor } from '../utils/formatters';
 import { 
   Plus, Search, Filter, Download, ChevronLeft, ChevronRight, 
-  MoreVertical, Edit, RotateCw, MailCheck, ShieldAlert, CheckCircle, Trash2, X, Upload, Calendar
+  MoreVertical, Edit, Edit3, RotateCw, MailCheck, ShieldAlert, CheckCircle, Trash2, X, Upload, Calendar
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import RenewalForm from '../components/RenewalForm';
 import RenewActionModal from '../components/RenewActionModal';
 import ClientDetailsModal from '../components/ClientDetailsModal';
 import InvoiceDetailsModal from '../components/InvoiceDetailsModal';
+import SalesQuickEditModal from '../components/SalesQuickEditModal';
 import IndianDateInput from '../components/IndianDateInput';
 
 const normalizeHeader = (h) => {
@@ -106,6 +107,7 @@ export default function RenewalsList() {
   // Modals
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedRenewalToEdit, setSelectedRenewalToEdit] = useState(null);
+  const [selectedRenewalForQuickEdit, setSelectedRenewalForQuickEdit] = useState(null);
   const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
   const [selectedRenewal, setSelectedRenewal] = useState(null);
   const [selectedClientDetails, setSelectedClientDetails] = useState(null);
@@ -1350,11 +1352,18 @@ export default function RenewalsList() {
                         <div className="flex items-center justify-center gap-1">
                           {isSales && (
                             <>
+                              <button 
+                                onClick={() => setSelectedRenewalForQuickEdit(row)}
+                                className="p-1 text-surface-500 hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
+                                title="Quick Edit (Costs & Quotation No.)"
+                              >
+                                <Edit3 className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                              </button>
                               {row.edit_status === 'approved' ? (
                                 <button 
                                   onClick={() => { setSelectedRenewalToEdit(row); setIsFormOpen(true); }}
                                   className="p-1 text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
-                                  title="Edit Record"
+                                  title="Full Edit Record"
                                 >
                                   <Edit className="w-3.5 h-3.5" />
                                 </button>
@@ -1366,7 +1375,7 @@ export default function RenewalsList() {
                                 <button 
                                   onClick={() => handleRequestEdit(row.id)}
                                   className="p-1 text-surface-500 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
-                                  title="Request Edit Access"
+                                  title="Request Admin Access"
                                 >
                                   <ShieldAlert className="w-3.5 h-3.5" />
                                 </button>
@@ -1761,6 +1770,16 @@ export default function RenewalsList() {
           </div>
         </div>,
         document.body
+      )}
+      {selectedRenewalForQuickEdit && (
+        <SalesQuickEditModal
+          client={selectedRenewalForQuickEdit}
+          onClose={() => setSelectedRenewalForQuickEdit(null)}
+          onSuccess={() => {
+            setSelectedRenewalForQuickEdit(null);
+            fetchRenewals();
+          }}
+        />
       )}
     </div>
   );

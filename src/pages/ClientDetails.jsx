@@ -98,14 +98,24 @@ export default function ClientDetails() {
         >
           <ArrowLeft className="w-4 h-4" /> Back to Renewals
         </button>
-        {user?.role === 'admin' && (
-          <button 
-            onClick={() => setIsFormOpen(true)} 
-            className="btn-primary flex items-center gap-2 py-1.5 px-3 text-xs"
-          >
-            <Edit3 className="w-4 h-4" /> Edit Info
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {user?.role === 'sales' && (
+            <button 
+              onClick={() => setIsSalesQuickEditOpen(true)} 
+              className="btn-secondary flex items-center gap-2 py-1.5 px-3 text-xs"
+            >
+              <Edit3 className="w-4 h-4 text-brand-600 dark:text-brand-400" /> Quick Edit (Costs & Quotation)
+            </button>
+          )}
+          {(user?.role === 'admin' || client.edit_status === 'approved') && (
+            <button 
+              onClick={() => setIsFormOpen(true)} 
+              className="btn-primary flex items-center gap-2 py-1.5 px-3 text-xs"
+            >
+              <Edit3 className="w-4 h-4" /> Edit Info
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Hero Overview Card */}

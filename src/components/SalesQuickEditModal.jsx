@@ -14,9 +14,10 @@ export default function SalesQuickEditModal({ client, onClose, onSuccess }) {
   // Already requested?
   const alreadyRequested = client?.edit_status === 'requested';
 
-  const [quantity,     setQuantity]     = useState(client?.quantity ?? 1);
-  const [purchaseCost, setPurchaseCost] = useState(client?.purchase_cost ?? '');
-  const [salesCost,    setSalesCost]    = useState(client?.sales_cost ?? '');
+  const [quantity,        setQuantity]        = useState(client?.quantity ?? 1);
+  const [purchaseCost,    setPurchaseCost]    = useState(client?.purchase_cost ?? '');
+  const [salesCost,       setSalesCost]       = useState(client?.sales_cost ?? '');
+  const [quotationNumber, setQuotationNumber] = useState(client?.quotation_number ?? '');
 
   // Auto-calculations
   const qty          = parseInt(quantity) || 0;
@@ -45,6 +46,7 @@ export default function SalesQuickEditModal({ client, onClose, onSuccess }) {
           sales_cost:          sCost,
           total_sales_cost:    totalSales,
           profit,
+          quotation_number:    quotationNumber,
         }),
       });
       if (res.ok) {
@@ -132,7 +134,18 @@ export default function SalesQuickEditModal({ client, onClose, onSuccess }) {
             </div>
 
             <form id="sales-quick-edit-form" onSubmit={handleSave} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Quotation Number */}
+                <div className="sm:col-span-2">
+                  <label className="label">Quotation Number</label>
+                  <input
+                    type="text"
+                    value={quotationNumber}
+                    onChange={(e) => setQuotationNumber(e.target.value)}
+                    className="input-field"
+                    placeholder="Enter quotation number..."
+                  />
+                </div>
                 {/* Quantity */}
                 <div>
                   <label className="label">Quantity <span className="text-red-500">*</span></label>
@@ -155,7 +168,7 @@ export default function SalesQuickEditModal({ client, onClose, onSuccess }) {
                   />
                 </div>
                 {/* Sales Cost */}
-                <div>
+                <div className="sm:col-span-2">
                   <label className="label">Sales Cost (₹) <span className="text-red-500">*</span></label>
                   <input
                     type="number" min="0" step="any" required
@@ -285,7 +298,7 @@ export default function SalesQuickEditModal({ client, onClose, onSuccess }) {
               ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
               : <Save className="w-4 h-4" />
             }
-            Save Cost Changes
+            Save Changes
           </button>
         </div>
       </div>
