@@ -56,7 +56,7 @@ export default function Reports() {
   const [modalCategoryFilter, setModalCategoryFilter] = useState('All');
   const [selectedMonthDrilldown, setSelectedMonthDrilldown] = useState(null);
 
-  // Close modal on ESC key
+  // Close modal on ESC key + lock body scroll when modal is open
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -67,6 +67,16 @@ export default function Reports() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Lock body scroll and hide sidebar when modal is open
+  useEffect(() => {
+    if (activeModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [activeModal]);
 
   const fetchReports = useCallback(async () => {
     if (!token) return;
@@ -376,10 +386,25 @@ export default function Reports() {
       {activeModal && createPortal(
         <AnimatePresence>
           <motion.div 
-            initial={{ opacity: 0, scale: 0.98 }}
+            initial={{ opacity: 0, scale: 0.99 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            className="fixed inset-0 z-[9999] bg-slate-950/98 backdrop-blur-3xl p-4 sm:p-6 md:p-8 flex flex-col overflow-hidden text-white animate-fade-in"
+            exit={{ opacity: 0, scale: 0.99 }}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 99999,
+              backgroundColor: 'rgba(2, 6, 23, 0.98)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              color: 'white',
+              padding: '24px 28px',
+            }}
           >
             {/* Header */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-white/15 flex-shrink-0">
