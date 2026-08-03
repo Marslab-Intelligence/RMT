@@ -3,21 +3,37 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 
+// Safe lazy import wrapper that automatically retries and refreshes the page on chunk load failures after app deployments
+const safeLazy = (importFn) => {
+  return lazy(() => 
+    importFn().catch((err) => {
+      console.warn('Chunk loading failed for route module. Reloading page to fetch updated deployment...', err);
+      const lastReload = sessionStorage.getItem('chunk_last_reload');
+      const now = Date.now();
+      if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
+        sessionStorage.setItem('chunk_last_reload', now.toString());
+        window.location.reload();
+      }
+      return new Promise(() => {}); // Hold until page reloads
+    })
+  );
+};
+
 // Lazy-loaded pages for optimized bundle splitting
-const Login = lazy(() => import('./pages/Login'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const RenewalsList = lazy(() => import('./pages/RenewalsList'));
-const Reports = lazy(() => import('./pages/Reports'));
-const Settings = lazy(() => import('./pages/Settings'));
-const EditsHistory = lazy(() => import('./pages/EditsHistory'));
-const Trash = lazy(() => import('./pages/Trash'));
-const Notifications = lazy(() => import('./pages/Notifications'));
-const ActivityLogs = lazy(() => import('./pages/ActivityLogs'));
-const Visits = lazy(() => import('./pages/Visits'));
-const UserManagement = lazy(() => import('./pages/UserManagement'));
-const EmailAutomation = lazy(() => import('./pages/EmailAutomation'));
-const ClientDetails = lazy(() => import('./pages/ClientDetails'));
-const Pricing = lazy(() => import('./pages/Pricing'));
+const Login = safeLazy(() => import('./pages/Login'));
+const Dashboard = safeLazy(() => import('./pages/Dashboard'));
+const RenewalsList = safeLazy(() => import('./pages/RenewalsList'));
+const Reports = safeLazy(() => import('./pages/Reports'));
+const Settings = safeLazy(() => import('./pages/Settings'));
+const EditsHistory = safeLazy(() => import('./pages/EditsHistory'));
+const Trash = safeLazy(() => import('./pages/Trash'));
+const Notifications = safeLazy(() => import('./pages/Notifications'));
+const ActivityLogs = safeLazy(() => import('./pages/ActivityLogs'));
+const Visits = safeLazy(() => import('./pages/Visits'));
+const UserManagement = safeLazy(() => import('./pages/UserManagement'));
+const EmailAutomation = safeLazy(() => import('./pages/EmailAutomation'));
+const ClientDetails = safeLazy(() => import('./pages/ClientDetails'));
+const Pricing = safeLazy(() => import('./pages/Pricing'));
 
 const PageLoader = () => (
   <div className="min-h-[60vh] w-full flex items-center justify-center">
