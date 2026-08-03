@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
@@ -140,6 +141,51 @@ export default function Reports() {
       return matchSearch && matchCategory;
     });
   }, [serviceRecords, modalSearchTerm, modalCategoryFilter, activeModal]);
+
+  // Available categories for modal dropdown filter
+  const availableModalCategories = useMemo(() => {
+    if (!serviceRecords) return ['All'];
+    const cats = Array.from(new Set(serviceRecords.map(r => r.service).filter(Boolean))).sort();
+    return ['All', ...cats];
+  }, [serviceRecords]);
+
+  // Modal summary stats
+  const modalSummary = useMemo(() => {
+    const totalCount = filteredModalRecords.length;
+    const totalVal = filteredModalRecords.reduce((acc, r) => acc + (parseFloat(r.value) || 0), 0);
+    const totalProfit = filteredModalRecords.reduce((acc, r) => acc + (parseFloat(r.profit) || 0), 0);
+    const uniqueClients = new Set(filteredModalRecords.map(r => r.client_name)).size;
+    return { totalCount, totalVal, totalProfit, uniqueClients };
+  }, [filteredModalRecords]);
+
+  const getModalTitle = (type) => {
+    switch (type) {
+      case 'services': return 'Service Plan Portfolio Analysis & Breakdown';
+      case 'revenue': return 'Volume & Portfolio Revenue Analytics';
+      case 'profit': return 'Portfolio Net Profit Analytics';
+      case 'loss':
+      case 'loss_kpi': return 'Expired Portfolio Loss Audit';
+      case 'active_kpi': return 'Active & Renewed Subscriptions Audit';
+      case 'pending_kpi': return 'Pending Renewals Pipeline Audit';
+      case 'deliverability_kpi': return 'Email Automation Logs & Deliverability';
+      case 'pipeline_kpi': return 'Total Portfolio Pipeline Breakdown';
+      default: return `Drilldown Analysis: ${type}`;
+    }
+  };
+
+  const getStatusBadgeStyle = (status) => {
+    switch (status) {
+      case 'Active':
+      case 'Renewed':
+        return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+      case 'Pending Renewal':
+        return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+      case 'Expired':
+        return 'bg-rose-500/20 text-rose-300 border-rose-500/30';
+      default:
+        return 'bg-slate-500/20 text-slate-300 border-slate-500/30';
+    }
+  };
 
   const openModal = (type) => {
     setModalSearchTerm('');
@@ -327,71 +373,149 @@ export default function Reports() {
         />
       </div>
 
-      <AnimatePresence>
-        {activeModal && (
+      {activeModal && createPortal(
+        <AnimatePresence>
           <motion.div 
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
-            className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl p-4 md:p-8 flex flex-col overflow-hidden text-white"
+            className="fixed inset-0 z-[9999] bg-slate-950/98 backdrop-blur-3xl p-4 sm:p-6 md:p-8 flex flex-col overflow-hidden text-white animate-fade-in"
           >
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/15 flex-shrink-0">
+            {/* Header */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-white/15 flex-shrink-0">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-brand-500/20 text-brand-400 rounded-xl border border-brand-500/30">
                   <Layers className="w-6 h-6" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-black">Drilldown Analysis: {activeModal}</h2>
+                  <h2 className="text-xl font-black text-white tracking-tight">{getModalTitle(activeModal)}</h2>
+                  <p className="text-xs text-slate-400 font-medium mt-0.5">Comprehensive telemetry & contract breakdown</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="text"
-                  value={modalSearchTerm}
-                  onChange={(e) => setModalSearchTerm(e.target.value)}
-                  placeholder="Search..."
-                  className="px-4 py-2 bg-slate-900/80 border border-white/20 rounded-xl text-xs"
-                />
+
+              {/* Controls */}
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Category Dropdown */}
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-slate-400" />
+                  <select
+                    value={modalCategoryFilter}
+                    onChange={(e) => setModalCategoryFilter(e.target.value)}
+                    className="px-3 py-2 bg-slate-900 border border-white/20 rounded-xl text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    {availableModalCategories.map(cat => (
+                      <option key={cat} value={cat}>{cat === 'All' ? 'All Services' : cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Search */}
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={modalSearchTerm}
+                    onChange={(e) => setModalSearchTerm(e.target.value)}
+                    placeholder="Search client, vendor, service..."
+                    className="pl-9 pr-4 py-2 bg-slate-900 border border-white/20 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-brand-500 w-44 sm:w-64"
+                  />
+                </div>
+
+                {/* Export CSV */}
                 <button
-                  onClick={() => exportToCSV(filteredModalRecords, 'report')}
-                  className="px-3.5 py-2 bg-emerald-500/20 rounded-xl text-xs font-bold"
+                  onClick={() => exportToCSV(filteredModalRecords, `report-${activeModal}`)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs font-bold transition-all"
                 >
+                  <Download className="w-4 h-4" />
                   Export CSV
                 </button>
+
+                {/* Close Button */}
                 <button
                   onClick={() => setActiveModal(null)}
-                  className="p-2 rounded-xl bg-white/10"
+                  className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all ml-auto lg:ml-0"
+                  title="Close Full Screen View"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto pt-6 space-y-6 custom-scrollbar">
-               <div className="overflow-x-auto border border-white/10 rounded-xl bg-slate-950/40">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-900 border-b border-white/10">
-                      <tr>
-                        <th className="px-4 py-3">Client Name</th>
-                        <th className="px-4 py-3">Service Plan</th>
-                        <th className="px-4 py-3">Value</th>
+            {/* Summary Stat Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4 flex-shrink-0">
+              <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Matching Contracts</p>
+                <p className="text-xl font-black text-white mt-1">{modalSummary.totalCount}</p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Portfolio Value</p>
+                <p className="text-xl font-black text-emerald-400 mt-1">{formatCurrency(modalSummary.totalVal)}</p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Net Profit</p>
+                <p className="text-xl font-black text-indigo-300 mt-1">{formatCurrency(modalSummary.totalProfit)}</p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Unique Clients</p>
+                <p className="text-xl font-black text-amber-400 mt-1">{modalSummary.uniqueClients}</p>
+              </div>
+            </div>
+
+            {/* Table Container */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar border border-white/10 rounded-2xl bg-slate-900/60 shadow-2xl">
+              {filteredModalRecords.length === 0 ? (
+                <div className="p-12 text-center text-slate-400">
+                  <Filter className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="font-semibold text-sm text-white">No matching records found</p>
+                  <p className="text-xs mt-1 text-slate-400">Try adjusting your search query or service category filter.</p>
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-900/90 text-slate-300 border-b border-white/10 uppercase tracking-wider text-[11px] font-semibold sticky top-0 backdrop-blur-md z-10">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Client Name</th>
+                      <th className="px-4 py-3 text-left">Vendor</th>
+                      <th className="px-4 py-3 text-left">Service Plan</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                      <th className="px-4 py-3 text-left">Renewal Date</th>
+                      <th className="px-4 py-3 text-right">Contract Value</th>
+                      <th className="px-4 py-3 text-right">Profit</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10 text-slate-200">
+                    {filteredModalRecords.map((r, i) => (
+                      <tr key={i} className="hover:bg-white/5 transition-colors">
+                        <td className="px-4 py-3 font-semibold text-white">{r.client_name || 'N/A'}</td>
+                        <td className="px-4 py-3 font-medium text-slate-300">{r.vendor || 'N/A'}</td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-1 rounded-md text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            {r.service || 'N/A'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadgeStyle(r.status)}`}>
+                            {r.status || 'Active'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-300">
+                          {r.expiry_date ? new Date(r.expiry_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono font-bold text-emerald-400">
+                          {formatCurrency(r.value || 0)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono font-bold text-indigo-300">
+                          {formatCurrency(r.profit || 0)}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/10">
-                      {filteredModalRecords.map((r, i) => (
-                        <tr key={i}>
-                          <td className="px-4 py-3">{r.client_name}</td>
-                          <td className="px-4 py-3">{r.service}</td>
-                          <td className="px-4 py-3">{formatCurrency(r.value)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-               </div>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

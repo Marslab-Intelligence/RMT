@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { Pie } from '@visx/shape';
 import { scaleOrdinal } from '@visx/scale';
 import { Group } from '@visx/group';
-import { animated, useTransition, interpolate } from '@react-spring/web';
+import { animated, useTransition, to } from '@react-spring/web';
 import { Maximize2 } from 'lucide-react';
 
 // Vibrant glassmorphic palette
@@ -106,7 +106,7 @@ function AnimatedPieSlice({
         onMouseLeave={() => onHoverDatum && onHoverDatum(null)}
       >
         <animated.path
-          d={interpolate([props.startAngle, props.endAngle], (startAngle, endAngle) =>
+          d={to([props.startAngle, props.endAngle], (startAngle, endAngle) =>
             path({
               ...arc,
               startAngle,

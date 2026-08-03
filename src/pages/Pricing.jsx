@@ -65,12 +65,27 @@ export default function Pricing() {
     vendor: 'Microsoft',
     product_name: '',
     service_category: 'Software & Services',
-    list_price: '',
-    erp_price: '',
     sales_cost: '',
-    coupon_discount_percent: '10',
-    description: ''
+    erp_price: ''
   });
+  const [isCustomVendor, setIsCustomVendor] = useState(false);
+  const [isCustomServicePlan, setIsCustomServicePlan] = useState(false);
+
+  // Available vendors for dropdown select in Add/Edit modal
+  const availableVendors = useMemo(() => {
+    const defaults = ['Microsoft', 'Google Workspace', 'AWS', 'Azure', 'Adobe', 'Sophos', 'Veeam', 'Acronis', 'Tally', 'Redington', 'Ingram Micro', 'Fortinet', 'Cisco'];
+    const fromProds = products.map(p => p.vendor).filter(Boolean);
+    const combined = Array.from(new Set([...defaults, ...fromProds, formData.vendor].filter(Boolean)));
+    return combined.sort((a, b) => a.localeCompare(b));
+  }, [products, formData.vendor]);
+
+  // Available service plans for dropdown select in Add/Edit modal
+  const availableServicePlans = useMemo(() => {
+    const defaults = ['Software & Services', 'M365', 'GWS', 'AWS Cloud', 'Azure Cloud', 'SSL Security', 'Domains & DNS', 'Cloud Backup', 'Endpoint Security', 'Hardware & IT Services', 'Tally & ERP'];
+    const fromProds = products.map(p => p.service_category).filter(Boolean);
+    const combined = Array.from(new Set([...defaults, ...fromProds, formData.service_category].filter(Boolean)));
+    return combined.sort((a, b) => a.localeCompare(b));
+  }, [products, formData.service_category]);
 
   // Fetch Pricing Data
   const fetchPricingData = useCallback(async () => {
@@ -193,15 +208,14 @@ export default function Pricing() {
   // Handle Edit Click
   const handleOpenEdit = (product) => {
     setEditingProduct(product);
+    setIsCustomVendor(false);
+    setIsCustomServicePlan(false);
     setFormData({
       vendor: product.vendor,
       product_name: product.product_name,
       service_category: product.service_category || 'Software & Services',
-      list_price: product.list_price || 0,
-      erp_price: product.erp_price || 0,
-      sales_cost: product.sales_cost || 0,
-      coupon_discount_percent: product.coupon_discount_percent || 0,
-      description: product.description || ''
+      sales_cost: product.sales_cost || '',
+      erp_price: product.erp_price || ''
     });
     setIsEditModalOpen(true);
   };
@@ -346,15 +360,14 @@ export default function Pricing() {
           <button
             onClick={() => {
               setEditingProduct(null);
+              setIsCustomVendor(false);
+              setIsCustomServicePlan(false);
               setFormData({
                 vendor: 'Microsoft',
                 product_name: '',
                 service_category: 'Software & Services',
-                list_price: '',
-                erp_price: '',
                 sales_cost: '',
-                coupon_discount_percent: '10',
-                description: ''
+                erp_price: ''
               });
               setIsAddModalOpen(true);
             }}
@@ -1032,25 +1045,88 @@ export default function Pricing() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-surface-700 dark:text-surface-300 mb-1">Vendor Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.vendor}
-                    onChange={(e) => setFormData({ ...formData, vendor: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:ring-2 focus:ring-amber-500"
-                    placeholder="e.g. Microsoft, AWS, Adobe"
-                  />
+                  {!isCustomVendor ? (
+                    <select
+                      required
+                      value={formData.vendor}
+                      onChange={(e) => {
+                        if (e.target.value === '__other__') {
+                          setIsCustomVendor(true);
+                          setFormData({ ...formData, vendor: '' });
+                        } else {
+                          setFormData({ ...formData, vendor: e.target.value });
+                        }
+                      }}
+                      className="w-full px-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:ring-2 focus:ring-amber-500 font-medium"
+                    >
+                      <option value="">Select Vendor</option>
+                      {availableVendors.map((v) => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                      <option value="__other__">➕ Other (Type Custom Vendor...)</option>
+                    </select>
+                  ) : (
+                    <div className="space-y-1">
+                      <input
+                        type="text"
+                        required
+                        autoFocus
+                        value={formData.vendor}
+                        onChange={(e) => setFormData({ ...formData, vendor: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                        placeholder="Type vendor name..."
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomVendor(false)}
+                        className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline"
+                      >
+                        ← Select from list
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <label className="block font-semibold text-surface-700 dark:text-surface-300 mb-1">Service Plan</label>
-                  <input
-                    type="text"
-                    value={formData.service_category}
-                    onChange={(e) => setFormData({ ...formData, service_category: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:ring-2 focus:ring-amber-500"
-                    placeholder="e.g. GWS, M365, Tally"
-                  />
+                  {!isCustomServicePlan ? (
+                    <select
+                      value={formData.service_category}
+                      onChange={(e) => {
+                        if (e.target.value === '__other__') {
+                          setIsCustomServicePlan(true);
+                          setFormData({ ...formData, service_category: '' });
+                        } else {
+                          setFormData({ ...formData, service_category: e.target.value });
+                        }
+                      }}
+                      className="w-full px-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:ring-2 focus:ring-amber-500 font-medium"
+                    >
+                      <option value="">Select Service Plan</option>
+                      {availableServicePlans.map((sp) => (
+                        <option key={sp} value={sp}>{sp}</option>
+                      ))}
+                      <option value="__other__">➕ Other (Type Custom Plan...)</option>
+                    </select>
+                  ) : (
+                    <div className="space-y-1">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={formData.service_category}
+                        onChange={(e) => setFormData({ ...formData, service_category: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                        placeholder="Type service plan..."
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomServicePlan(false)}
+                        className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline"
+                      >
+                        ← Select from list
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1068,13 +1144,14 @@ export default function Pricing() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-surface-700 dark:text-surface-300 mb-1">Standard List Price (₹)</label>
+                  <label className="block font-semibold text-surface-700 dark:text-surface-300 mb-1">Purchase Cost (₹)</label>
                   <input
                     type="number"
                     step="0.01"
-                    value={formData.list_price}
-                    onChange={(e) => setFormData({ ...formData, list_price: e.target.value })}
+                    value={formData.sales_cost}
+                    onChange={(e) => setFormData({ ...formData, sales_cost: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                    placeholder="e.g. 5000"
                   />
                 </div>
 
@@ -1087,45 +1164,9 @@ export default function Pricing() {
                     value={formData.erp_price}
                     onChange={(e) => setFormData({ ...formData, erp_price: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-500/50 text-surface-900 dark:text-white font-extrabold focus:ring-2 focus:ring-amber-500"
+                    placeholder="e.g. 6500"
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-surface-700 dark:text-surface-300 mb-1">Purchase Cost (₹)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.sales_cost}
-                    onChange={(e) => setFormData({ ...formData, sales_cost: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-surface-700 dark:text-surface-300 mb-1">Client Coupon Discount (%)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="100"
-                    value={formData.coupon_discount_percent}
-                    onChange={(e) => setFormData({ ...formData, coupon_discount_percent: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-surface-700 dark:text-surface-300 mb-1">Description</label>
-                <textarea
-                  rows="2"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:ring-2 focus:ring-amber-500"
-                  placeholder="Additional service details..."
-                />
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-surface-200 dark:border-surface-800">

@@ -324,10 +324,10 @@ router.get('/charts/services', authenticateToken, async (req, res) => {
     `);
     
     const { rows: allRecords } = await db.query(`
-      SELECT service, client_name, value, status, expiry_date, vendor, purchase_cost, profit
+      SELECT service, client_name, value, status, renewal_date AS expiry_date, vendor, purchase_cost, profit
       FROM renewals
       WHERE is_deleted = false AND service IS NOT NULL AND service != ''
-      ORDER BY expiry_date ASC
+      ORDER BY renewal_date ASC
     `);
 
     res.json({
