@@ -69,21 +69,8 @@ export default function Visits() {
     };
   }, []);
 
-  const isFinance = user?.role === 'finance';
   const isAdmin = user?.role === 'admin';
   const isCST = user?.role === 'sales';
-
-  if (isFinance) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center p-6 bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 shadow-sm">
-        <ShieldAlert className="w-16 h-16 text-rose-500 mb-4 animate-bounce" />
-        <h2 className="text-xl font-bold text-surface-900 dark:text-white mb-2">Access Denied</h2>
-        <p className="text-surface-500 dark:text-surface-400 max-w-md">
-          Finance users do not have permissions to view or access GPS Visit Tracking records.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

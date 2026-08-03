@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, CalendarClock, User, Mail, DollarSign, Tag, Clock, FileCheck, AlertCircle, Copy, Check, FileText } from 'lucide-react';
+import { X, CalendarClock, User, Mail, DollarSign, Tag, Clock, FileCheck, AlertCircle, Copy, Check, FileText, MailX, MailCheck } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { formatCurrency, formatDate, getStatusColor, getDaysLeftColor } from '../utils/formatters';
 
@@ -129,7 +129,7 @@ export default function ClientDetailsModal({ client, onClose }) {
                   <FileText className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-0.5">Invoice Number</p>
+                  <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-0.5">{client.invoice_type || 'Invoice'} Number</p>
                   <p className="text-sm font-medium text-surface-900 dark:text-white">{client.invoice_number}</p>
                 </div>
               </div>

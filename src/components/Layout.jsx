@@ -27,19 +27,18 @@ import {
   MapPin,
   Users,
   Mail,
-  Pin
+  Pin,
+  Tag
 } from 'lucide-react';
 
 const getRoleLabel = (role) => {
   if (role === 'admin') return 'Admin';
-  if (role === 'finance') return 'Finance';
   if (role === 'sales') return 'CST / Sales';
   return '';
 };
 
 const getRoleBadgeStyle = (role) => {
   if (role === 'admin') return 'bg-red-50 text-red-600 border border-red-200 dark:bg-red-950/20 dark:text-red-400 dark:border-red-800/50';
-  if (role === 'finance') return 'bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-800/50';
   if (role === 'sales') return 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800/50';
   return '';
 };
@@ -260,8 +259,8 @@ export default function Layout({ children }) {
         setNotifications(data.notifications);
         setUnreadCount(data.unread);
 
-        // If the user is admin or finance, show toast popups for new unread notifications
-        if (user?.role === 'admin' || user?.role === 'finance') {
+        // If the user is admin or sales, show toast popups for new unread notifications
+        if (user?.role === 'admin' || user?.role === 'sales') {
           data.notifications.forEach(notif => {
             if (notif.read === 0 && !toastedIdsRef.current.has(notif.id)) {
               // If it's not the first load, trigger the toast popup!
@@ -325,7 +324,7 @@ export default function Layout({ children }) {
   useEffect(() => {
     isFirstLoadRef.current = true;
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 8000);
+    const interval = setInterval(fetchNotifications, 30000); // 30s background poll (realtime updates handled by SSE)
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 
@@ -517,32 +516,54 @@ export default function Layout({ children }) {
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Renewals', path: '/renewals', icon: FileText },
+    { name: 'Pricing', path: '/pricing', icon: Tag },
+    { name: 'Notification Center', path: '/notifications', icon: Bell },
     { name: 'Email Automation', path: '/automation', icon: Mail },
+    { name: user?.role === 'admin' ? 'Reports & Logs' : 'Reports', path: '/reports', icon: BarChart3 },
+    { name: 'Record Details', path: '/edits-history', icon: History },
   ];
-
-  if (user?.role === 'admin') {
-    navItems.push({ name: 'Reports & Logs', path: '/reports', icon: BarChart3 });
-  }
-
-  if (user?.role === 'finance' || user?.role === 'admin' || user?.role === 'sales') {
-    navItems.push({ name: 'Record Details', path: '/edits-history', icon: History });
-  }
 
   if (user?.role === 'admin') {
     navItems.push({ name: 'Trash Data', path: '/trash', icon: Trash2 });
     navItems.push({ name: 'User Management', path: '/admin/users', icon: Users });
   }
 
-  if (user?.role === 'sales' || user?.role === 'admin') {
-    navItems.push({ name: 'Client Visit Tracking', path: '/visits', icon: MapPin });
-  }
+  navItems.push({ name: 'Client Visit Tracking', path: '/visits', icon: MapPin });
 
   const getInitials = (name) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
   };
 
+  const hoverTimeoutRef = useRef(null);
+
+  const handleSidebarMouseEnter = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setIsHoveredSidebar(true);
+  };
+
+  const handleSidebarMouseLeave = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsHoveredSidebar(false);
+    }, 180);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  /* Hover detection zone on the left edge of the viewport (for desktop only) */
   return (
-    <div className="flex h-screen transition-colors duration-200 relative overflow-hidden bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100 dark:from-stone-900 dark:via-slate-900 dark:to-rose-950">
+    <div className="flex h-screen transition-colors duration-200 relative overflow-hidden bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100 dark:from-stone-900 dark:via-slate-900 dark:to-rose-950 selection:bg-indigo-500/30">
 
       {/* Decorative blobs */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{zIndex: 0}}>
@@ -563,12 +584,12 @@ export default function Layout({ children }) {
       {/* Hover detection zone on the left edge of the viewport (for desktop only) */}
       <div 
         className={`fixed inset-y-0 left-0 w-4 z-20 hidden lg:block ${isSidebarPinned ? 'pointer-events-none' : ''}`}
-        onMouseEnter={() => setIsHoveredSidebar(true)} 
+        onMouseEnter={handleSidebarMouseEnter} 
       />
  
       <div
         ref={sidebarRef}
-        className={`flex flex-col w-64 flex-shrink-0 fixed inset-y-0 left-0 z-30 transition-transform duration-300 ease-in-out ${isSidebarPinned || isHoveredSidebar || isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`flex flex-col w-64 flex-shrink-0 fixed inset-y-0 left-0 z-30 transform-gpu transition-transform duration-300 ease-in-out ${isSidebarPinned || isHoveredSidebar || isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
         style={{
           background: isSidebarPinned
             ? (isDarkMode ? 'rgba(20, 16, 30, 0.85)' : 'rgba(248, 240, 230, 0.80)')
@@ -577,8 +598,8 @@ export default function Layout({ children }) {
           WebkitBackdropFilter: 'blur(20px)',
           borderRight: isDarkMode ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(180, 150, 120, 0.25)',
         }}
-        onMouseEnter={() => setIsHoveredSidebar(true)}
-        onMouseLeave={() => setIsHoveredSidebar(false)}
+        onMouseEnter={handleSidebarMouseEnter}
+        onMouseLeave={handleSidebarMouseLeave}
       >
         <div className="flex items-center justify-between h-16 px-5 flex-shrink-0" style={{ borderBottom: isDarkMode ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(180, 150, 120, 0.2)' }}>
           <div className="flex items-center gap-3">
@@ -645,7 +666,7 @@ export default function Layout({ children }) {
 
       {/* Main Content */}
       <div 
-        className={`flex-1 flex flex-col min-w-0 overflow-hidden transition-all duration-300 ${isSidebarPinned ? 'lg:pl-64' : 'lg:pl-0'}`} 
+        className={`flex-1 flex flex-col min-w-0 overflow-hidden transform-gpu transition-[padding-left] duration-300 ease-in-out ${(isSidebarPinned || isHoveredSidebar) ? 'lg:pl-64' : 'lg:pl-0'}`} 
         style={{ position: 'relative' }}
       >
         {/* Top Header */}
@@ -669,7 +690,7 @@ export default function Layout({ children }) {
             <img 
               src="/logo.png" 
               alt="MarsLab Logo" 
-              className={`h-7 w-auto cursor-pointer object-contain dark:invert dark:hue-rotate-180 mr-1 ${isSidebarPinned ? 'lg:hidden' : ''}`} 
+              className={`h-7 w-auto cursor-pointer object-contain dark:invert dark:hue-rotate-180 mr-1 ${(isSidebarPinned || isHoveredSidebar) ? 'lg:hidden' : ''}`} 
               onClick={() => navigate('/')} 
               title="Go to Dashboard"
             />
@@ -798,8 +819,6 @@ export default function Layout({ children }) {
                   style={{
                     background: user?.role === 'admin'
                       ? 'linear-gradient(135deg,#ef4444,#b91c1c)'
-                      : user?.role === 'finance'
-                      ? 'linear-gradient(135deg,#3b82f6,#1d4ed8)'
                       : 'linear-gradient(135deg,#10b981,#047857)',
                     color: '#fff',
                   }}
@@ -841,8 +860,6 @@ export default function Layout({ children }) {
                       style={{
                         background: user?.role === 'admin'
                           ? 'linear-gradient(135deg,#ef4444,#b91c1c)'
-                          : user?.role === 'finance'
-                          ? 'linear-gradient(135deg,#3b82f6,#1d4ed8)'
                           : 'linear-gradient(135deg,#10b981,#047857)',
                         color: '#fff',
                       }}

@@ -1,16 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell
 } from 'recharts';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BarChart3, TrendingUp, TrendingDown, Mail, AlertCircle, CheckCircle2, Clock, 
-  Activity, Zap, Users, ArrowUpRight
+  Activity, Zap, Users, ArrowUpRight, Maximize2, Minimize2, X, Search, Download, Filter,
+  Layers, Building2, ChevronRight, PieChart as PieIcon, ExternalLink, Calendar
 } from 'lucide-react';
-import { formatCurrency, formatDateTime } from '../utils/formatters';
+import { formatCurrency, formatCompactCurrency, formatDateTime } from '../utils/formatters';
 import ThreeDGraph from '../components/ThreeDGraph';
+import AreaGraphVisualizer from '../components/AreaGraphVisualizer';
+import ServiceDistributionPieChart from '../components/ServiceDistributionPieChart';
 
 const STATUS_COLORS = {
   'Active': '#3b82f6',          // Blue
@@ -20,85 +23,156 @@ const STATUS_COLORS = {
   'Closed': '#64748b'            // Slate
 };
 
+const exportToCSV = (data, filename) => {
+  if (!data || !data.length) return;
+  const keys = Object.keys(data[0]);
+  const headers = keys.join(',');
+  const rows = data.map(obj => keys.map(k => `"${(obj[k] ?? '').toString().replace(/"/g, '""')}"`).join(','));
+  const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `${filename}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
 export default function Reports() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [stats, setStats] = useState(null);
   const [statusData, setStatusData] = useState([]);
   const [monthlyData, setMonthlyData] = useState([]);
+  const [serviceData, setServiceData] = useState([]);
+  const [serviceRecords, setServiceRecords] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
   const [emailLogs, setEmailLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchReports = async () => {
-      if (!token) return;
-      try {
-        const [statsRes, stRes, moRes, actRes, emRes] = await Promise.all([
-          fetch('/api/dashboard/stats', { headers: { 'Authorization': `Bearer ${token}` } }),
-          fetch('/api/dashboard/charts/status', { headers: { 'Authorization': `Bearer ${token}` } }),
-          fetch('/api/dashboard/charts/monthly', { headers: { 'Authorization': `Bearer ${token}` } }),
-          fetch('/api/dashboard/activity-logs?limit=20', { headers: { 'Authorization': `Bearer ${token}` } }),
-          fetch('/api/dashboard/email-logs?limit=20', { headers: { 'Authorization': `Bearer ${token}` } })
-        ]);
+  // Modal Full Screen State
+  const [activeModal, setActiveModal] = useState(null);
+  const [modalSearchTerm, setModalSearchTerm] = useState('');
+  const [modalCategoryFilter, setModalCategoryFilter] = useState('All');
+  const [selectedMonthDrilldown, setSelectedMonthDrilldown] = useState(null);
 
-        if (statsRes.ok) setStats(await statsRes.json());
-        if (stRes.ok) setStatusData(await stRes.json());
-        if (moRes.ok) setMonthlyData(await moRes.json());
-        if (actRes.ok) setActivityLogs(await actRes.json());
-        if (emRes.ok) setEmailLogs(await emRes.json());
-      } catch (err) {
-        console.error('Failed to load reports');
-      } finally {
-        setLoading(false);
+  // Close modal on ESC key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setActiveModal(null);
+        setSelectedMonthDrilldown(null);
       }
     };
-    if (token) {
-      fetchReports();
-    }
-  }, [token]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
-  if (loading) {
+  const fetchReports = useCallback(async () => {
+    if (!token) return;
+    try {
+      const promises = [
+        fetch('/api/dashboard/stats', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/dashboard/charts/status', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/dashboard/charts/monthly', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/dashboard/charts/services', { headers: { 'Authorization': `Bearer ${token}` } })
+      ];
+
+      const isAdmin = user?.role === 'admin';
+      if (isAdmin) {
+        promises.push(fetch('/api/dashboard/activity-logs?limit=20', { headers: { 'Authorization': `Bearer ${token}` } }));
+        promises.push(fetch('/api/dashboard/email-logs?limit=20', { headers: { 'Authorization': `Bearer ${token}` } }));
+      }
+
+      const responses = await Promise.all(promises);
+      
+      const statsRes = await responses[0].json();
+      const statusRes = await responses[1].json();
+      const monthlyRes = await responses[2].json();
+      const servicesRes = await responses[3].json();
+
+      if (statsRes) setStats(statsRes);
+      if (statusRes) setStatusData(statusRes);
+      if (monthlyRes) setMonthlyData(monthlyRes);
+      if (servicesRes) {
+        setServiceData(servicesRes.summary || []);
+        setServiceRecords(servicesRes.allRecords || []);
+      }
+
+      if (isAdmin) {
+        if (responses[4]) setActivityLogs(await responses[4].json());
+        if (responses[5]) setEmailLogs(await responses[5].json());
+      }
+    } catch (error) {
+      console.error('Error fetching report analytics:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, user]);
+
+  useEffect(() => {
+    fetchReports();
+    const interval = setInterval(fetchReports, 8000);
+    return () => clearInterval(interval);
+  }, [fetchReports]);
+
+  // Derived metrics
+  const totalEmailsSent = emailLogs.length;
+  const successfulEmails = emailLogs.filter(log => log.status === 'sent').length;
+  const deliverabilityRate = totalEmailsSent > 0 ? Math.round((successfulEmails / totalEmailsSent) * 100) : 100;
+
+  // Filtered dataset for modal tables
+  const filteredModalRecords = useMemo(() => {
+    if (!serviceRecords || serviceRecords.length === 0) return [];
+    
+    return serviceRecords.filter(item => {
+      const matchSearch = modalSearchTerm === '' || 
+        (item.client_name && item.client_name.toLowerCase().includes(modalSearchTerm.toLowerCase())) ||
+        (item.service && item.service.toLowerCase().includes(modalSearchTerm.toLowerCase())) ||
+        (item.vendor && item.vendor.toLowerCase().includes(modalSearchTerm.toLowerCase()));
+
+      const matchCategory = modalCategoryFilter === 'All' || 
+        (item.service && item.service.toLowerCase().includes(modalCategoryFilter.toLowerCase()));
+
+      if (activeModal === 'active_kpi') return matchSearch && matchCategory && (item.status === 'Active' || item.status === 'Renewed');
+      if (activeModal === 'pending_kpi') return matchSearch && matchCategory && item.status === 'Pending Renewal';
+      if (activeModal === 'loss_kpi' || activeModal === 'loss') return matchSearch && matchCategory && item.status === 'Expired';
+      
+      return matchSearch && matchCategory;
+    });
+  }, [serviceRecords, modalSearchTerm, modalCategoryFilter, activeModal]);
+
+  const openModal = (type) => {
+    setModalSearchTerm('');
+    setModalCategoryFilter('All');
+    setSelectedMonthDrilldown(null);
+    setActiveModal(type);
+  };
+
+  if (loading && !stats) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+      <div className="flex items-center justify-center min-h-[600px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-500"></div>
       </div>
     );
   }
 
-  // Calculate deliverability
-  const sentCount = emailLogs.filter(l => l.status === 'sent').length;
-  const totalEmails = emailLogs.length;
-  const deliverabilityRate = totalEmails > 0 ? Math.round((sentCount / totalEmails) * 100) : 100;
-
-  // Custom tooltips for nice presentation
-  const CustomPieTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-white dark:bg-surface-800 p-3 shadow-lg rounded-lg border border-surface-200 dark:border-surface-700 text-xs">
-          <p className="font-semibold text-surface-900 dark:text-white mb-1">{data.status}</p>
-          <p className="text-surface-600 dark:text-surface-400">Count: <span className="font-bold text-brand-600">{data.count}</span></p>
-        </div>
-      );
-    }
-    return null;
-  };
-
   const CustomComposedTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
+      const rev = payload.find(p => p.dataKey === 'revenue')?.value || 0;
+      const count = payload.find(p => p.dataKey === 'count')?.value || 0;
       return (
-        <div className="bg-white dark:bg-surface-800 p-3 shadow-lg rounded-lg border border-surface-200 dark:border-surface-700 text-xs space-y-1">
-          <p className="font-semibold text-surface-900 dark:text-white border-b border-surface-100 dark:border-surface-700 pb-1 mb-1">{label}</p>
-          <p className="text-brand-600 dark:text-brand-400 flex justify-between gap-4">
-            <span>Revenue:</span>
-            <span className="font-bold">{formatCurrency(payload[0].value)}</span>
-          </p>
-          {payload[1] && (
-            <p className="text-emerald-600 dark:text-emerald-400 flex justify-between gap-4">
-              <span>Renewals:</span>
-              <span className="font-bold">{payload[1].value}</span>
-            </p>
-          )}
+        <div className="bg-slate-950/90 backdrop-blur-xl border border-white/20 p-3.5 rounded-xl shadow-2xl text-white">
+          <p className="font-bold text-xs text-brand-300 border-b border-white/10 pb-1 mb-2">{label}</p>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-4 text-xs">
+              <span className="text-indigo-400 font-medium">Revenue:</span>
+              <span className="font-mono font-bold text-emerald-400">{formatCurrency(rev)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4 text-xs">
+              <span className="text-emerald-400 font-medium">Renewals Volume:</span>
+              <span className="font-mono font-bold text-white">{count} contracts</span>
+            </div>
+          </div>
         </div>
       );
     }
@@ -106,249 +180,218 @@ export default function Reports() {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-8 animate-fade-in relative pb-12">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900/90 via-indigo-950/80 to-slate-900/90 p-6 rounded-2xl border border-white/10 shadow-2xl backdrop-blur-xl">
         <div>
-          <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Reports & Analytics</h1>
-          <p className="text-sm text-surface-500 dark:text-surface-400 mt-1">
-            Real-time visual insights, performance metrics, and compliance logs.
-          </p>
-        </div>
-      </div>
-
-      {/* KPI Highlight grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-5">
-        <div className="card p-5 flex items-center gap-4 relative overflow-hidden group">
-          <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
-            <Users className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-xs text-surface-500 font-medium uppercase tracking-wider">Active Portfolio</p>
-            <p className="text-xl font-bold text-surface-900 dark:text-white mt-0.5">{stats?.active || 0} Services</p>
-          </div>
-        </div>
-
-        <div className="card p-5 flex items-center gap-4 relative overflow-hidden group">
-          <div className="p-3 rounded-xl bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400">
-            <Clock className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-xs text-surface-500 font-medium uppercase tracking-wider">Pending Reminders</p>
-            <p className="text-xl font-bold text-surface-900 dark:text-white mt-0.5">{stats?.upcoming || 0} Upcoming</p>
-          </div>
-        </div>
-
-        <div className="card p-5 flex items-center gap-4 relative overflow-hidden group">
-          <div className="p-3 rounded-xl bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400">
-            <Mail className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-xs text-surface-500 font-medium uppercase tracking-wider">Email Deliverability</p>
-            <p className="text-xl font-bold text-surface-900 dark:text-white mt-0.5">{deliverabilityRate}% Success</p>
-          </div>
-        </div>
-
-        <div className="card p-5 flex items-center gap-4 relative overflow-hidden group">
-          <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400">
-            <TrendingUp className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-xs text-surface-500 font-medium uppercase tracking-wider">Total Contract Pipeline</p>
-            <p className="text-xl font-bold text-surface-900 dark:text-white mt-0.5">{formatCurrency(stats?.revenue || 0)}</p>
-          </div>
-        </div>
-
-        <div className="card p-5 flex items-center gap-4 relative overflow-hidden group">
-          <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
-            <TrendingUp className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-xs text-surface-500 font-medium uppercase tracking-wider">Total Profit</p>
-            <p className="text-xl font-bold text-surface-900 dark:text-white mt-0.5">{formatCurrency(stats?.profit || 0)}</p>
-          </div>
-        </div>
-
-        <div className="card p-5 flex items-center gap-4 relative overflow-hidden group">
-          <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-450">
-            <TrendingDown className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-xs text-surface-500 font-medium uppercase tracking-wider">Total Loss (Expired)</p>
-            <p className="text-xl font-bold text-surface-900 dark:text-white mt-0.5">{formatCurrency(stats?.loss || 0)}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Pie Chart: Status Distribution */}
-        <div className="card p-6 lg:col-span-5 h-[380px] flex flex-col justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-surface-900 dark:text-white">Renewal Status Distribution</h2>
-            <p className="text-xs text-surface-500">Overview of status across all active renewals</p>
-          </div>
-          <div className="flex-1 min-h-0 relative flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="90%">
-              <PieChart>
-                <Pie
-                  data={statusData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={65}
-                  outerRadius={90}
-                  paddingAngle={4}
-                  dataKey="count"
-                  nameKey="status"
-                >
-                  {statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={STATUS_COLORS[entry.status] || '#94a3b8'} />
-                  ))}
-                </Pie>
-                <RechartsTooltip content={<CustomPieTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-            
-            {/* Center Absolute Label */}
-            <div className="absolute text-center">
-              <span className="text-2xl font-extrabold text-surface-900 dark:text-white">
-                {statusData.reduce((acc, curr) => acc + curr.count, 0)}
-              </span>
-              <p className="text-[10px] text-surface-500 uppercase tracking-wider font-semibold">Total Services</p>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-brand-500/20 text-brand-400 rounded-xl border border-brand-500/30">
+              <BarChart3 className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-white tracking-tight">Reports & Executive Analytics</h1>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">Real-time performance metrics, portfolio revenue, service distribution & system audit logs</p>
             </div>
           </div>
-          
-          {/* Custom Legends Grid */}
-          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 text-xs border-t border-surface-100 dark:border-surface-700 pt-4">
-            {statusData.map((entry, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS[entry.status] || '#94a3b8' }}></span>
-                <span className="text-surface-700 dark:text-surface-300 font-medium">{entry.status} ({entry.count})</span>
-              </div>
-            ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div onClick={() => openModal('active_kpi')} className="p-4 rounded-2xl border transition-all duration-300 hover:-translate-y-1 relative overflow-hidden group flex items-center gap-3.5 bg-gradient-to-br from-blue-500/15 via-blue-400/10 to-blue-500/5 dark:from-blue-950/40 dark:via-blue-900/30 dark:to-slate-900/60 border-blue-400/50 dark:border-blue-500/40 shadow-lg shadow-blue-500/5 hover:border-blue-500/80 hover:shadow-blue-500/15 backdrop-blur-xl cursor-pointer">
+          <div className="p-3 rounded-xl bg-blue-500/20 text-blue-800 dark:text-blue-300 border border-blue-500/40 flex-shrink-0 backdrop-blur-md">
+            <Users className="w-5 h-5" />
           </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold text-slate-700 dark:text-surface-400 uppercase tracking-wider truncate">Active Portfolio</p>
+            <p className="text-lg font-black text-black dark:text-white mt-0.5 leading-none">{stats?.active || 0} <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Services</span></p>
+          </div>
+          <Maximize2 className="w-3.5 h-3.5 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2" />
         </div>
 
-        {/* Composed Chart: Renewals and Revenue */}
-        <div className="card p-6 lg:col-span-7 h-[380px] flex flex-col justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-surface-900 dark:text-white">Volume & Revenue Forecast</h2>
-            <p className="text-xs text-surface-500">Projected contract values and counts by month</p>
+        <div onClick={() => openModal('pending_kpi')} className="p-4 rounded-2xl border transition-all duration-300 hover:-translate-y-1 relative overflow-hidden group flex items-center gap-3.5 bg-gradient-to-br from-amber-500/15 via-orange-400/10 to-amber-500/5 dark:from-amber-950/40 dark:via-orange-900/30 dark:to-slate-900/60 border-amber-400/50 dark:border-amber-500/40 shadow-lg shadow-amber-500/5 hover:border-amber-500/80 hover:shadow-amber-500/15 backdrop-blur-xl cursor-pointer">
+          <div className="p-3 rounded-xl bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40 flex-shrink-0 backdrop-blur-md">
+            <Clock className="w-5 h-5" />
           </div>
-          <div className="flex-1 min-h-0 mt-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold text-slate-700 dark:text-surface-400 uppercase tracking-wider truncate">Pending Reminders</p>
+            <p className="text-lg font-black text-black dark:text-white mt-0.5 leading-none">{stats?.upcoming || 0} <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Upcoming</span></p>
+          </div>
+          <Maximize2 className="w-3.5 h-3.5 text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2" />
+        </div>
+
+        <div onClick={() => openModal('deliverability_kpi')} className="p-4 rounded-2xl border transition-all duration-300 hover:-translate-y-1 relative overflow-hidden group flex items-center gap-3.5 bg-gradient-to-br from-cyan-500/15 via-teal-400/10 to-cyan-500/5 dark:from-cyan-950/40 dark:via-teal-900/30 dark:to-slate-900/60 border-cyan-400/50 dark:border-cyan-500/40 shadow-lg shadow-cyan-500/5 hover:border-cyan-500/80 hover:shadow-cyan-500/15 backdrop-blur-xl cursor-pointer">
+          <div className="p-3 rounded-xl bg-cyan-500/20 text-cyan-800 dark:text-cyan-300 border border-cyan-500/40 flex-shrink-0 backdrop-blur-md">
+            <Mail className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold text-slate-700 dark:text-surface-400 uppercase tracking-wider truncate">Email Deliverability</p>
+            <p className="text-lg font-black text-black dark:text-white mt-0.5 leading-none">{deliverabilityRate}% <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Success</span></p>
+          </div>
+          <Maximize2 className="w-3.5 h-3.5 text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2" />
+        </div>
+
+        <div onClick={() => openModal('pipeline_kpi')} className="p-4 rounded-2xl border transition-all duration-300 hover:-translate-y-1 relative overflow-hidden group flex items-center gap-3.5 bg-gradient-to-br from-indigo-500/15 via-purple-400/10 to-indigo-500/5 dark:from-indigo-950/40 dark:via-purple-900/30 dark:to-slate-900/60 border-indigo-400/50 dark:border-indigo-500/40 shadow-lg shadow-indigo-500/5 hover:border-indigo-500/80 hover:shadow-indigo-500/15 backdrop-blur-xl cursor-pointer">
+          <div className="p-3 rounded-xl bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 border border-indigo-500/40 flex-shrink-0 backdrop-blur-md">
+            <TrendingUp className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold text-slate-700 dark:text-surface-400 uppercase tracking-wider truncate">Total Contract Pipeline</p>
+            <p className="text-lg font-black text-black dark:text-white mt-0.5 leading-none">{formatCurrency(stats?.revenue || 0)}</p>
+          </div>
+          <Maximize2 className="w-3.5 h-3.5 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2" />
+        </div>
+
+        <div onClick={() => openModal('profit')} className="p-4 rounded-2xl border transition-all duration-300 hover:-translate-y-1 relative overflow-hidden group flex items-center gap-3.5 bg-gradient-to-br from-emerald-500/15 via-teal-400/10 to-emerald-500/5 dark:from-emerald-950/40 dark:via-teal-900/30 dark:to-slate-900/60 border-emerald-400/50 dark:border-emerald-500/40 shadow-lg shadow-emerald-500/5 hover:border-emerald-500/80 hover:shadow-emerald-500/15 backdrop-blur-xl cursor-pointer">
+          <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40 flex-shrink-0 backdrop-blur-md">
+            <TrendingUp className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold text-slate-700 dark:text-surface-400 uppercase tracking-wider truncate">Total Profit</p>
+            <p className="text-lg font-black text-black dark:text-white mt-0.5 leading-none">{formatCurrency(stats?.profit || 0)}</p>
+          </div>
+          <Maximize2 className="w-3.5 h-3.5 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2" />
+        </div>
+
+        <div onClick={() => openModal('loss')} className="p-4 rounded-2xl border transition-all duration-300 hover:-translate-y-1 relative overflow-hidden group flex items-center gap-3.5 bg-gradient-to-br from-rose-500/15 via-red-400/10 to-rose-500/5 dark:from-rose-950/40 dark:via-red-900/30 dark:to-slate-900/60 border-rose-400/50 dark:border-rose-500/40 shadow-lg shadow-rose-500/5 hover:border-rose-500/80 hover:shadow-rose-500/15 backdrop-blur-xl cursor-pointer">
+          <div className="p-3 rounded-xl bg-rose-500/20 text-rose-800 dark:text-rose-300 border border-rose-500/40 flex-shrink-0 backdrop-blur-md">
+            <TrendingDown className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold text-slate-700 dark:text-surface-400 uppercase tracking-wider truncate">Total Loss (Expired)</p>
+            <p className="text-lg font-black text-black dark:text-white mt-0.5 leading-none">{formatCurrency(stats?.loss || 0)}</p>
+          </div>
+          <Maximize2 className="w-3.5 h-3.5 text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="group/animated-card relative overflow-hidden rounded-2xl border border-white/80 dark:border-white/15 bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl shadow-xl shadow-black/5 p-5 lg:col-span-5 h-[420px] flex flex-col justify-between transition-all duration-500 hover:shadow-2xl hover:border-brand-500/40">
+          <ServiceDistributionPieChart 
+            rawServiceData={serviceData} 
+            allRecords={serviceRecords} 
+            onExpand={() => openModal('services')}
+          />
+        </div>
+
+        <div className="group/animated-card relative overflow-hidden rounded-2xl border border-white/80 dark:border-white/15 bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl shadow-xl shadow-black/5 p-6 lg:col-span-7 h-[420px] flex flex-col justify-between transition-all duration-500 hover:shadow-2xl hover:border-brand-500/40">
+          <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(to_right,rgba(99,102,241,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(99,102,241,0.05)_1px,transparent_1px)] bg-[size:20px_20px] opacity-70 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)]" />
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-black text-black dark:text-white">Volume & Revenue Analysis</h2>
+                <span className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/20 backdrop-blur-md flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                  Live Data
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => openModal('revenue')}
+                className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/20 border border-indigo-500/30 transition-all flex items-center gap-1 text-[11px] font-bold"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span>Full Screen</span>
+              </button>
+            </div>
+          </div>
+          <div className="relative z-10 flex-1 min-h-0 mt-3">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={monthlyData} margin={{ top: 10, right: -5, left: -20, bottom: 5 }}>
-                <defs>
-                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.85} />
-                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0.15} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-surface-700" />
-                <XAxis dataKey="month" tick={{fontSize: 10}} tickLine={false} tickMargin={8} />
-                <YAxis yAxisId="left" tick={{fontSize: 10}} tickLine={false} axisLine={false} formatter={(val) => `₹${val/1000}k`} />
-                <YAxis yAxisId="right" orientation="right" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
+              <ComposedChart data={monthlyData} margin={{ top: 15, right: 10, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.4} />
+                <XAxis dataKey="month" interval={0} tick={{ fontSize: 10, fontWeight: 700 }} />
+                <YAxis yAxisId="left" width={60} tick={{ fontSize: 10, fontWeight: 600 }} tickFormatter={(val) => formatCompactCurrency(val)} />
+                <YAxis yAxisId="right" orientation="right" width={35} tick={{ fontSize: 10, fontWeight: 600 }} />
                 <RechartsTooltip content={<CustomComposedTooltip />} />
-                <Bar yAxisId="left" dataKey="revenue" fill="url(#barGradient)" name="Revenue" radius={[4, 4, 0, 0]} barSize={32} />
-                <Line yAxisId="right" type="monotone" dataKey="count" stroke="#10b981" strokeWidth={2.5} dot={{ r: 4, stroke: '#10b981', strokeWidth: 2, fill: '#fff' }} name="Volume" />
-                <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
+                <Bar yAxisId="left" dataKey="revenue" fill="#6366f1" radius={[8, 8, 0, 0]} barSize={34} />
+                <Line yAxisId="right" dataKey="count" stroke="#10b981" strokeWidth={3} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      {/* 3D Profit & Loss Visualizer Section */}
-      <div className="card p-6 flex flex-col h-[450px] justify-between shadow-sm">
-        <div>
-          <h2 className="text-lg font-bold text-surface-900 dark:text-white">3D Profit & Loss Visualizer</h2>
-          <p className="text-xs text-surface-500">Interactive WebGL comparison of total portfolio profit against expired portfolio value loss</p>
-        </div>
-        <div className="flex-1 min-h-0 mt-4">
-          <ThreeDGraph profit={stats?.profit || 0} loss={stats?.loss || 0} />
-        </div>
-      </div>
-
-      {/* Logs Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Email Logs */}
-        <div className="card flex flex-col h-[500px] overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-surface-200 dark:border-surface-700 flex justify-between items-center bg-surface-50/50 dark:bg-surface-900/20">
-            <div>
-              <h2 className="text-lg font-bold text-surface-900 dark:text-white">Email Automation Logs</h2>
-              <p className="text-xs text-surface-500">Live outbound reminder email status</p>
-            </div>
-            <Mail className="w-5 h-5 text-surface-400" />
-          </div>
-          <div className="flex-1 overflow-auto p-0 custom-scrollbar">
-            <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-surface-50 dark:bg-surface-900/50 sticky top-0 border-b border-surface-200 dark:border-surface-700">
-                <tr>
-                  <th className="px-4 py-3 font-semibold text-surface-500 uppercase tracking-wider">Time</th>
-                  <th className="px-4 py-3 font-semibold text-surface-500 uppercase tracking-wider">Client/Type</th>
-                  <th className="px-4 py-3 font-semibold text-surface-500 uppercase tracking-wider">Recipient</th>
-                  <th className="px-4 py-3 font-semibold text-surface-500 uppercase tracking-wider">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-200 dark:divide-surface-700">
-                {emailLogs.length === 0 ? (
-                  <tr>
-                    <td colSpan="4" className="text-center py-10 text-surface-400">No logs found</td>
-                  </tr>
-                ) : (
-                  emailLogs.map(log => (
-                    <tr key={log.id} className="hover:bg-surface-50 dark:hover:bg-surface-700/30 transition-colors">
-                      <td className="px-4 py-3.5 text-surface-600 dark:text-surface-400">{formatDateTime(log.sent_at)}</td>
-                      <td className="px-4 py-3.5 truncate max-w-[160px]" title={`${log.client_name} - ${log.email_type}`}>
-                        <span className="font-semibold text-surface-900 dark:text-white">{log.client_name}</span><br/>
-                        <span className="text-[10px] bg-brand-50 text-brand-600 dark:bg-brand-900/20 dark:text-brand-400 px-1.5 py-0.5 rounded font-mono mt-0.5 inline-block">{log.email_type}</span>
-                      </td>
-                      <td className="px-4 py-3.5 text-surface-700 dark:text-surface-300 font-medium">{log.recipient_email}</td>
-                      <td className="px-4 py-3.5">
-                        <span className={`px-2 py-1 rounded-full text-[10px] font-semibold border ${log.status === 'sent' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800' : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'}`}>
-                          {log.status.toUpperCase()}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Activity Logs */}
-        <div className="card flex flex-col h-[500px] overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-surface-200 dark:border-surface-700 flex justify-between items-center bg-surface-50/50 dark:bg-surface-900/20">
-            <div>
-              <h2 className="text-lg font-bold text-surface-900 dark:text-white">Audit Trail (Activity)</h2>
-              <p className="text-xs text-surface-500">Immutable system action logs</p>
-            </div>
-            <Zap className="w-5 h-5 text-surface-400 animate-pulse" />
-          </div>
-          <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
-            <div className="space-y-4 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-surface-200 dark:before:bg-surface-700">
-              {activityLogs.length === 0 ? (
-                <p className="text-sm text-surface-500 text-center py-10">No recent activity.</p>
-              ) : (
-                activityLogs.map(log => (
-                  <div key={log.id} className="flex gap-4 relative">
-                    <div className="mt-1 flex-shrink-0 w-6 h-6 rounded-full bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-850 flex items-center justify-center z-10 text-[10px] text-brand-600 dark:text-brand-400 font-bold shadow-sm">
-                      {log.role?.[0]?.toUpperCase() || 'S'}
-                    </div>
-                    <div className="flex-1 bg-surface-50/50 dark:bg-surface-900/10 p-3 rounded-lg border border-surface-100 dark:border-surface-800/80">
-                      <p className="text-sm text-surface-800 dark:text-surface-100 font-medium">{log.details}</p>
-                      <div className="text-xs text-surface-500 mt-2 flex justify-between items-center border-t border-surface-100 dark:border-surface-800/50 pt-2">
-                        <span className="font-semibold text-surface-700 dark:text-surface-300">By {log.full_name || 'System'}</span>
-                        <span className="text-[10px] font-mono text-surface-400 dark:text-surface-500">{formatDateTime(log.created_at, { year: 'numeric' })}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
+        <AreaGraphVisualizer
+          title="Portfolio Profit Analytics"
+          type="profit"
+          totalValue={stats?.profit || 0}
+          monthlyData={monthlyData}
+          onExpand={() => openModal('profit')}
+        />
+        <AreaGraphVisualizer
+          title="Expired Portfolio Loss Analytics"
+          type="loss"
+          totalValue={stats?.loss || 0}
+          monthlyData={monthlyData}
+          onExpand={() => openModal('loss')}
+        />
       </div>
+
+      <AnimatePresence>
+        {activeModal && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl p-4 md:p-8 flex flex-col overflow-hidden text-white"
+          >
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/15 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-brand-500/20 text-brand-400 rounded-xl border border-brand-500/30">
+                  <Layers className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black">Drilldown Analysis: {activeModal}</h2>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={modalSearchTerm}
+                  onChange={(e) => setModalSearchTerm(e.target.value)}
+                  placeholder="Search..."
+                  className="px-4 py-2 bg-slate-900/80 border border-white/20 rounded-xl text-xs"
+                />
+                <button
+                  onClick={() => exportToCSV(filteredModalRecords, 'report')}
+                  className="px-3.5 py-2 bg-emerald-500/20 rounded-xl text-xs font-bold"
+                >
+                  Export CSV
+                </button>
+                <button
+                  onClick={() => setActiveModal(null)}
+                  className="p-2 rounded-xl bg-white/10"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pt-6 space-y-6 custom-scrollbar">
+               <div className="overflow-x-auto border border-white/10 rounded-xl bg-slate-950/40">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900 border-b border-white/10">
+                      <tr>
+                        <th className="px-4 py-3">Client Name</th>
+                        <th className="px-4 py-3">Service Plan</th>
+                        <th className="px-4 py-3">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/10">
+                      {filteredModalRecords.map((r, i) => (
+                        <tr key={i}>
+                          <td className="px-4 py-3">{r.client_name}</td>
+                          <td className="px-4 py-3">{r.service}</td>
+                          <td className="px-4 py-3">{formatCurrency(r.value)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+               </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

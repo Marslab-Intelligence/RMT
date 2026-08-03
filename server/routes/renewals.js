@@ -55,7 +55,7 @@ const getEmailFlags = (renewalDate) => {
   };
 };
 
-const notifyAdminAndFinance = async (title, message, type = 'info', link = null) => {
+const notifyAdminAndSales = async (title, message, type = 'info', link = null) => {
   try {
     await db.query(`
       INSERT INTO notifications (role, title, message, type, link)
@@ -63,7 +63,7 @@ const notifyAdminAndFinance = async (title, message, type = 'info', link = null)
     `, [title, message, type, link]);
     await db.query(`
       INSERT INTO notifications (role, title, message, type, link)
-      VALUES ('finance', $1, $2, $3, $4)
+      VALUES ('sales', $1, $2, $3, $4)
     `, [title, message, type, link]);
   } catch (err) {
     console.error('Error creating notifications:', err);
@@ -93,15 +93,40 @@ router.get('/', authenticateToken, async (req, res) => {
         AND (renewal_date - CURRENT_DATE) > 30
     `);
 
-    const { search, status, sort, order, page = 1, limit = 50, dateRange, valueRange, renewalConfirmation, clientName, serviceName } = req.query;
+    const { search, status, sort, order, page = 1, limit = 50, dateRange, valueRange, renewalConfirmation, clientName, serviceName, quotesSent, pendingFollowup } = req.query;
     let query = 'SELECT * FROM renewals WHERE 1=1';
     const params = [];
     let paramIndex = 1;
 
-    if (search) {
-      query += ` AND (client_name ILIKE $${paramIndex++} OR service ILIKE $${paramIndex++} OR owner ILIKE $${paramIndex++} OR unique_id ILIKE $${paramIndex++} OR client_email ILIKE $${paramIndex++})`;
-      const s = `%${search}%`;
-      params.push(s, s, s, s, s);
+    if (search && search.trim() !== '') {
+      const cleanSearch = search.trim();
+      const normSearch = cleanSearch.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const s = `%${cleanSearch}%`;
+      const sNorm = `%${normSearch}%`;
+
+      const pS = paramIndex++;
+      const pNorm = paramIndex++;
+
+      query += ` AND (
+        client_name ILIKE $${pS} OR 
+        service ILIKE $${pS} OR 
+        product ILIKE $${pS} OR 
+        vendor ILIKE $${pS} OR 
+        owner ILIKE $${pS} OR 
+        unique_id ILIKE $${pS} OR 
+        client_email ILIKE $${pS} OR 
+        sales_email ILIKE $${pS} OR 
+        quotation_number ILIKE $${pS} OR 
+        invoice_number ILIKE $${pS} OR 
+        reference_id ILIKE $${pS} OR 
+        description ILIKE $${pS} OR 
+        entity ILIKE $${pS} OR
+        REPLACE(REPLACE(LOWER(client_name), ' ', ''), '-', '') LIKE $${pNorm} OR
+        REPLACE(REPLACE(LOWER(product), ' ', ''), '-', '') LIKE $${pNorm} OR
+        REPLACE(REPLACE(LOWER(service), ' ', ''), '-', '') LIKE $${pNorm} OR
+        REPLACE(REPLACE(LOWER(vendor), ' ', ''), '-', '') LIKE $${pNorm}
+      )`;
+      params.push(s, sNorm);
     }
 
     if (clientName && clientName !== 'all' && clientName.trim() !== '') {
@@ -128,6 +153,14 @@ router.get('/', authenticateToken, async (req, res) => {
     if (renewalConfirmation && renewalConfirmation !== 'all') {
       query += ` AND (renewal_confirmation = $${paramIndex++} OR (renewal_confirmation IS NULL AND $${paramIndex - 1} = 'pending'))`;
       params.push(renewalConfirmation);
+    }
+
+    if (quotesSent === 'true') {
+      query += ` AND (invoice_status = 'Sent' OR (invoice_number IS NOT NULL AND invoice_number != ''))`;
+    }
+
+    if (pendingFollowup === 'true') {
+      query += ` AND follow_up_status != 'Completed' AND status IN ('Active','Pending Renewal') AND (renewal_confirmation IS NULL OR renewal_confirmation != 'renewed')`;
     }
 
     // Date range filter
@@ -414,9 +447,10 @@ router.post('/trash/delete-batch', authenticateToken, requireRole('admin'), asyn
   }
 });
 
-// Update invoice status - Finance and Admin
-router.patch('/:id/invoice', authenticateToken, requireRole('finance', 'admin'), async (req, res) => {
-  const { invoice_status, invoice_number, invoice_value, invoice_sent_date } = req.body;
+// Update invoice status - Sales and Admin
+router.patch('/:id/invoice', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+  const { invoice_status, invoice_number, invoice_value, invoice_sent_date, invoice_type } = req.body;
+  const docType = (invoice_type === 'Sales Order') ? 'Sales Order' : 'Invoice';
   if (!['Sent', 'Not'].includes(invoice_status)) {
     return res.status(400).json({ error: 'Invalid invoice_status. Must be "Sent" or "Not".' });
   }
@@ -424,7 +458,7 @@ router.patch('/:id/invoice', authenticateToken, requireRole('finance', 'admin'),
     let query, params;
     if (invoice_status === 'Sent') {
       if (!invoice_number || invoice_value === undefined || invoice_value === null || !invoice_sent_date) {
-        return res.status(400).json({ error: 'Invoice Number, Invoice Value, and Invoice Sent Date are required.' });
+        return res.status(400).json({ error: `${docType} Number, Value, and Sent Date are required.` });
       }
       query = `
         UPDATE renewals 
@@ -432,11 +466,12 @@ router.patch('/:id/invoice', authenticateToken, requireRole('finance', 'admin'),
             invoice_value = $2, 
             invoice_sent_date = $3, 
             invoice_number = $4,
+            invoice_type = $5,
             updated_at = CURRENT_TIMESTAMP 
-        WHERE id = $5 
+        WHERE id = $6 
         RETURNING *
       `;
-      params = [invoice_status, parseFloat(invoice_value), invoice_sent_date, invoice_number, req.params.id];
+      params = [invoice_status, parseFloat(invoice_value), invoice_sent_date, invoice_number, docType, req.params.id];
     } else {
       query = `
         UPDATE renewals 
@@ -444,6 +479,7 @@ router.patch('/:id/invoice', authenticateToken, requireRole('finance', 'admin'),
             invoice_number = NULL, 
             invoice_value = NULL, 
             invoice_sent_date = NULL, 
+            invoice_type = 'Invoice',
             updated_at = CURRENT_TIMESTAMP 
         WHERE id = $2 
         RETURNING *
@@ -456,9 +492,9 @@ router.patch('/:id/invoice', authenticateToken, requireRole('finance', 'admin'),
 
     const r = rows[0];
     const message = invoice_status === 'Sent'
-      ? `Invoice details updated for client "${r.client_name}" (${r.service}): Invoice #${invoice_number}, Value: ₹${parseFloat(invoice_value).toLocaleString('en-IN')}.`
-      : `Invoice marked as not sent for client "${r.client_name}" (${r.service}).`;
-    await notifyAdminAndFinance('Invoice Updated', message, 'info', `/renewals?search=${r.unique_id}`);
+      ? `${docType} details updated for client "${r.client_name}" (${r.service}): ${docType} #${invoice_number}, Value: ₹${parseFloat(invoice_value).toLocaleString('en-IN')}.`
+      : `${docType} marked as not sent for client "${r.client_name}" (${r.service}).`;
+    await notifyAdminAndSales(`${docType} Updated`, message, 'info', `/renewals?search=${r.unique_id}`);
 
     broadcastEvent('renewals_updated', rows[0]);
     res.json(rows[0]);
@@ -468,8 +504,146 @@ router.patch('/:id/invoice', authenticateToken, requireRole('finance', 'admin'),
   }
 });
 
-// Update payment details - Finance and Admin only
-router.patch('/:id/payment', authenticateToken, requireRole('finance', 'admin'), async (req, res) => {
+// Toggle stop_email for a single client renewal record - Sales and Admin
+router.patch('/:id/stop-email', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+  const { stop_email } = req.body;
+  if (typeof stop_email !== 'boolean') {
+    return res.status(400).json({ error: 'stop_email must be a boolean.' });
+  }
+
+  try {
+    const { rows } = await db.query(
+      `UPDATE renewals SET stop_email = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *`,
+      [stop_email, req.params.id]
+    );
+
+    if (rows.length === 0) return res.status(404).json({ error: 'Renewal not found.' });
+
+    const r = rows[0];
+    res.json({ message: `Email reminders ${stop_email ? 'stopped' : 'resumed'} for ${r.client_name}.`, data: r });
+  } catch (err) {
+    console.error('Stop email toggle error:', err);
+    res.status(500).json({ error: 'Failed to update email setting.' });
+  }
+});
+
+// Batch stop/resume email for multiple client renewals - Sales and Admin
+router.post('/batch-stop-email', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+  const { ids, stop_email } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0 || typeof stop_email !== 'boolean') {
+    return res.status(400).json({ error: 'Invalid payload. Expecting ids array and stop_email boolean.' });
+  }
+
+  try {
+    const { rows } = await db.query(
+      `UPDATE renewals SET stop_email = $1, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($2) RETURNING *`,
+      [stop_email, ids]
+    );
+
+    res.json({ message: `Successfully ${stop_email ? 'stopped' : 'resumed'} emails for ${rows.length} client(s).`, data: rows });
+  } catch (err) {
+    console.error('Batch stop email error:', err);
+    res.status(500).json({ error: 'Failed to batch update email settings.' });
+  }
+});
+
+// Batch update status / renewal confirmation
+router.post('/batch-update-status', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+  const { ids, status, renewal_confirmation } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'Invalid payload. Expecting ids array.' });
+  }
+
+  try {
+    if (status) {
+      await db.query(`UPDATE renewals SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($2)`, [status, ids]);
+    }
+    if (renewal_confirmation) {
+      await db.query(`UPDATE renewals SET renewal_confirmation = $1, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($2)`, [renewal_confirmation, ids]);
+    }
+
+    await db.query(`
+      INSERT INTO activity_logs (user_id, action, entity_type, entity_id, details)
+      VALUES ($1, 'bulk_status_update', 'renewals', 'BULK', $2)
+    `, [req.user.id, `Bulk updated ${ids.length} renewal records.`]);
+
+    res.json({ message: `Successfully updated ${ids.length} renewal record(s).` });
+  } catch (err) {
+    console.error('Batch update status error:', err);
+    res.status(500).json({ error: 'Failed to bulk update status.' });
+  }
+});
+
+// Batch send reminder emails
+router.post('/batch-send-reminder', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'Invalid payload. Expecting ids array.' });
+  }
+
+  try {
+    const { rows: selectedRenewals } = await db.query('SELECT * FROM renewals WHERE id = ANY($1) AND is_deleted = false', [ids]);
+    const { sendEmail } = await import('../services/emailService.js');
+
+    let sentCount = 0;
+    for (const r of selectedRenewals) {
+      if (!r.client_email) continue;
+      const html = `
+        <div style="font-family: sans-serif; padding: 20px; color: #333;">
+          <h2>Renewal Reminder</h2>
+          <p>Dear ${r.client_name},</p>
+          <p>This is a friendly reminder regarding your upcoming renewal for <strong>${r.service}</strong> due on <strong>${r.renewal_date ? new Date(r.renewal_date).toLocaleDateString('en-IN') : 'N/A'}</strong>.</p>
+          <p>Please contact us to confirm your renewal.</p>
+          <br>
+          <p>Regards,<br>MarsLab Renewal Team</p>
+        </div>
+      `;
+      const result = await sendEmail({
+        to: r.client_email,
+        subject: `Renewal Reminder: ${r.service}`,
+        html
+      });
+
+      if (result.success) {
+        sentCount++;
+        await db.query(`
+          INSERT INTO email_logs (renewal_id, client_name, service, recipient_email, recipient_type, email_type, subject, status, error_message)
+          VALUES ($1, $2, $3, $4, 'client', 'manual_reminder', $5, 'sent', null)
+        `, [r.id, r.client_name, r.service, r.client_email, `Renewal Reminder: ${r.service}`]);
+      }
+    }
+
+    res.json({ message: `Successfully sent reminder emails to ${sentCount} client(s).` });
+  } catch (err) {
+    console.error('Batch send reminder error:', err);
+    res.status(500).json({ error: 'Failed to send batch reminder emails.' });
+  }
+});
+
+// Batch delete renewals (Admin only)
+router.post('/batch-delete', authenticateToken, requireRole('admin'), async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'Invalid payload. Expecting ids array.' });
+  }
+
+  try {
+    await db.query(`UPDATE renewals SET is_deleted = true, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($1)`, [ids]);
+    
+    await db.query(`
+      INSERT INTO activity_logs (user_id, action, entity_type, entity_id, details)
+      VALUES ($1, 'batch_delete', 'renewals', 'BULK', $2)
+    `, [req.user.id, `Admin bulk deleted ${ids.length} renewal record(s).`]);
+
+    res.json({ message: `Successfully deleted ${ids.length} renewal record(s).` });
+  } catch (err) {
+    console.error('Batch delete error:', err);
+    res.status(500).json({ error: 'Failed to batch delete renewals.' });
+  }
+});
+
+// Update payment details - Sales and Admin
+router.patch('/:id/payment', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
   const { payment_status, payment_amount, payment_received_date } = req.body;
   if (!['Yes', 'No'].includes(payment_status)) {
     return res.status(400).json({ error: 'Invalid payment_status. Must be "Yes" or "No".' });
@@ -510,16 +684,14 @@ router.patch('/:id/payment', authenticateToken, requireRole('finance', 'admin'),
     const r = rows[0];
     console.log(`💰 [Payment Update] Record ${r.unique_id} updated. payment_status=${payment_status}, updated_by=${req.user.fullName} (${req.user.role})`);
 
-    // Notification condition: Trigger if payment status is updated to "Yes" by an authorized role (finance or admin)
-    if ((req.user.role === 'finance' || req.user.role === 'admin') && payment_status === 'Yes') {
+    // Notification condition: Trigger if payment status is updated to "Yes" by an authorized role (sales or admin)
+    if ((req.user.role === 'sales' || req.user.role === 'admin') && payment_status === 'Yes') {
       console.log(`💰 [Payment Update] Sending notifications for confirmed payment of ${r.unique_id}...`);
-      // 1. Send Cliq notification to both sales and finance channels
+      // 1. Send Cliq notification to sales channels
       try {
         const formattedAmount = parseFloat(payment_amount).toLocaleString('en-IN');
         const formattedDate = new Date(payment_received_date).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const cliqMessage = `💰 *Payment Received*\n*Client ID:* ${r.unique_id}\n*Client:* ${r.client_name}\n*Service:* ${r.service}\n*Amount:* ₹${formattedAmount}\n*Received Date:* ${formattedDate}\n*Updated By:* ${req.user.fullName || 'Finance'} (${req.user.role || 'finance'})`;      // Fire Cliq notifications without blocking the HTTP response
-      sendCliqNotification(cliqMessage, false) // Finance channel
-        .catch(err => console.error('Cliq notification failed (non-blocking):', err.message));
+        const cliqMessage = `💰 *Payment Received*\n*Client ID:* ${r.unique_id}\n*Client:* ${r.client_name}\n*Service:* ${r.service}\n*Amount:* ₹${formattedAmount}\n*Received Date:* ${formattedDate}\n*Updated By:* ${req.user.fullName || 'Sales'} (${req.user.role || 'sales'})`;
       sendCliqNotification(cliqMessage, true)  // Sales channel
         .catch(err => console.error('Cliq notification failed (non-blocking):', err.message));
       } catch (cliqErr) {
@@ -765,17 +937,18 @@ router.post('/', authenticateToken, requireRole('sales', 'admin'), async (req, r
     const computedStatus = daysLeft < 0 ? 'Expired' : daysLeft <= 30 ? 'Pending Renewal' : 'Active';
     const computedRenewalConfirmation = daysLeft > 30 ? 'renewed' : 'pending';
 
-    // Generate sequential RMT ID (e.g. RMT-01, RMT-02...)
-    const { rows: lastRecord } = await db.query(
-      "SELECT unique_id FROM renewals WHERE unique_id LIKE 'RMT-%' ORDER BY id DESC LIMIT 1"
-    );
-    let nextNum = 1;
-    if (lastRecord.length > 0) {
-      const match = lastRecord[0].unique_id.match(/RMT-(\d+)/);
+    // Generate sequential RMT ID (e.g. RMT-01, RMT-02...) by finding max number in renewals and trash_renewals
+    const { rows: r1 } = await db.query("SELECT unique_id FROM renewals WHERE unique_id LIKE 'RMT-%'");
+    const { rows: r2 } = await db.query("SELECT unique_id FROM trash_renewals WHERE unique_id LIKE 'RMT-%'");
+    let maxNum = 0;
+    [...r1, ...r2].forEach(row => {
+      const match = row.unique_id.match(/RMT-(\d+)/);
       if (match) {
-        nextNum = parseInt(match[1], 10) + 1;
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
       }
-    }
+    });
+    const nextNum = maxNum + 1;
     const padNum = String(nextNum).padStart(2, '0');
     const unique_id = `RMT-${padNum}`;
 
@@ -848,7 +1021,7 @@ router.post('/', authenticateToken, requireRole('sales', 'admin'), async (req, r
       VALUES ('sales', 'New Renewal Added', $1, 'info')
     `, [`New renewal created for ${client_name} (${service}). Renewal date: ${renewal_date}`]);
 
-    await notifyAdminAndFinance(
+    await notifyAdminAndSales(
       'New Renewal Added',
       `New renewal created for ${client_name} (${service}). Renewal date: ${renewal_date}`,
       'info',
@@ -870,7 +1043,7 @@ router.post('/', authenticateToken, requireRole('sales', 'admin'), async (req, r
     res.status(201).json(created);
   } catch (err) {
     console.error('Create renewal error:', err);
-    res.status(500).json({ error: 'Failed to create renewal.' });
+    res.status(500).json({ error: err.message || 'Failed to create renewal.' });
   }
 });
 
@@ -885,17 +1058,18 @@ router.post('/import', authenticateToken, requireRole('admin'), async (req, res)
 
     await client.query('BEGIN');
 
-    // Get current max RMT ID number
-    const { rows: lastRecord } = await client.query(
-      "SELECT unique_id FROM renewals WHERE unique_id LIKE 'RMT-%' ORDER BY id DESC LIMIT 1"
-    );
-    let nextNum = 1;
-    if (lastRecord.length > 0) {
-      const match = lastRecord[0].unique_id.match(/RMT-(\d+)/);
+    // Get current max RMT ID number across renewals and trash_renewals
+    const { rows: r1 } = await client.query("SELECT unique_id FROM renewals WHERE unique_id LIKE 'RMT-%'");
+    const { rows: r2 } = await client.query("SELECT unique_id FROM trash_renewals WHERE unique_id LIKE 'RMT-%'");
+    let maxNum = 0;
+    [...r1, ...r2].forEach(row => {
+      const match = row.unique_id.match(/RMT-(\d+)/);
       if (match) {
-        nextNum = parseInt(match[1], 10) + 1;
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
       }
-    }
+    });
+    let nextNum = maxNum + 1;
 
     const { rows: activeSales } = await client.query("SELECT email FROM users WHERE role = 'sales' AND is_active = true");
     const activeSalesEmails = activeSales.map(u => u.email.toLowerCase());
@@ -1028,7 +1202,7 @@ router.post('/import', authenticateToken, requireRole('admin'), async (req, res)
 });
 
 // Renew client
-router.put('/:id/renew', authenticateToken, requireRole('finance', 'admin'), async (req, res) => {
+router.put('/:id/renew', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
   try {
     const { rows } = await db.query('SELECT * FROM renewals WHERE id = $1', [req.params.id]);
     const renewal = rows[0];
@@ -1137,7 +1311,7 @@ router.put('/:id/follow-up', authenticateToken, requireRole('sales', 'admin'), a
 });
 
 // Edit renewal basic details
-router.put('/:id', authenticateToken, requireRole('finance', 'sales', 'admin'), async (req, res) => {
+router.put('/:id', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
   try {
     const { 
       client_name, service, renewal_date, value, owner, client_email, sales_email, contact_number, reference_id, plan_period, plan_duration, expiry_reason, invoice_number, quotation_number,
@@ -1328,7 +1502,7 @@ router.put('/:id', authenticateToken, requireRole('finance', 'sales', 'admin'), 
     `, [req.user.id, renewal.unique_id, `Edited renewal details for ${client_name}. Reason: ${req.body.reason || 'Not provided'}`]);
 
     const editActorRole = req.user.role ? (req.user.role.charAt(0).toUpperCase() + req.user.role.slice(1)) : 'Unknown';
-    await notifyAdminAndFinance(
+    await notifyAdminAndSales(
       'Renewal Details Updated',
       `Renewal details updated for client "${client_name}" (${service}) by ${editActorRole.toLowerCase()} team. Reason: ${req.body.reason || 'Not provided'}.`,
       'info',
@@ -1460,19 +1634,20 @@ router.post('/delete-batch', authenticateToken, requireRole('admin'), async (req
           locked, follow_up_status, follow_up_remarks, day_30_sent, day_20_sent, day_15_sent, day_10_sent, 
           day_5_sent, day_3_sent, day_0_sent, sales_15_sent, sales_5_sent, created_by, created_at, updated_at, 
           edit_status, edit_reason, expiry_reason, renewal_confirmation, contact_number, reference_id, invoice_status,
-          invoice_number, invoice_value, invoice_sent_date, payment_status, payment_amount, payment_received_date, quotation_number
+          invoice_number, invoice_value, invoice_sent_date, payment_status, payment_amount, payment_received_date, quotation_number, invoice_type
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 
           $11, $12, $13, $14, $15, $16, $17, 
           $18, $19, $20, $21, $22, $23, $24, 
-          $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39
+          $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40
         )
       `, [
         renewal.id, renewal.unique_id, renewal.client_name, renewal.service, renewal.renewal_date, renewal.value, renewal.owner, renewal.client_email, renewal.sales_email, renewal.status,
         renewal.locked, renewal.follow_up_status, renewal.follow_up_remarks, renewal.day_30_sent, renewal.day_20_sent, renewal.day_15_sent, renewal.day_10_sent,
         renewal.day_5_sent, renewal.day_3_sent, renewal.day_0_sent, renewal.sales_15_sent, renewal.sales_5_sent, renewal.created_by, renewal.created_at, renewal.updated_at,
         renewal.edit_status, renewal.edit_reason, renewal.expiry_reason, renewal.renewal_confirmation, renewal.contact_number, renewal.reference_id, renewal.invoice_status,
-        renewal.invoice_number, renewal.invoice_value, renewal.invoice_sent_date, renewal.payment_status, renewal.payment_amount, renewal.payment_received_date, renewal.quotation_number || ''
+        renewal.invoice_number, renewal.invoice_value, renewal.invoice_sent_date, renewal.payment_status, renewal.payment_amount, renewal.payment_received_date, renewal.quotation_number || '',
+        renewal.invoice_type || 'Invoice'
       ]);
 
       // Delete from renewals table
@@ -1484,7 +1659,7 @@ router.post('/delete-batch', authenticateToken, requireRole('admin'), async (req
       `, [req.user.id, renewal.unique_id, `Moved renewal to trash: ${renewal.client_name} - ${renewal.service}`]);
     }
 
-    await notifyAdminAndFinance(
+    await notifyAdminAndSales(
       'Renewals Deleted',
       `${ids.length} renewals have been moved to trash by ${req.user.role}.`,
       'warning',
@@ -1513,19 +1688,20 @@ router.delete('/:id', authenticateToken, requireRole('admin'), async (req, res) 
         locked, follow_up_status, follow_up_remarks, day_30_sent, day_20_sent, day_15_sent, day_10_sent, 
         day_5_sent, day_3_sent, day_0_sent, sales_15_sent, sales_5_sent, created_by, created_at, updated_at, 
         edit_status, edit_reason, expiry_reason, renewal_confirmation, contact_number, reference_id, invoice_status,
-        invoice_number, invoice_value, invoice_sent_date, payment_status, payment_amount, payment_received_date, quotation_number
+        invoice_number, invoice_value, invoice_sent_date, payment_status, payment_amount, payment_received_date, quotation_number, invoice_type
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 
         $11, $12, $13, $14, $15, $16, $17, 
         $18, $19, $20, $21, $22, $23, $24, 
-        $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39
+        $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40
       )
     `, [
       renewal.id, renewal.unique_id, renewal.client_name, renewal.service, renewal.renewal_date, renewal.value, renewal.owner, renewal.client_email, renewal.sales_email, renewal.status,
       renewal.locked, renewal.follow_up_status, renewal.follow_up_remarks, renewal.day_30_sent, renewal.day_20_sent, renewal.day_15_sent, renewal.day_10_sent,
       renewal.day_5_sent, renewal.day_3_sent, renewal.day_0_sent, renewal.sales_15_sent, renewal.sales_5_sent, renewal.created_by, renewal.created_at, renewal.updated_at,
       renewal.edit_status, renewal.edit_reason, renewal.expiry_reason, renewal.renewal_confirmation, renewal.contact_number, renewal.reference_id, renewal.invoice_status,
-      renewal.invoice_number, renewal.invoice_value, renewal.invoice_sent_date, renewal.payment_status, renewal.payment_amount, renewal.payment_received_date, renewal.quotation_number || ''
+      renewal.invoice_number, renewal.invoice_value, renewal.invoice_sent_date, renewal.payment_status, renewal.payment_amount, renewal.payment_received_date, renewal.quotation_number || '',
+      renewal.invoice_type || 'Invoice'
     ]);
 
     // Delete from renewals table
@@ -1536,7 +1712,7 @@ router.delete('/:id', authenticateToken, requireRole('admin'), async (req, res) 
       VALUES ($1, 'delete_soft', 'renewal', $2, $3)
     `, [req.user.id, renewal.unique_id, `Moved renewal to trash: ${renewal.client_name} - ${renewal.service}`]);
 
-    await notifyAdminAndFinance(
+    await notifyAdminAndSales(
       'Renewal Deleted',
       `Renewal for client "${renewal.client_name}" (${renewal.service}) has been moved to trash by ${req.user.role}.`,
       'warning',
@@ -1880,10 +2056,14 @@ router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admi
     const { renewal_confirmation, remarks } = req.body;
     const validOptions = [
       'pending',
-      'quotation_confirmation',
+      'reminder_sent',
+      'quote_sent',
       'awaiting_client_approval',
-      'awaiting_with_vendor',
       'renewed',
+      'lost',
+      'cancelled',
+      'quotation_confirmation',
+      'awaiting_with_vendor',
       'service_discontinued'
     ];
     
@@ -1957,7 +2137,7 @@ router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admi
         JSON.stringify({ renewal_date: new_renewal_date, service: renewal.service, value: renewal.value, status: computedStatus }),
         req.user.id
       ]);
-    } else if (renewal_confirmation === 'service_discontinued') {
+    } else if (['cancelled', 'lost', 'service_discontinued'].includes(renewal_confirmation)) {
       await db.query(`
         UPDATE renewals SET 
           renewal_confirmation = $1, 
@@ -2009,34 +2189,46 @@ router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admi
 
     // Format label for display
     const labelMap = {
-      quotation_confirmation: 'Order Confirmation',
+      pending: 'Pending',
+      reminder_sent: 'Reminder Sent',
+      quote_sent: 'Quote Sent',
       awaiting_client_approval: 'Awaiting Client Approval',
-      awaiting_with_vendor: 'Awaiting with Vendor',
       renewed: 'Renewed',
-      service_discontinued: 'Service Discontinued'
+      lost: 'Lost',
+      cancelled: 'Cancelled',
+      quotation_confirmation: 'Quote Sent',
+      awaiting_with_vendor: 'Reminder Sent',
+      service_discontinued: 'Cancelled'
     };
-    const label = labelMap[renewal_confirmation];
+    const label = labelMap[renewal_confirmation] || renewal_confirmation;
 
     const roleLabels = {
       admin: 'Admin',
-      finance: 'Finance team',
       sales: 'CST team'
     };
     const actorRole = roleLabels[req.user.role] || 'CST team';
 
     const colorMap = { 
-      quotation_confirmation: '#f59e0b', 
-      awaiting_client_approval: '#3b82f6', 
-      awaiting_with_vendor: '#8b5cf6', 
+      reminder_sent: '#0284c7', 
+      quote_sent: '#6366f1', 
+      awaiting_client_approval: '#f59e0b', 
       renewed: '#10b981', 
+      lost: '#e11d48', 
+      cancelled: '#ef4444', 
+      quotation_confirmation: '#6366f1', 
+      awaiting_with_vendor: '#0284c7', 
       service_discontinued: '#ef4444' 
     };
     const iconMap = { 
-      quotation_confirmation: '📋', 
+      reminder_sent: '🔔', 
+      quote_sent: '📄', 
       awaiting_client_approval: '👤', 
-      awaiting_with_vendor: '🏢', 
       renewed: '✅', 
-      service_discontinued: '❌' 
+      lost: '❌', 
+      cancelled: '🚫', 
+      quotation_confirmation: '📄', 
+      awaiting_with_vendor: '🔔', 
+      service_discontinued: '🚫' 
     };
     const statusColor = colorMap[renewal_confirmation] || '#6b7280';
     const statusIcon = iconMap[renewal_confirmation] || '📋';
@@ -2054,10 +2246,10 @@ router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admi
         ? 'error' 
         : 'warning';
 
-    // Create notification for finance team and admin team
+    // Create notification for sales team and admin team
     await db.query(`
       INSERT INTO notifications (role, title, message, type, link)
-      VALUES ('finance', 'Renewal Update', $1, $2, $3)
+      VALUES ('sales', 'Renewal Update', $1, $2, $3)
     `, [
       `${renewal.client_name} (${renewal.service}) has been marked as "${label}" by ${actorRole.toLowerCase()}.${remarks ? ' Remarks: ' + remarks : ''}`,
       notifType,
@@ -2075,11 +2267,11 @@ router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admi
 
     await sendCliqNotification(`${statusIcon} *Renewal Status Update*\n*Client ID:* ${renewal.unique_id}\n*Client:* ${renewal.client_name}\n*Service:* ${renewal.service}\n*New Status:* ${label}\n*Updated By:* ${actorRole}\n${remarks ? `*Remarks:* ${remarks}` : ''}`);
 
-    // Send email notification to finance team
+    // Send email notification to sales team
     const { sendEmail } = await import('../services/emailService.js');
     
-    // Get finance team email(s)
-    const { rows: financeUsers } = await db.query("SELECT email FROM users WHERE role = 'finance' AND is_active = true");
+    // Get sales team email(s)
+    const { rows: salesUsers } = await db.query("SELECT email FROM users WHERE role = 'sales' AND is_active = true");
 
     const emailHtml = `
     <!DOCTYPE html>
@@ -2097,9 +2289,9 @@ router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admi
             </tr>
             <tr>
               <td style="padding:40px;">
-                <p style="color:#1e293b;font-size:16px;line-height:1.6;margin:0 0 20px;">Dear <strong>Finance Team</strong>,</p>
+                <p style="color:#1e293b;font-size:16px;line-height:1.6;margin:0 0 20px;">Dear <strong>CST Team</strong>,</p>
                 <p style="color:#475569;font-size:15px;line-height:1.7;margin:0 0 24px;">
-                  The CST team has updated the renewal status for the following client:
+                  The renewal status has been updated for the following client:
                 </p>
                 <div style="background:#f8fafc;border-left:4px solid ${statusColor};border-radius:8px;padding:20px;margin:0 0 24px;">
                   <table width="100%" cellpadding="0" cellspacing="0">
@@ -2122,19 +2314,19 @@ router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admi
     </body>
     </html>`;
 
-    for (const finUser of financeUsers) {
+    for (const salesUser of salesUsers) {
       const emailResult = await sendEmail({
-        to: finUser.email,
+        to: salesUser.email,
         subject: `${statusIcon} Renewal Update: ${renewal.client_name} — ${label}`,
         html: emailHtml,
       });
       await db.query(`
         INSERT INTO email_logs (renewal_id, client_name, service, recipient_email, recipient_type, email_type, subject, status, error_message)
-        VALUES ($1, $2, $3, $4, 'finance', 'renewal_status_update', $5, $6, $7)
-      `, [renewal.id, renewal.client_name, renewal.service, finUser.email, `${statusIcon} Renewal Update: ${renewal.client_name} — ${label}`, emailResult.success ? 'sent' : 'failed', emailResult.error || null]);
+        VALUES ($1, $2, $3, $4, 'sales', 'renewal_status_update', $5, $6, $7)
+      `, [renewal.id, renewal.client_name, renewal.service, salesUser.email, `${statusIcon} Renewal Update: ${renewal.client_name} — ${label}`, emailResult.success ? 'sent' : 'failed', emailResult.error || null]);
     }
 
-    console.log(`🔔 Renewal confirmation: ${renewal.client_name} → "${label}" | Notified finance team.`);
+    console.log(`🔔 Renewal confirmation: ${renewal.client_name} → "${label}" | Notified sales team.`);
 
     const { rows: updatedRows } = await db.query('SELECT * FROM renewals WHERE id = $1', [req.params.id]);
     broadcastEvent('renewals_updated', updatedRows[0]);
@@ -2175,7 +2367,7 @@ router.put('/:id/expiry-reason', authenticateToken, requireRole('sales', 'admin'
       VALUES ($1, 'update_expiry_reason', 'renewal', $2, $3)
     `, [req.user.id, renewal.unique_id, `Provided reason for expired renewal of ${renewal.client_name}: ${expiry_reason}`]);
 
-    await notifyAdminAndFinance(
+    await notifyAdminAndSales(
       'Renewal Expiry Reason Provided',
       `CST team has provided the reason for expired renewal of client "${renewal.client_name}" (${renewal.service}). Reason: ${expiry_reason}`,
       'info',

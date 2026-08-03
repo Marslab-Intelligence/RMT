@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency, formatDate, getStatusColor, getDaysLeftColor } from '../utils/formatters';
 import { 
   Plus, Search, Filter, Download, ChevronLeft, ChevronRight, 
-  MoreVertical, Edit, Edit3, RotateCw, MailCheck, ShieldAlert, CheckCircle, Trash2, X, Upload, Calendar
+  MoreVertical, Edit, Edit3, RotateCw, MailCheck, MailX, ShieldAlert, CheckCircle, Trash2, X, Upload, Calendar,
+  Columns, SlidersHorizontal, ArrowUpDown, ArrowUp, ArrowDown, Send, CheckSquare, Square, FileSpreadsheet, Eye, EyeOff, Check, Maximize2, Minimize2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import RenewalForm from '../components/RenewalForm';
@@ -64,8 +65,209 @@ const parseCSVDate = (dateStr) => {
   return null;
 };
 
+const SERVICE_OPTIONS = [
+  { value: 'all', label: 'All Services' },
+  ...['AWS', 'AMC', 'BDR Suite', 'Domain', 'Firewall', 'GWS', 'LSH', 'M365', 'Plesk', 'Seqrite', 'Storage', 'SSL', 'Tally', 'Untangle', 'Zoho'].map(s => ({ value: s, label: s }))
+];
+
+const DATE_OPTIONS = [
+  { value: 'all', label: 'All Dates' },
+  { value: 'expired', label: 'Expired' },
+  { value: 'today', label: 'Due Today' },
+  { value: 'next7', label: 'Next 7 Days' },
+  { value: 'next30', label: 'Next 30 Days' },
+  { value: 'next60', label: 'Next 60 Days' },
+  { value: 'next90', label: 'Next 90 Days' },
+  { isHeader: true, label: 'Monthwise' },
+  { value: 'this_month', label: 'This Month' },
+  { value: 'next_month', label: 'Next Month' },
+  { value: 'prev_month', label: 'Previous Month' },
+  { isHeader: true, label: 'By Calendar Month' },
+  { value: 'm_1', label: 'January' },
+  { value: 'm_2', label: 'February' },
+  { value: 'm_3', label: 'March' },
+  { value: 'm_4', label: 'April' },
+  { value: 'm_5', label: 'May' },
+  { value: 'm_6', label: 'June' },
+  { value: 'm_7', label: 'July' },
+  { value: 'm_8', label: 'August' },
+  { value: 'm_9', label: 'September' },
+  { value: 'm_10', label: 'October' },
+  { value: 'm_11', label: 'November' },
+  { value: 'm_12', label: 'December' },
+];
+
+const VALUE_OPTIONS = [
+  { value: 'all', label: 'All Values' },
+  { value: 'under50k', label: 'Under ₹50K' },
+  { value: '50k-1l', label: '₹50K – ₹1L' },
+  { value: '1l-5l', label: '₹1L – ₹5L' },
+  { value: 'above5l', label: 'Above ₹5L' },
+];
+
+const STATUS_COL_OPTIONS = [
+  { value: 'all', label: 'All Statuses' },
+  { value: 'Active', label: 'Active' },
+  { value: 'Pending Renewal', label: 'Pending Renewal' },
+  { value: 'Expired', label: 'Expired' },
+  { value: '-', label: 'Discontinued' },
+];
+
+const RENEWED_OPTIONS = [
+  { value: 'all', label: 'All Options' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'reminder_sent', label: 'Reminder Sent' },
+  { value: 'quote_sent', label: 'Quote Sent' },
+  { value: 'awaiting_client_approval', label: 'Awaiting Client Approval' },
+  { value: 'renewed', label: 'Renewed' },
+  { value: 'lost', label: 'Lost' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
+const ClientFilterDropdown = ({ value, onChange, isOpen, onToggle, filterPos, filterRef, onClose, setPage }) => {
+  const [tempValue, setTempValue] = useState(value);
+  const isActive = Boolean(value && value.trim() !== '');
+
+  useEffect(() => {
+    setTempValue(value);
+  }, [value]);
+
+  const handleApply = () => {
+    onChange(tempValue.trim());
+    onClose();
+    if (setPage) setPage(1);
+  };
+
+  const handleClear = () => {
+    setTempValue('');
+    onChange('');
+    onClose();
+    if (setPage) setPage(1);
+  };
+
+  return (
+    <div className="inline-block">
+      <button
+        type="button"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={onToggle}
+        className={`ml-1.5 p-0.5 rounded transition-colors cursor-pointer ${
+          isActive
+            ? 'text-brand-500 dark:text-brand-400 font-bold bg-brand-50 dark:bg-brand-900/30'
+            : 'text-surface-300 dark:text-surface-600 hover:text-surface-500'
+        }`}
+        title={isActive ? `Filtered by: "${value}"` : 'Filter Client Info'}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+        </svg>
+      </button>
+
+      {isOpen && filterPos && createPortal(
+        <div 
+          ref={filterRef}
+          style={{ position: 'fixed', top: `${filterPos.top}px`, left: `${filterPos.left}px`, zIndex: 99999 }}
+          className="bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-2xl min-w-[220px] p-3 animate-in fade-in slide-in-from-top-1 duration-150"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="text-xs font-semibold text-surface-700 dark:text-surface-300 mb-2">
+            Filter Client Info
+          </div>
+          <div className="relative mb-3">
+            <input
+              type="text"
+              value={tempValue}
+              onChange={(e) => setTempValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleApply(); }}
+              placeholder="Search client name..."
+              autoFocus
+              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+            />
+            <Search className="w-3.5 h-3.5 text-surface-400 absolute left-2.5 top-2.5" />
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={handleClear}
+              className="px-2.5 py-1 text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors cursor-pointer"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={handleApply}
+              className="px-3 py-1 text-xs font-medium bg-brand-600 hover:bg-brand-700 text-white rounded-lg transition-colors shadow-sm cursor-pointer"
+            >
+              Apply
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+};
+
+const FilterDropdown = ({ col, value, onChange, options, isOpen, onToggle, filterPos, filterRef, onClose, setPage }) => {
+  const isActive = value !== 'all';
+  return (
+    <div className="inline-block">
+      <button
+        type="button"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={onToggle}
+        className={`ml-1.5 p-0.5 rounded transition-colors cursor-pointer ${
+          isActive
+            ? 'text-brand-500 dark:text-brand-400 font-bold bg-brand-50 dark:bg-brand-900/30'
+            : 'text-surface-300 dark:text-surface-600 hover:text-surface-500'
+        }`}
+        title={isActive ? 'Filter active' : 'Filter'}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+        </svg>
+      </button>
+      {isOpen && filterPos && createPortal(
+        <div 
+          ref={filterRef}
+          style={{ position: 'fixed', top: `${filterPos.top}px`, left: `${filterPos.left}px`, zIndex: 99999 }}
+          className="bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-2xl w-max min-w-[140px] max-w-[280px] max-h-72 overflow-y-auto custom-scrollbar py-1 animate-in fade-in slide-in-from-top-1 duration-150"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {options.map((opt, i) => {
+            if (opt.isHeader) {
+              return (
+                <div key={`header-${i}`} className="px-3 pt-2 pb-1 text-[10px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-wider border-t border-surface-150 dark:border-surface-700/60 first:border-0 first:pt-1 whitespace-nowrap">
+                  {opt.label}
+                </div>
+              );
+            }
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => { onChange(opt.value); onClose(); if (setPage) setPage(1); }}
+                className={`w-full text-left px-3 py-1.5 text-xs whitespace-nowrap transition-colors cursor-pointer ${
+                  value === opt.value
+                    ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-semibold'
+                    : 'text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+};
+
 export default function RenewalsList() {
-  const { token, user } = useAuth();
+  const { token, user, getValidToken } = useAuth();
   const navigate = useNavigate();
   const [renewals, setRenewals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,32 +278,78 @@ export default function RenewalsList() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
-  // Column filters
-  const [dateRangeFilter, setDateRangeFilter] = useState('all');
-  const [valueFilter, setValueFilter] = useState('all');
-  const [statusColFilter, setStatusColFilter] = useState('all');
-  const [renewedFilter, setRenewedFilter] = useState('all');
-  const [clientFilter, setClientFilter] = useState('');
-  const [serviceFilter, setServiceFilter] = useState('all');
+  // Column filters initialized from searchParams so direct links and back button work seamlessly
+  const [dateRangeFilter, setDateRangeFilter] = useState(searchParams.get('dateRange') || 'all');
+  const [valueFilter, setValueFilter] = useState(searchParams.get('valueRange') || 'all');
+  const [statusColFilter, setStatusColFilter] = useState(searchParams.get('statusCol') || 'all');
+  const [renewedFilter, setRenewedFilter] = useState(searchParams.get('renewalConfirmation') || 'all');
+  const [clientFilter, setClientFilter] = useState(searchParams.get('clientName') || '');
+  const [serviceFilter, setServiceFilter] = useState(searchParams.get('serviceName') || 'all');
   const [openFilterCol, setOpenFilterCol] = useState(null); // which column dropdown is open
+  const [filterPos, setFilterPos] = useState({ top: 0, left: 0 });
   const filterRef = useRef(null);
 
+  // Sync state when URL searchParams change (e.g. browser back/forward)
   useEffect(() => {
     const s = searchParams.get('search') || '';
-    if (s !== search) {
-      setSearch(s);
-    }
+    if (s !== search) setSearch(s);
+
     const status = searchParams.get('status') || 'all';
-    if (status !== statusFilter) {
-      setStatusFilter(status);
-    }
+    if (status !== statusFilter) setStatusFilter(status);
+
+    const dateRange = searchParams.get('dateRange') || 'all';
+    if (dateRange !== dateRangeFilter) setDateRangeFilter(dateRange);
+
+    const valRange = searchParams.get('valueRange') || 'all';
+    if (valRange !== valueFilter) setValueFilter(valRange);
+
+    const stCol = searchParams.get('statusCol') || 'all';
+    if (stCol !== statusColFilter) setStatusColFilter(stCol);
+
+    const renConf = searchParams.get('renewalConfirmation') || 'all';
+    if (renConf !== renewedFilter) setRenewedFilter(renConf);
+
+    const clientN = searchParams.get('clientName') || '';
+    if (clientN !== clientFilter) setClientFilter(clientN);
+
+    const servN = searchParams.get('serviceName') || 'all';
+    if (servN !== serviceFilter) setServiceFilter(servN);
   }, [searchParams]);
+
+  // Sync URL searchParams when local state filters change
+  const updateUrlFilters = useCallback((filters) => {
+    const params = new URLSearchParams();
+    if (filters.search) params.set('search', filters.search);
+    if (filters.statusFilter && filters.statusFilter !== 'all') params.set('status', filters.statusFilter);
+    if (filters.dateRangeFilter && filters.dateRangeFilter !== 'all') params.set('dateRange', filters.dateRangeFilter);
+    if (filters.valueFilter && filters.valueFilter !== 'all') params.set('valueRange', filters.valueFilter);
+    if (filters.statusColFilter && filters.statusColFilter !== 'all') params.set('statusCol', filters.statusColFilter);
+    if (filters.renewedFilter && filters.renewedFilter !== 'all') params.set('renewalConfirmation', filters.renewedFilter);
+    if (filters.clientFilter) params.set('clientName', filters.clientFilter);
+    if (filters.serviceFilter && filters.serviceFilter !== 'all') params.set('serviceName', filters.serviceFilter);
+
+    if (params.toString() !== searchParams.toString()) {
+      setSearchParams(params, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    updateUrlFilters({
+      search,
+      statusFilter,
+      dateRangeFilter,
+      valueFilter,
+      statusColFilter,
+      renewedFilter,
+      clientFilter,
+      serviceFilter
+    });
+  }, [search, statusFilter, dateRangeFilter, valueFilter, statusColFilter, renewedFilter, clientFilter, serviceFilter, updateUrlFilters]);
   
   // Update URL and local state when status changes
   const handleStatusChange = (newStatus) => {
     setStatusFilter(newStatus);
     setPage(1);
-    setSearchParams(newStatus === 'all' ? {} : { status: newStatus });
   };
   
   // Modals
@@ -119,6 +367,247 @@ export default function RenewalsList() {
   const [deleteId, setDeleteId] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [showBatchDeleteModal, setShowBatchDeleteModal] = useState(false);
+  const [showBulkStatusModal, setShowBulkStatusModal] = useState(false);
+  const [bulkStatusValue, setBulkStatusValue] = useState('');
+  const [bulkConfirmationValue, setBulkConfirmationValue] = useState('');
+
+  // Column Sorting State
+  const [sortCol, setSortCol] = useState('renewal_date');
+  const [sortDir, setSortDir] = useState('asc');
+
+  // Table Compact Mode State (Excel-like density)
+  const [isCompact, setIsCompact] = useState(() => {
+    return localStorage.getItem('rmt_table_compact') === 'true';
+  });
+
+  const toggleCompact = () => {
+    setIsCompact(prev => {
+      const next = !prev;
+      localStorage.setItem('rmt_table_compact', String(next));
+      return next;
+    });
+  };
+
+  // Column Widths State (Resizable Columns)
+  const [colWidths, setColWidths] = useState(() => {
+    const saved = localStorage.getItem('rmt_col_widths');
+    return saved ? JSON.parse(saved) : {
+      id: 95,
+      client: 240,
+      service: 110,
+      quotation: 120,
+      date: 125,
+      value: 95,
+      status: 95,
+      timeline: 95,
+      renewed: 145,
+      invoice: 80,
+      payment: 80,
+      actions: 80,
+      approvals: 90,
+      bal: 110
+    };
+  });
+
+  // Column Visibility State (Show/Hide Columns)
+  const [visibleCols, setVisibleCols] = useState(() => {
+    const saved = localStorage.getItem('rmt_visible_cols');
+    return saved ? JSON.parse(saved) : {
+      id: true,
+      client: true,
+      service: true,
+      quotation: true,
+      date: true,
+      value: true,
+      status: true,
+      timeline: true,
+      renewed: true,
+      invoice: true,
+      payment: true,
+      actions: true,
+      approvals: true,
+      bal: true
+    };
+  });
+  const [showColumnPicker, setShowColumnPicker] = useState(false);
+  const columnPickerRef = useRef(null);
+
+  const toggleColumnVisibility = (colKey) => {
+    setVisibleCols(prev => {
+      const next = { ...prev, [colKey]: !prev[colKey] };
+      localStorage.setItem('rmt_visible_cols', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // Drag-to-resize Column Width Handler
+  const handleResizeMouseDown = (colKey, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = colWidths[colKey] || 90;
+
+    const handleMouseMove = (moveEvent) => {
+      const delta = moveEvent.clientX - startX;
+      const newW = Math.max(35, startWidth + delta);
+      setColWidths(prev => {
+        const next = { ...prev, [colKey]: newW };
+        localStorage.setItem('rmt_col_widths', JSON.stringify(next));
+        return next;
+      });
+    };
+
+    const handleMouseUp = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Sort handler
+  const handleSort = (colKey) => {
+    if (sortCol === colKey) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortCol(colKey);
+      setSortDir('asc');
+    }
+  };
+
+  // Sort computation
+  const sortedRenewals = React.useMemo(() => {
+    if (!sortCol) return renewals;
+    return [...renewals].sort((a, b) => {
+      let valA = a[sortCol];
+      let valB = b[sortCol];
+      if (valA === null || valA === undefined) valA = '';
+      if (valB === null || valB === undefined) valB = '';
+
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return sortDir === 'asc' ? valA - valB : valB - valA;
+      }
+      return sortDir === 'asc' 
+        ? String(valA).localeCompare(String(valB)) 
+        : String(valB).localeCompare(String(valA));
+    });
+  }, [renewals, sortCol, sortDir]);
+
+  // Bulk Actions
+  const handleExecuteBulkStatus = async () => {
+    if (!selectedIds.length) return;
+    try {
+      const activeToken = (await getValidToken()) || token;
+      const res = await fetch('/api/renewals/batch-update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({
+          ids: selectedIds,
+          status: bulkStatusValue || null,
+          renewal_confirmation: bulkConfirmationValue || null
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || `Updated ${selectedIds.length} records.`);
+        setSelectedIds([]);
+        setShowBulkStatusModal(false);
+        setBulkStatusValue('');
+        setBulkConfirmationValue('');
+        fetchRenewals();
+      } else {
+        toast.error(data.error || 'Failed to update records');
+      }
+    } catch (err) {
+      toast.error('Error updating bulk status');
+    }
+  };
+
+  const handleExecuteBulkReminder = async () => {
+    if (!selectedIds.length) return;
+    try {
+      const activeToken = (await getValidToken()) || token;
+      const res = await fetch('/api/renewals/batch-send-reminder', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({ ids: selectedIds })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || `Sent reminder emails.`);
+      } else {
+        toast.error(data.error || 'Failed to send reminders.');
+      }
+    } catch (err) {
+      toast.error('Error sending batch reminders.');
+    }
+  };
+
+  const handleExportSelected = () => {
+    const selectedRecords = renewals.filter(r => selectedIds.includes(r.id));
+    if (selectedRecords.length === 0) {
+      toast.error('No records selected for export.');
+      return;
+    }
+    const headers = ['Unique ID', 'Client Name', 'Service', 'Quotation No', 'Renewal Date', 'Value', 'Status', 'Confirmation', 'Invoice Status', 'Payment Status', 'Owner'];
+    const rows = selectedRecords.map(r => [
+      r.unique_id,
+      `"${(r.client_name || '').replace(/"/g, '""')}"`,
+      `"${(r.service || '').replace(/"/g, '""')}"`,
+      `"${(r.quotation_number || '').replace(/"/g, '""')}"`,
+      r.renewal_date ? formatDate(r.renewal_date) : '',
+      r.value || 0,
+      r.status || '',
+      r.renewal_confirmation || '',
+      r.invoice_status || '',
+      r.payment_status || '',
+      `"${(r.owner || '').replace(/"/g, '""')}"`
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `selected_renewals_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Exported ${selectedRecords.length} records to CSV.`);
+  };
+
+  const handleExecuteBulkDelete = async () => {
+    if (!isAdmin || !selectedIds.length) return;
+    try {
+      const activeToken = (await getValidToken()) || token;
+      const res = await fetch('/api/renewals/batch-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({ ids: selectedIds })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || `Deleted ${selectedIds.length} records.`);
+        setSelectedIds([]);
+        setShowBatchDeleteModal(false);
+        fetchRenewals();
+      } else {
+        toast.error(data.error || 'Failed to delete records');
+      }
+    } catch (err) {
+      toast.error('Error executing batch delete');
+    }
+  };
+
   const [newRenewalDate, setNewRenewalDate] = useState('');
   const [selectedPaymentRenewal, setSelectedPaymentRenewal] = useState(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -169,7 +658,9 @@ export default function RenewalsList() {
     if (!silent) setLoading(true);
     setSelectedIds([]); // Clear selection when fetching new dataset
     try {
-      const res = await fetch(`/api/renewals?page=1&limit=10000&search=${search}&status=${statusColFilter !== 'all' ? statusColFilter : statusFilter}&dateRange=${dateRangeFilter}&valueRange=${valueFilter}&renewalConfirmation=${renewedFilter}&clientName=${encodeURIComponent(clientFilter)}&serviceName=${encodeURIComponent(serviceFilter)}`, {
+      const qSent = searchParams.get('quotesSent') || '';
+      const pFollow = searchParams.get('pendingFollowup') || '';
+      const res = await fetch(`/api/renewals?page=1&limit=10000&search=${search}&status=${statusColFilter !== 'all' ? statusColFilter : statusFilter}&dateRange=${dateRangeFilter}&valueRange=${valueFilter}&renewalConfirmation=${renewedFilter}&clientName=${encodeURIComponent(clientFilter)}&serviceName=${encodeURIComponent(serviceFilter)}&quotesSent=${qSent}&pendingFollowup=${pFollow}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -255,188 +746,22 @@ export default function RenewalsList() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const toggleFilter = (col) => setOpenFilterCol(prev => prev === col ? null : col);
-
-  const ClientFilterDropdown = ({ value, onChange }) => {
-    const [tempValue, setTempValue] = useState(value);
-    const isActive = Boolean(value && value.trim() !== '');
-
-    useEffect(() => {
-      setTempValue(value);
-    }, [value]);
-
-    const handleApply = () => {
-      onChange(tempValue.trim());
+  const toggleFilter = (col, e) => {
+    e.stopPropagation();
+    if (openFilterCol === col) {
       setOpenFilterCol(null);
-      setPage(1);
-    };
-
-    const handleClear = () => {
-      setTempValue('');
-      onChange('');
-      setOpenFilterCol(null);
-      setPage(1);
-    };
-
-    return (
-      <div className="relative inline-block" ref={openFilterCol === 'client' ? filterRef : null}>
-        <button
-          onClick={(e) => { e.stopPropagation(); toggleFilter('client'); }}
-          className={`ml-1.5 p-0.5 rounded transition-colors ${
-            isActive
-              ? 'text-brand-500 dark:text-brand-400 font-bold bg-brand-50 dark:bg-brand-900/30'
-              : 'text-surface-300 dark:text-surface-600 hover:text-surface-500'
-          }`}
-          title={isActive ? `Filtered by: "${value}"` : 'Filter Client Info'}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
-          </svg>
-        </button>
-
-        {openFilterCol === 'client' && (
-          <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-xl min-w-[220px] p-3 animate-in fade-in slide-in-from-top-1 duration-150">
-            <div className="text-xs font-semibold text-surface-700 dark:text-surface-300 mb-2">
-              Filter Client Info
-            </div>
-            <div className="relative mb-3">
-              <input
-                type="text"
-                value={tempValue}
-                onChange={(e) => setTempValue(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleApply(); }}
-                placeholder="Search client name..."
-                autoFocus
-                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
-              />
-              <Search className="w-3.5 h-3.5 text-surface-400 absolute left-2.5 top-2.5" />
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={handleClear}
-                className="px-2.5 py-1 text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors"
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                onClick={handleApply}
-                className="px-3 py-1 text-xs font-medium bg-brand-600 hover:bg-brand-700 text-white rounded-lg transition-colors shadow-sm"
-              >
-                Apply
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
+    } else {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const leftPos = Math.max(10, Math.min(window.innerWidth - 230, rect.left - 40));
+      setFilterPos({
+        top: rect.bottom + 4,
+        left: leftPos,
+      });
+      setOpenFilterCol(col);
+    }
   };
 
-  const FilterDropdown = ({ col, value, onChange, options }) => {
-    const isActive = value !== 'all';
-    return (
-      <div className="relative inline-block" ref={openFilterCol === col ? filterRef : null}>
-        <button
-          onClick={(e) => { e.stopPropagation(); toggleFilter(col); }}
-          className={`ml-1.5 p-0.5 rounded transition-colors ${
-            isActive
-              ? 'text-brand-500 dark:text-brand-400'
-              : 'text-surface-300 dark:text-surface-600 hover:text-surface-500'
-          }`}
-          title={isActive ? 'Filter active' : 'Filter'}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
-          </svg>
-        </button>
-        {openFilterCol === col && (
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-lg min-w-[170px] max-h-72 overflow-y-auto custom-scrollbar py-1 animate-in fade-in slide-in-from-top-1 duration-150">
-            {options.map((opt, i) => {
-              if (opt.isHeader) {
-                return (
-                  <div key={`header-${i}`} className="px-3 pt-2 pb-1 text-[10px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-wider border-t border-surface-150 dark:border-surface-700/60 first:border-0 first:pt-1">
-                    {opt.label}
-                  </div>
-                );
-              }
-              return (
-                <button
-                  key={opt.value}
-                  onClick={() => { onChange(opt.value); setOpenFilterCol(null); setPage(1); }}
-                  className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
-                    value === opt.value
-                      ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-semibold'
-                      : 'text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  };
 
-  const SERVICE_OPTIONS = [
-    { value: 'all', label: 'All Services' },
-    ...['AWS', 'AMC', 'BDR Suite', 'Domain', 'Firewall', 'GWS', 'LSH', 'M365', 'Plesk', 'Seqrite', 'Storage', 'SSL', 'Tally', 'Untangle', 'Zoho'].map(s => ({ value: s, label: s }))
-  ];
-
-  const DATE_OPTIONS = [
-    { value: 'all', label: 'All Dates' },
-    { value: 'expired', label: 'Expired' },
-    { value: 'today', label: 'Due Today' },
-    { value: 'next7', label: 'Next 7 Days' },
-    { value: 'next30', label: 'Next 30 Days' },
-    { value: 'next60', label: 'Next 60 Days' },
-    { value: 'next90', label: 'Next 90 Days' },
-    { isHeader: true, label: 'Monthwise' },
-    { value: 'this_month', label: 'This Month' },
-    { value: 'next_month', label: 'Next Month' },
-    { value: 'prev_month', label: 'Previous Month' },
-    { isHeader: true, label: 'By Calendar Month' },
-    { value: 'm_1', label: 'January' },
-    { value: 'm_2', label: 'February' },
-    { value: 'm_3', label: 'March' },
-    { value: 'm_4', label: 'April' },
-    { value: 'm_5', label: 'May' },
-    { value: 'm_6', label: 'June' },
-    { value: 'm_7', label: 'July' },
-    { value: 'm_8', label: 'August' },
-    { value: 'm_9', label: 'September' },
-    { value: 'm_10', label: 'October' },
-    { value: 'm_11', label: 'November' },
-    { value: 'm_12', label: 'December' },
-  ];
-
-  const VALUE_OPTIONS = [
-    { value: 'all', label: 'All Values' },
-    { value: 'under50k', label: 'Under ₹50K' },
-    { value: '50k-1l', label: '₹50K – ₹1L' },
-    { value: '1l-5l', label: '₹1L – ₹5L' },
-    { value: 'above5l', label: 'Above ₹5L' },
-  ];
-
-  const STATUS_COL_OPTIONS = [
-    { value: 'all', label: 'All Statuses' },
-    { value: 'Active', label: 'Active' },
-    { value: 'Pending Renewal', label: 'Pending Renewal' },
-    { value: 'Expired', label: 'Expired' },
-    { value: '-', label: 'Discontinued' },
-  ];
-
-  const RENEWED_OPTIONS = [
-    { value: 'all', label: 'All Options' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'quotation_confirmation', label: 'Order confirmation' },
-    { value: 'awaiting_client_approval', label: 'Awaiting client approval' },
-    { value: 'awaiting_with_vendor', label: 'Awaiting with vendor' },
-    { value: 'renewed', label: 'Renewed' },
-    { value: 'service_discontinued', label: 'Service Discontinued' },
-  ];
 
   const handleExportCSV = () => {
     // Simple CSV export logic
@@ -681,16 +1006,18 @@ export default function RenewalsList() {
           // Normalize renewed status
           if (record.renewed) {
             const rClean = record.renewed.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (rClean.includes('quotation')) {
-              record.renewal_confirmation = 'quotation_confirmation';
+            if (rClean.includes('remindersent') || rClean.includes('reminder') || rClean.includes('withvendor')) {
+              record.renewal_confirmation = 'reminder_sent';
+            } else if (rClean.includes('quotesent') || rClean.includes('quote') || rClean.includes('quotation')) {
+              record.renewal_confirmation = 'quote_sent';
             } else if (rClean.includes('clientapproval') || rClean.includes('awaitingclient')) {
               record.renewal_confirmation = 'awaiting_client_approval';
-            } else if (rClean.includes('withvendor') || rClean.includes('awaitingwith')) {
-              record.renewal_confirmation = 'awaiting_with_vendor';
             } else if (rClean === 'renewed') {
               record.renewal_confirmation = 'renewed';
-            } else if (rClean.includes('discontinued') || rClean === 'cancelled') {
-              record.renewal_confirmation = 'service_discontinued';
+            } else if (rClean.includes('lost')) {
+              record.renewal_confirmation = 'lost';
+            } else if (rClean.includes('discontinued') || rClean.includes('cancel')) {
+              record.renewal_confirmation = 'cancelled';
             } else {
               record.renewal_confirmation = 'pending';
             }
@@ -734,44 +1061,72 @@ export default function RenewalsList() {
     reader.readAsText(file);
   };
 
-  const isFinance = user?.role === 'finance';
   const isSales = user?.role === 'sales';
   const isAdmin = user?.role === 'admin';
 
   const getColWidth = (colName) => {
-    if (isFinance) {
-      switch (colName) {
-        case 'id': return 'w-[5%]';
-        case 'client': return 'w-[10%]';
-        case 'service': return 'w-[8%]';
-        case 'quotation': return 'w-[8%]';
-        case 'date': return 'w-[8%]';
-        case 'value': return 'w-[8%]';
-        case 'status': return 'w-[8%]';
-        case 'timeline': return 'w-[9%]';
-        case 'renewed': return 'w-[8%]';
-        case 'invoice': return 'w-[8%]';
-        case 'payment': return 'w-[8%]';
-        case 'bal': return 'w-[10%]';
-        default: return '';
-      }
-    }
     switch (colName) {
-      case 'id': return 'w-[5%]';
-      case 'client': return 'w-[9%]';
-      case 'service': return 'w-[8%]';
-      case 'quotation': return 'w-[8%]';
+      case 'id': return 'w-[6.5%]';
+      case 'client': return 'w-[15%]';
+      case 'service': return 'w-[7.5%]';
+      case 'quotation': return 'w-[7%]';
       case 'date': return 'w-[8%]';
-      case 'value': return 'w-[8%]';
-      case 'status': return 'w-[8%]';
-      case 'timeline': return 'w-[10%]';
-      case 'renewed': return 'w-[10%]';
-      case 'invoice': return 'w-[8%]';
-      case 'payment': return 'w-[8%]';
-      case 'actions': return 'w-[7%]';
-      case 'approvals': return 'w-[8%]';
-      case 'bal': return 'w-[11%]';
+      case 'value': return 'w-[6%]';
+      case 'status': return 'w-[8.5%]';
+      case 'timeline': return 'w-[6.5%]';
+      case 'renewed': return 'w-[7.5%]';
+      case 'invoice': return 'w-[5%]';
+      case 'payment': return 'w-[5%]';
+      case 'actions': return 'w-[4.5%]';
+      case 'approvals': return 'w-[5%]';
+      case 'bal': return 'w-[6%]';
       default: return '';
+    }
+  };
+
+  const handleToggleStopEmail = async (id, currentStopEmail) => {
+    try {
+      const activeToken = (await getValidToken()) || token;
+      const nextState = !currentStopEmail;
+      const res = await fetch(`/api/renewals/${id}/stop-email`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({ stop_email: nextState })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update email setting.');
+      
+      toast.success(data.message || `Email reminders ${nextState ? 'stopped' : 'resumed'}.`);
+      setRenewals(prev => prev.map(r => r.id === id ? { ...r, stop_email: nextState } : r));
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleBatchStopEmail = async (stopEmailState, customIds = null) => {
+    const targetIds = customIds || selectedIds;
+    if (!targetIds || targetIds.length === 0) return;
+    try {
+      const activeToken = (await getValidToken()) || token;
+      const res = await fetch(`/api/renewals/batch-stop-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({ ids: targetIds, stop_email: stopEmailState })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to batch update email settings.');
+
+      toast.success(stopEmailState ? "Client email automation has been stopped." : "Client email automation has been resumed.");
+      setRenewals(prev => prev.map(r => targetIds.includes(r.id) ? { ...r, stop_email: stopEmailState } : r));
+      setSelectedIds([]);
+    } catch (err) {
+      toast.error(err.message);
     }
   };
 
@@ -1004,25 +1359,31 @@ export default function RenewalsList() {
 
   const getRenewalConfirmationBadge = (status) => {
     switch (status) {
-      case 'quotation_confirmation':
-        return { label: 'Order confirmation', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800' };
-      case 'awaiting_client_approval':
-        return { label: 'Awaiting client approval', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800' };
+      case 'reminder_sent':
       case 'awaiting_with_vendor':
-        return { label: 'Awaiting with vendor', color: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800' };
+        return { label: 'Reminder Sent', color: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-400 dark:border-sky-800' };
+      case 'quote_sent':
+      case 'quotation_confirmation':
+        return { label: 'Quote Sent', color: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-800' };
+      case 'awaiting_client_approval':
+        return { label: 'Awaiting Client Approval', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800' };
       case 'renewed':
         return { label: 'Renewed', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800' };
+      case 'lost':
+        return { label: 'Lost', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800' };
+      case 'cancelled':
       case 'service_discontinued':
-        return { label: 'Service Discontinued', color: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800' };
+        return { label: 'Cancelled', color: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800' };
       default:
         return { label: 'Pending', color: 'bg-surface-100 text-surface-500 border-surface-200 dark:bg-surface-700 dark:text-surface-400 dark:border-surface-600' };
     }
   };
 
-  const totalCols = isAdmin ? 15 : (isSales ? 13 : 12);
+  const totalCols = 1 + Object.entries(visibleCols).filter(([k, v]) => v && (k !== 'approvals' || isAdmin)).length;
+  const isAllEmailStopped = renewals.length > 0 && renewals.every(r => r.stop_email);
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 animate-fade-in">
       {/* Header Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -1031,8 +1392,25 @@ export default function RenewalsList() {
             {totalRecords} total records found
           </p>
         </div>
+
+      {isAllEmailStopped && (
+        <div className="bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 px-4 py-2.5 rounded-lg flex items-center justify-between shadow-sm animate-fade-in w-full">
+          <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold">
+            <MailX className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+            <span>All client email automation has been stopped.</span>
+          </div>
+          {(isAdmin || isSales) && (
+            <button
+              onClick={() => handleBatchStopEmail(false, renewals.map(r => r.id))}
+              className="px-2.5 py-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <MailCheck className="w-3.5 h-3.5" /> Resume All Emails
+            </button>
+          )}
+        </div>
+      )}
         
-        <div className="flex flex-nowrap items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto overflow-visible pb-1 sm:pb-0">
           <div className="relative flex-shrink-0 w-32 sm:w-36">
             <input 
               type="text" 
@@ -1068,8 +1446,84 @@ export default function RenewalsList() {
             <Filter className="w-3.5 h-3.5 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-surface-400 pointer-events-none z-10" />
           </div>
 
+          {/* Column Visibility Popover */}
+          <div className="relative" ref={columnPickerRef}>
+            <button 
+              onClick={() => setShowColumnPicker(prev => !prev)}
+              className={`btn-secondary flex-shrink-0 flex items-center gap-1.5 py-1.5 px-2.5 text-xs transition-colors ${showColumnPicker ? 'bg-surface-200 dark:bg-surface-700 text-surface-900 dark:text-white border-surface-300 dark:border-surface-600' : ''}`}
+              title="Show/Hide Columns"
+            >
+              <Columns className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" /> Columns
+            </button>
+            {showColumnPicker && (
+              <div className="absolute right-0 mt-2 w-64 bg-white/95 dark:bg-surface-800/95 backdrop-blur-md rounded-2xl shadow-2xl border border-surface-200/80 dark:border-surface-700/80 z-50 p-3.5 text-xs animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-surface-100 dark:border-surface-700/80">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-surface-900 dark:text-white">Show/Hide Columns</span>
+                    <span className="px-2 py-0.5 text-[10px] font-semibold bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 rounded-full border border-brand-200 dark:border-brand-800">
+                      {Object.values(visibleCols).filter(Boolean).length} visible
+                    </span>
+                  </div>
+                  <button 
+                    onClick={() => setShowColumnPicker(false)} 
+                    className="p-1 text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 rounded-md hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
+                  {[
+                    { key: 'id', label: 'Unique ID' },
+                    { key: 'client', label: 'Client Info' },
+                    { key: 'service', label: 'Service' },
+                    { key: 'quotation', label: 'Quotation No.' },
+                    { key: 'date', label: 'Renewal Date' },
+                    { key: 'value', label: 'Value' },
+                    { key: 'status', label: 'Status' },
+                    { key: 'timeline', label: 'Timeline' },
+                    { key: 'renewed', label: 'Confirmation' },
+                    { key: 'invoice', label: 'Invoice' },
+                    { key: 'payment', label: 'Payment' },
+                    { key: 'actions', label: 'Actions' },
+                    { key: 'bal', label: 'Invoice / Bal' },
+                  ].map(col => {
+                    const isChecked = !!visibleCols[col.key];
+                    return (
+                      <label 
+                        key={col.key} 
+                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-all ${
+                          isChecked 
+                            ? 'bg-surface-50 dark:bg-surface-700/40 text-surface-900 dark:text-white font-medium' 
+                            : 'text-surface-400 dark:text-surface-500 hover:bg-surface-50/60 dark:hover:bg-surface-700/20'
+                        }`}
+                      >
+                        <span className="truncate">{col.label}</span>
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked} 
+                          onChange={() => toggleColumnVisibility(col.key)} 
+                          className="rounded border-surface-300 dark:border-surface-600 text-brand-600 focus:ring-brand-500 w-4 h-4 cursor-pointer accent-brand-600"
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Table Density Toggle */}
+          <button 
+            onClick={toggleCompact}
+            className={`btn-secondary flex-shrink-0 flex items-center gap-1.5 py-1.5 px-2.5 text-xs ${isCompact ? 'bg-brand-50 text-brand-700 border-brand-300 dark:bg-brand-900/20 dark:text-brand-400' : ''}`}
+            title="Toggle Compact View (Excel-like density)"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            {isCompact ? 'Compact View' : 'Normal View'}
+          </button>
+
           <button onClick={handleExportCSV} className="btn-secondary flex-shrink-0 flex items-center gap-1.5 py-1.5 px-2.5 text-xs">
-            <Download className="w-3.5 h-3.5" /> Export
+            <Download className="w-3.5 h-3.5" /> Export All
           </button>
 
           {isAdmin && (
@@ -1081,8 +1535,6 @@ export default function RenewalsList() {
                 className="hidden"
                 onChange={handleImportCSV}
               />
-
-
               <button 
                 onClick={() => document.getElementById('csv-import-input').click()}
                 className="btn-secondary flex-shrink-0 flex items-center gap-1.5 py-1.5 px-2.5 text-xs whitespace-nowrap"
@@ -1092,13 +1544,70 @@ export default function RenewalsList() {
             </>
           )}
 
-          {isAdmin && selectedIds.length > 0 && (
-            <button 
-              onClick={() => setShowBatchDeleteModal(true)}
-              className="bg-red-600 hover:bg-red-700 text-white font-semibold flex-shrink-0 flex items-center gap-1.5 py-1.5 px-2.5 text-xs whitespace-nowrap rounded-md transition-colors shadow-sm cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5" /> Delete Selected ({selectedIds.length})
-            </button>
+          {/* Bulk Actions Bar */}
+          {selectedIds.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-shrink-0 bg-brand-50 dark:bg-brand-950/40 border border-brand-200 dark:border-brand-800 rounded-md px-2 py-1">
+              <span className="text-[11px] font-semibold text-brand-700 dark:text-brand-300 mr-1">
+                {selectedIds.length} Selected
+              </span>
+
+              {(isAdmin || isSales) && (
+                <button 
+                  onClick={() => setShowBulkStatusModal(true)}
+                  className="bg-brand-600 hover:bg-brand-700 text-white font-semibold flex items-center gap-1 py-1 px-2 text-[11px] rounded transition-colors shadow-sm cursor-pointer"
+                  title="Bulk update status or confirmation"
+                >
+                  <Edit3 className="w-3 h-3" /> Update Status
+                </button>
+              )}
+
+              {(isAdmin || isSales) && (
+                <button 
+                  onClick={handleExecuteBulkReminder}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center gap-1 py-1 px-2 text-[11px] rounded transition-colors shadow-sm cursor-pointer"
+                  title="Send reminder emails to selected clients"
+                >
+                  <Send className="w-3 h-3" /> Send Reminder
+                </button>
+              )}
+
+              <button 
+                onClick={handleExportSelected}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1 py-1 px-2 text-[11px] rounded transition-colors shadow-sm cursor-pointer"
+                title="Export selected records to CSV"
+              >
+                <FileSpreadsheet className="w-3 h-3" /> Export Selected
+              </button>
+
+              {(isAdmin || isSales) && (
+                <>
+                  <button 
+                    onClick={() => handleBatchStopEmail(true)}
+                    className="bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center gap-1 py-1 px-2 text-[11px] rounded transition-colors shadow-sm cursor-pointer"
+                    title="Stop automated reminder emails for selected clients"
+                  >
+                    <MailX className="w-3 h-3" /> Stop Emails
+                  </button>
+                  <button 
+                    onClick={() => handleBatchStopEmail(false)}
+                    className="bg-teal-600 hover:bg-teal-700 text-white font-semibold flex items-center gap-1 py-1 px-2 text-[11px] rounded transition-colors shadow-sm cursor-pointer"
+                    title="Resume automated reminder emails for selected clients"
+                  >
+                    <MailCheck className="w-3 h-3" /> Resume Emails
+                  </button>
+                </>
+              )}
+
+              {isAdmin && (
+                <button 
+                  onClick={() => setShowBatchDeleteModal(true)}
+                  className="bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center gap-1 py-1 px-2 text-[11px] rounded transition-colors shadow-sm cursor-pointer"
+                  title="Delete selected records"
+                >
+                  <Trash2 className="w-3 h-3" /> Delete
+                </button>
+              )}
+            </div>
           )}
 
           {(isSales || isAdmin) && (
@@ -1119,98 +1628,321 @@ export default function RenewalsList() {
           onMouseLeave={handleDragMouseLeave}
           onMouseUp={handleDragMouseUp}
           onMouseMove={handleDragMouseMove}
-          className={`overflow-x-auto relative select-none ${isDragDown ? 'cursor-grabbing' : 'cursor-grab'}`}
+          className={`overflow-auto max-h-[calc(100vh-210px)] relative select-none custom-scrollbar ${isDragDown ? 'cursor-grabbing' : 'cursor-grab'}`}
         >
-          <table className="w-full text-left text-xs">
-            <thead className="bg-surface-50 dark:bg-surface-900 text-surface-500 dark:text-surface-400 border-b border-surface-200 dark:border-surface-700 sticky top-0 z-10 shadow-sm">
+          <table className="w-full text-left text-[11px] sm:text-xs table-fixed">
+            <colgroup>
+              <col style={{ width: '36px' }} />
+              {visibleCols.id && <col style={{ width: `${colWidths.id || 95}px` }} />}
+              {visibleCols.client && <col style={{ width: `${colWidths.client || 240}px` }} />}
+              {visibleCols.service && <col style={{ width: `${colWidths.service || 110}px` }} />}
+              {visibleCols.quotation && <col style={{ width: `${colWidths.quotation || 120}px` }} />}
+              {visibleCols.date && <col style={{ width: `${colWidths.date || 125}px` }} />}
+              {visibleCols.value && <col style={{ width: `${colWidths.value || 95}px` }} />}
+              {visibleCols.status && <col style={{ width: `${colWidths.status || 95}px` }} />}
+              {visibleCols.timeline && <col style={{ width: `${colWidths.timeline || 95}px` }} />}
+              {visibleCols.renewed && <col style={{ width: `${colWidths.renewed || 145}px` }} />}
+              {visibleCols.invoice && <col style={{ width: `${colWidths.invoice || 80}px` }} />}
+              {visibleCols.payment && <col style={{ width: `${colWidths.payment || 80}px` }} />}
+              {visibleCols.actions && <col style={{ width: `${colWidths.actions || 80}px` }} />}
+              {isAdmin && visibleCols.approvals && <col style={{ width: `${colWidths.approvals || 90}px` }} />}
+              {visibleCols.bal && <col style={{ width: `${colWidths.bal || 110}px` }} />}
+            </colgroup>
+            <thead className="bg-surface-100 dark:bg-surface-800 text-black dark:text-surface-300 font-bold border-b border-surface-200 dark:border-surface-700 sticky top-0 z-20 shadow-sm">
               <tr>
-                {isAdmin && (
-                  <th className="w-10 px-3 py-2 text-center">
-                    <input 
-                      type="checkbox"
-                      checked={renewals.length > 0 && selectedIds.length === renewals.length}
-                      ref={el => {
-                        if (el) {
-                          el.indeterminate = selectedIds.length > 0 && selectedIds.length < renewals.length;
-                        }
-                      }}
-                      onChange={() => {
-                        if (selectedIds.length === renewals.length) {
-                          setSelectedIds([]);
-                        } else {
-                          setSelectedIds(renewals.map(r => r.id));
-                        }
-                      }}
-                      className="rounded border-surface-300 text-brand-600 focus:ring-brand-500 cursor-pointer w-3.5 h-3.5"
-                    />
+                <th className="w-8 px-1 py-1.5 text-center sticky top-0 z-20 bg-surface-100 dark:bg-surface-800">
+                  <input 
+                    type="checkbox"
+                    checked={renewals.length > 0 && selectedIds.length === renewals.length}
+                    ref={el => {
+                      if (el) {
+                        el.indeterminate = selectedIds.length > 0 && selectedIds.length < renewals.length;
+                      }
+                    }}
+                    onChange={() => {
+                      if (selectedIds.length === renewals.length) {
+                        setSelectedIds([]);
+                      } else {
+                        setSelectedIds(renewals.map(r => r.id));
+                      }
+                    }}
+                    className="rounded border-surface-300 text-brand-600 focus:ring-brand-500 cursor-pointer w-3.5 h-3.5"
+                  />
+                </th>
+
+                {/* Unique ID */}
+                {visibleCols.id && (
+                  <th 
+                    style={{ width: `${colWidths.id || 95}px`, minWidth: `${colWidths.id || 95}px` }} 
+                    className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold border-r border-surface-200/50 dark:border-surface-700/50 group select-none`}
+                  >
+                    <div className="flex items-center gap-1 h-5">
+                      <button onClick={() => handleSort('unique_id')} className="flex items-center gap-1 hover:text-brand-600 dark:hover:text-brand-400 font-semibold text-[11px] whitespace-nowrap">
+                        <span>Unique ID</span>
+                        {sortCol === 'unique_id' ? (sortDir === 'asc' ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                      </button>
+                    </div>
+                    <div onMouseDown={(e) => handleResizeMouseDown('id', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
                   </th>
                 )}
-                <th className={`px-3 py-2 font-medium ${getColWidth('id')}`}>
-                  <div className="flex items-center h-5">Unique ID</div>
-                </th>
-                <th className={`px-3 py-2 font-medium ${getColWidth('client')}`}>
-                  <div className="flex items-center h-5">
-                    Client Info
-                    <ClientFilterDropdown value={clientFilter} onChange={setClientFilter} />
-                  </div>
-                </th>
-                <th className={`px-3 py-2 font-medium ${getColWidth('service')}`}>
-                  <div className="flex items-center h-5">
-                    Service
-                    <FilterDropdown col="service" value={serviceFilter} onChange={setServiceFilter} options={SERVICE_OPTIONS} />
-                  </div>
-                </th>
-                <th className={`px-3 py-2 font-medium ${getColWidth('quotation')}`}>
-                  <div className="flex items-center h-5">
-                    Quotation No.
-                  </div>
-                </th>
-                <th className={`px-3 py-2 font-medium ${getColWidth('date')}`}>
-                  <div className="flex items-center h-5">
-                    Renewal Date
-                    <FilterDropdown col="date" value={dateRangeFilter} onChange={setDateRangeFilter} options={DATE_OPTIONS} />
-                  </div>
-                </th>
-                <th className={`px-3 py-2 font-medium ${getColWidth('value')}`}>
-                  <div className="flex items-center h-5 w-full">
-                    Value
-                    <FilterDropdown col="value" value={valueFilter} onChange={setValueFilter} options={VALUE_OPTIONS} />
-                  </div>
-                </th>
-                <th className={`px-3 py-2 font-medium text-center ${getColWidth('status')}`}>
-                  <div className="flex items-center justify-center h-5 w-full">
-                    Status
-                    <FilterDropdown col="status" value={statusColFilter} onChange={setStatusColFilter} options={STATUS_COL_OPTIONS} />
-                  </div>
-                </th>
-                 <th className={`px-3 py-2 font-medium text-center ${getColWidth('timeline')}`}>
-                   <div className="flex items-center justify-center h-5 w-full">Timeline</div>
-                 </th>
-                <th className={`px-3 py-2 font-medium text-center ${getColWidth('renewed')}`}>
-                  <div className="flex items-center justify-center h-5 w-full">
-                    Renewed
-                    <FilterDropdown col="renewed" value={renewedFilter} onChange={setRenewedFilter} options={RENEWED_OPTIONS} />
-                  </div>
-                </th>
-                <th className={`px-3 py-2 font-medium text-center ${getColWidth('invoice')}`}>
-                  <div className="flex items-center justify-center h-5 w-full">Invoice</div>
-                </th>
-                <th className={`px-3 py-2 font-medium text-center ${getColWidth('payment')}`}>
-                  <div className="flex items-center justify-center h-5 w-full">Payment</div>
-                </th>
-                {!isFinance && (
-                  <th className={`px-3 py-2 font-medium text-center ${getColWidth('actions')}`}>
-                    <div className="flex items-center justify-center h-5 w-full">Actions</div>
+
+                {/* Client Info */}
+                {visibleCols.client && (
+                  <th 
+                    style={{ width: `${colWidths.client || 240}px`, minWidth: `${colWidths.client || 200}px` }} 
+                    className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold border-r border-surface-200/50 dark:border-surface-700/50 group select-none`}
+                  >
+                    <div className="flex items-center gap-1 h-5">
+                      <button onClick={() => handleSort('client_name')} className="flex items-center gap-1 hover:text-brand-600 dark:hover:text-brand-400 font-semibold text-[11px] whitespace-nowrap">
+                        <span>Client Info</span>
+                        {sortCol === 'client_name' ? (sortDir === 'asc' ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                      </button>
+                      <ClientFilterDropdown 
+                        value={clientFilter} 
+                        onChange={setClientFilter} 
+                        isOpen={openFilterCol === 'client'} 
+                        onToggle={(e) => toggleFilter('client', e)} 
+                        filterPos={filterPos} 
+                        filterRef={filterRef} 
+                        onClose={() => setOpenFilterCol(null)} 
+                        setPage={setPage} 
+                      />
+                    </div>
+                    <div onMouseDown={(e) => handleResizeMouseDown('client', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
                   </th>
                 )}
-                {isAdmin && (
-                  <th className={`px-3 py-2 font-medium text-center ${getColWidth('approvals')}`}>
-                    <div className="flex items-center justify-center h-5 w-full">Approvals</div>
+
+                {/* Service */}
+                {visibleCols.service && (
+                  <th 
+                    style={{ width: `${colWidths.service || 120}px`, minWidth: `${colWidths.service || 120}px` }} 
+                    className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold border-r border-surface-200/50 dark:border-surface-700/50 group select-none`}
+                  >
+                    <div className="flex items-center gap-1 h-5">
+                      <button onClick={() => handleSort('service')} className="flex items-center gap-1 hover:text-brand-600 dark:hover:text-brand-400 font-semibold text-[11px] whitespace-nowrap">
+                        <span>Service</span>
+                        {sortCol === 'service' ? (sortDir === 'asc' ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                      </button>
+                      <FilterDropdown 
+                        col="service" 
+                        value={serviceFilter} 
+                        onChange={setServiceFilter} 
+                        options={SERVICE_OPTIONS} 
+                        isOpen={openFilterCol === 'service'} 
+                        onToggle={(e) => toggleFilter('service', e)} 
+                        filterPos={filterPos} 
+                        filterRef={filterRef} 
+                        onClose={() => setOpenFilterCol(null)} 
+                        setPage={setPage} 
+                      />
+                    </div>
+                    <div onMouseDown={(e) => handleResizeMouseDown('service', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
                   </th>
                 )}
-                <th className={`px-3 py-2 font-medium text-right ${getColWidth('bal')}`}>
-                  <div className="flex items-center justify-end h-5 w-full whitespace-nowrap">Invoice Value / Bal</div>
-                </th>
+
+                {/* Quotation No */}
+                {visibleCols.quotation && (
+                  <th 
+                    style={{ width: `${colWidths.quotation || 130}px`, minWidth: `${colWidths.quotation || 130}px` }} 
+                    className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold border-r border-surface-200/50 dark:border-surface-700/50 group select-none`}
+                  >
+                    <div className="flex items-center gap-1 h-5">
+                      <button onClick={() => handleSort('quotation_number')} className="flex items-center gap-1 hover:text-brand-600 dark:hover:text-brand-400 font-semibold text-[11px] whitespace-nowrap">
+                        <span>Quotation No.</span>
+                        {sortCol === 'quotation_number' ? (sortDir === 'asc' ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                      </button>
+                    </div>
+                    <div onMouseDown={(e) => handleResizeMouseDown('quotation', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
+                  </th>
+                )}
+
+                {/* Renewal Date */}
+                {visibleCols.date && (
+                  <th 
+                    style={{ width: `${colWidths.date || 130}px`, minWidth: `${colWidths.date || 130}px` }} 
+                    className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold border-r border-surface-200/50 dark:border-surface-700/50 group select-none`}
+                  >
+                    <div className="flex items-center gap-1 h-5">
+                      <button onClick={() => handleSort('renewal_date')} className="flex items-center gap-1 hover:text-brand-600 dark:hover:text-brand-400 font-semibold text-[11px] whitespace-nowrap">
+                        <span>Renewal Date</span>
+                        {sortCol === 'renewal_date' ? (sortDir === 'asc' ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                      </button>
+                      <FilterDropdown 
+                        col="date" 
+                        value={dateRangeFilter} 
+                        onChange={setDateRangeFilter} 
+                        options={DATE_OPTIONS} 
+                        isOpen={openFilterCol === 'date'} 
+                        onToggle={(e) => toggleFilter('date', e)} 
+                        filterPos={filterPos} 
+                        filterRef={filterRef} 
+                        onClose={() => setOpenFilterCol(null)} 
+                        setPage={setPage} 
+                      />
+                    </div>
+                    <div onMouseDown={(e) => handleResizeMouseDown('date', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
+                  </th>
+                )}
+
+                {/* Value */}
+                {visibleCols.value && (
+                  <th 
+                    style={{ width: `${colWidths.value || 100}px`, minWidth: `${colWidths.value || 100}px` }} 
+                    className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold border-r border-surface-200/50 dark:border-surface-700/50 group select-none`}
+                  >
+                    <div className="flex items-center gap-1 h-5">
+                      <button onClick={() => handleSort('value')} className="flex items-center gap-1 hover:text-brand-600 dark:hover:text-brand-400 font-semibold text-[11px] whitespace-nowrap">
+                        <span>Value</span>
+                        {sortCol === 'value' ? (sortDir === 'asc' ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                      </button>
+                      <FilterDropdown 
+                        col="value" 
+                        value={valueFilter} 
+                        onChange={setValueFilter} 
+                        options={VALUE_OPTIONS} 
+                        isOpen={openFilterCol === 'value'} 
+                        onToggle={(e) => toggleFilter('value', e)} 
+                        filterPos={filterPos} 
+                        filterRef={filterRef} 
+                        onClose={() => setOpenFilterCol(null)} 
+                        setPage={setPage} 
+                      />
+                    </div>
+                    <div onMouseDown={(e) => handleResizeMouseDown('value', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
+                  </th>
+                )}
+
+                {/* Status */}
+                {visibleCols.status && (
+                  <th 
+                    style={{ width: `${colWidths.status || 100}px`, minWidth: `${colWidths.status || 100}px` }} 
+                    className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold text-center border-r border-surface-200/50 dark:border-surface-700/50 group select-none`}
+                  >
+                    <div className="flex items-center justify-center gap-1 h-5">
+                      <button onClick={() => handleSort('status')} className="flex items-center gap-1 hover:text-brand-600 dark:hover:text-brand-400 font-semibold text-[11px] whitespace-nowrap">
+                        <span>Status</span>
+                        {sortCol === 'status' ? (sortDir === 'asc' ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                      </button>
+                      <FilterDropdown 
+                        col="status" 
+                        value={statusColFilter} 
+                        onChange={setStatusColFilter} 
+                        options={STATUS_COL_OPTIONS} 
+                        isOpen={openFilterCol === 'status'} 
+                        onToggle={(e) => toggleFilter('status', e)} 
+                        filterPos={filterPos} 
+                        filterRef={filterRef} 
+                        onClose={() => setOpenFilterCol(null)} 
+                        setPage={setPage} 
+                      />
+                    </div>
+                    <div onMouseDown={(e) => handleResizeMouseDown('status', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
+                  </th>
+                )}
+
+                {/* Timeline */}
+                {visibleCols.timeline && (
+                  <th 
+                    style={{ width: `${colWidths.timeline || 100}px`, minWidth: `${colWidths.timeline || 100}px` }} 
+                    className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold text-center border-r border-surface-200/50 dark:border-surface-700/50 select-none`}
+                  >
+                    <div className="flex items-center justify-center h-5 whitespace-nowrap">Timeline</div>
+                    <div onMouseDown={(e) => handleResizeMouseDown('timeline', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
+                  </th>
+                )}
+
+                {/* Confirmation / Renewed */}
+                {visibleCols.renewed && (
+                  <th 
+                    style={{ width: `${colWidths.renewed || 155}px`, minWidth: `${colWidths.renewed || 155}px` }} 
+                    className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold text-center border-r border-surface-200/50 dark:border-surface-700/50 group select-none`}
+                  >
+                    <div className="flex items-center justify-center gap-1 h-5">
+                      <button onClick={() => handleSort('renewal_confirmation')} className="flex items-center gap-1 hover:text-brand-600 dark:hover:text-brand-400 font-semibold text-[11px] whitespace-nowrap">
+                        <span>Confirmation</span>
+                        {sortCol === 'renewal_confirmation' ? (sortDir === 'asc' ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                      </button>
+                      <FilterDropdown 
+                        col="renewed" 
+                        value={renewedFilter} 
+                        onChange={setRenewedFilter} 
+                        options={RENEWED_OPTIONS} 
+                        isOpen={openFilterCol === 'renewed'} 
+                        onToggle={(e) => toggleFilter('renewed', e)} 
+                        filterPos={filterPos} 
+                        filterRef={filterRef} 
+                        onClose={() => setOpenFilterCol(null)} 
+                        setPage={setPage} 
+                      />
+                    </div>
+                    <div onMouseDown={(e) => handleResizeMouseDown('renewed', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
+                  </th>
+                )}
+
+                {/* Invoice */}
+                {visibleCols.invoice && (
+                  <th 
+                    style={{ width: `${colWidths.invoice || 85}px`, minWidth: `${colWidths.invoice || 85}px` }} 
+                    className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold text-center border-r border-surface-200/50 dark:border-surface-700/50 group select-none`}
+                  >
+                    <div className="flex items-center justify-center gap-1 h-5">
+                      <button onClick={() => handleSort('invoice_status')} className="flex items-center gap-1 hover:text-brand-600 dark:hover:text-brand-400 font-semibold text-[11px] whitespace-nowrap">
+                        <span>Invoice</span>
+                        {sortCol === 'invoice_status' ? (sortDir === 'asc' ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                      </button>
+                    </div>
+                    <div onMouseDown={(e) => handleResizeMouseDown('invoice', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
+                  </th>
+                )}
+
+                {/* Payment */}
+                {visibleCols.payment && (
+                  <th 
+                    style={{ width: `${colWidths.payment || 85}px`, minWidth: `${colWidths.payment || 85}px` }} 
+                    className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold text-center border-r border-surface-200/50 dark:border-surface-700/50 group select-none`}
+                  >
+                    <div className="flex items-center justify-center gap-1 h-5">
+                      <button onClick={() => handleSort('payment_status')} className="flex items-center gap-1 hover:text-brand-600 dark:hover:text-brand-400 font-semibold text-[11px] whitespace-nowrap">
+                        <span>Payment</span>
+                        {sortCol === 'payment_status' ? (sortDir === 'asc' ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+                      </button>
+                    </div>
+                    <div onMouseDown={(e) => handleResizeMouseDown('payment', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
+                  </th>
+                )}
+
+                {/* Actions */}
+                {visibleCols.actions && (
+                  <th 
+                    style={{ width: `${colWidths.actions || 85}px`, minWidth: `${colWidths.actions || 85}px` }} 
+                    className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold text-center border-r border-surface-200/50 dark:border-surface-700/50 select-none`}
+                  >
+                    <div className="flex items-center justify-center h-5 whitespace-nowrap">Actions</div>
+                    <div onMouseDown={(e) => handleResizeMouseDown('actions', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
+                  </th>
+                )}
+
+                {/* Approvals (Admin) */}
+                {isAdmin && visibleCols.approvals && (
+                  <th 
+                    style={{ width: `${colWidths.approvals || 95}px`, minWidth: `${colWidths.approvals || 95}px` }} 
+                    className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold text-center border-r border-surface-200/50 dark:border-surface-700/50 select-none`}
+                  >
+                    <div className="flex items-center justify-center h-5 whitespace-nowrap">Approvals</div>
+                    <div onMouseDown={(e) => handleResizeMouseDown('approvals', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
+                  </th>
+                )}
+
+                {/* Invoice / Bal */}
+                {visibleCols.bal && (
+                  <th 
+                    style={{ width: `${colWidths.bal || 115}px`, minWidth: `${colWidths.bal || 115}px` }} 
+                    className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold text-right select-none`}
+                  >
+                    <div className="flex items-center justify-end h-5 whitespace-nowrap">Invoice / Bal</div>
+                    <div onMouseDown={(e) => handleResizeMouseDown('bal', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-200 dark:divide-surface-700">
@@ -1221,160 +1953,225 @@ export default function RenewalsList() {
                     Loading records...
                   </td>
                 </tr>
-              ) : renewals.length === 0 ? (
+              ) : sortedRenewals.length === 0 ? (
                 <tr>
                   <td colSpan={totalCols} className="px-6 py-12 text-center text-surface-500">
                     No renewal records found matching your criteria.
                   </td>
                 </tr>
               ) : (
-                renewals.map((row) => (
-                  <tr key={row.id} className="hover:bg-surface-50 dark:hover:bg-surface-700/30 transition-colors">
-                    {isAdmin && (
-                      <td className="w-10 px-3 py-1.5 text-center">
-                        <input 
-                          type="checkbox"
-                          checked={selectedIds.includes(row.id)}
-                          onChange={() => {
-                            setSelectedIds(prev => 
-                              prev.includes(row.id) ? prev.filter(id => id !== row.id) : [...prev, row.id]
-                            );
-                          }}
-                          className="rounded border-surface-300 text-brand-600 focus:ring-brand-500 cursor-pointer w-3.5 h-3.5"
-                        />
+                sortedRenewals.map((row, idx) => (
+                  <tr key={row.id} className={`hover:bg-surface-50 dark:hover:bg-surface-700/30 transition-colors ${selectedIds.includes(row.id) ? 'bg-brand-50/50 dark:bg-brand-950/20' : ''}`}>
+                    <td className="w-8 px-1 py-1 text-center">
+                      <input 
+                        type="checkbox"
+                        checked={selectedIds.includes(row.id)}
+                        onChange={() => {
+                          setSelectedIds(prev => 
+                            prev.includes(row.id) ? prev.filter(id => id !== row.id) : [...prev, row.id]
+                          );
+                        }}
+                        className="rounded border-surface-300 text-brand-600 focus:ring-brand-500 cursor-pointer w-3.5 h-3.5"
+                      />
+                    </td>
+
+                    {/* Unique ID */}
+                    {visibleCols.id && (
+                      <td className={`px-1.5 font-mono text-[11px] text-black dark:text-brand-400 font-bold truncate ${isCompact ? 'py-1' : 'py-1.5'}`} title={row.unique_id}>
+                        {row.unique_id.length > 8 ? row.unique_id.substring(0, 8) + '...' : row.unique_id}
                       </td>
                     )}
-                    <td className={`px-3 py-1.5 font-mono text-xs text-brand-600 dark:text-brand-400 font-medium truncate ${getColWidth('id')}`} title={row.unique_id}>
-                      {row.unique_id.length > 10 ? row.unique_id.substring(0, 10) + '...' : row.unique_id}
-                    </td>
-                    <td className={`px-3 py-1.5 overflow-hidden ${getColWidth('client')}`}>
-                      <button 
-                        onClick={() => navigate(`/renewals/${row.id}`)}
-                        className="text-left font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors truncate block max-w-full"
-                      >
-                        {row.client_name}
-                      </button>
-                    </td>
-                    <td className={`px-3 py-1.5 overflow-hidden ${getColWidth('service')}`}>
-                      <p className="text-surface-900 dark:text-white font-medium truncate">{row.service}</p>
-                    </td>
-                    <td className={`px-3 py-1.5 overflow-hidden ${getColWidth('quotation')}`}>
-                      <p className="text-surface-700 dark:text-surface-300 font-medium truncate" title={row.quotation_number || '-'}>{row.quotation_number || '-'}</p>
-                    </td>
-                    <td className={`px-3 py-1.5 ${getColWidth('date')}`}>
-                      <p className="text-surface-900 dark:text-white whitespace-nowrap">{row.renewal_date ? formatDate(row.renewal_date) : '-'}</p>
-                      {row.renewal_date && (
-                        <p className={`text-[11px] mt-0.5 whitespace-nowrap ${getDaysLeftColor(row.days_left)}`}>
-                          {row.days_left < 0 ? 'Expired' : row.days_left === 0 ? 'Due Today' : `${row.days_left} days left`}
-                        </p>
-                      )}
-                    </td>
-                    <td className={`px-3 py-1.5 font-medium text-surface-900 dark:text-white whitespace-nowrap ${getColWidth('value')}`}>
-                      {formatCurrency(row.value)}
-                    </td>
-                    <td className={`px-3 py-1.5 text-center whitespace-nowrap ${getColWidth('status')}`}>
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium border whitespace-nowrap ${getStatusColor(row.status)}`}>
-                        {row.status}
-                      </span>
-                    </td>
-                     <td className={`px-3 py-1.5 text-center overflow-hidden ${getColWidth('timeline')}`}>
-                       {row.status === '-' ? (
-                         <div className="text-center text-surface-400 dark:text-surface-600 font-medium">—</div>
-                       ) : (
-                         /* Visual Email Tracking timeline */
-                         <div className="flex justify-center gap-0.5 w-full flex-nowrap">
-                           {['30','20','15','10','5','3'].map(day => {
-                             const sent = row[`day_${day}_sent`] === 'Yes';
-                             return (
-                               <div 
-                                 key={day} 
-                                 title={`${day} Day Reminder: ${sent ? 'Sent' : 'Pending'}`}
-                                 className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold ${sent ? 'bg-green-500 text-white' : 'bg-surface-200 dark:bg-surface-700 text-surface-400'}`}
-                               >
-                                 {sent && <MailCheck className="w-2 h-2" />}
-                               </div>
-                             );
-                           })}
-                         </div>
-                       )}
-                     </td>
-                    <td className={`px-3 py-1.5 text-center overflow-hidden ${getColWidth('renewed')}`}>
-                      {((isSales || isAdmin) && !(row.renewal_confirmation === 'renewed' && row.days_left !== null && row.days_left !== undefined && row.days_left > 30)) ? (
-                        <select
-                          value={row.renewal_confirmation || 'pending'}
-                          onChange={(e) => handleRenewalConfirmation(row.id, e.target.value)}
-                          className={`text-[10px] font-medium px-1 py-0.5 rounded-lg border cursor-pointer outline-none transition-all w-full ${
-                            row.renewal_confirmation === 'quotation_confirmation' ? 'bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-900/20 dark:text-blue-400' :
-                            row.renewal_confirmation === 'awaiting_client_approval' ? 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900/20 dark:text-amber-400' :
-                            row.renewal_confirmation === 'awaiting_with_vendor' ? 'bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-900/20 dark:text-purple-400' :
-                            row.renewal_confirmation === 'renewed' ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/20 dark:text-emerald-400' :
-                            row.renewal_confirmation === 'service_discontinued' ? 'bg-red-50 text-red-700 border-red-300 dark:bg-red-900/20 dark:text-red-400' :
-                            'bg-surface-100 text-surface-500 border-surface-300 dark:bg-surface-700 dark:text-surface-200'
-                          }`}
+
+                    {/* Client Info */}
+                    {visibleCols.client && (
+                      <td className={`px-1.5 overflow-hidden ${isCompact ? 'py-1' : 'py-1.5'}`}>
+                        <button 
+                          onClick={() => navigate(`/renewals/${row.id}`)}
+                          title={row.client_name}
+                          className="text-left font-bold text-black dark:text-brand-400 hover:text-slate-700 dark:hover:text-brand-300 transition-colors truncate block max-w-full text-[11px]"
                         >
-                          <option value="pending" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">— Select —</option>
-                          <option value="quotation_confirmation" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Order confirmation</option>
-                          <option value="awaiting_client_approval" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Awaiting client approval</option>
-                          <option value="awaiting_with_vendor" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Awaiting with vendor</option>
-                          <option value="renewed" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Renewed</option>
-                          <option value="service_discontinued" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Service Discontinued</option>
-                        </select>
-                      ) : (
-                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium border inline-block truncate max-w-full ${getRenewalConfirmationBadge(row.renewal_confirmation).color}`}>
-                          {getRenewalConfirmationBadge(row.renewal_confirmation).label}
+                          {row.client_name}
+                        </button>
+                      </td>
+                    )}
+
+                    {/* Service */}
+                    {visibleCols.service && (
+                      <td className={`px-1.5 overflow-hidden ${isCompact ? 'py-1' : 'py-1.5'}`}>
+                        <p className="text-black dark:text-white font-medium truncate" title={row.service}>{row.service}</p>
+                      </td>
+                    )}
+
+                    {/* Quotation No */}
+                    {visibleCols.quotation && (
+                      <td className={`px-1.5 overflow-hidden ${isCompact ? 'py-1' : 'py-1.5'}`}>
+                        <p className="text-black dark:text-surface-300 font-medium truncate" title={row.quotation_number || '-'}>{row.quotation_number || '-'}</p>
+                      </td>
+                    )}
+
+                    {/* Renewal Date */}
+                    {visibleCols.date && (
+                      <td className={`px-1.5 ${isCompact ? 'py-1' : 'py-1.5'}`}>
+                        <p className="text-black dark:text-white whitespace-nowrap text-[11px]">{row.renewal_date ? formatDate(row.renewal_date) : '-'}</p>
+                        {row.renewal_date && (
+                          <p className={`text-[10px] mt-0.5 whitespace-nowrap ${getDaysLeftColor(row.days_left)}`}>
+                            {row.days_left < 0 ? 'Expired' : row.days_left === 0 ? 'Due Today' : `${row.days_left}d left`}
+                          </p>
+                        )}
+                      </td>
+                    )}
+
+                    {/* Value */}
+                    {visibleCols.value && (
+                      <td className={`px-1.5 font-medium text-black dark:text-white whitespace-nowrap text-[11px] ${isCompact ? 'py-1' : 'py-1.5'}`}>
+                        {formatCurrency(row.value)}
+                      </td>
+                    )}
+
+                    {/* Status */}
+                    {visibleCols.status && (
+                      <td className={`px-2 text-center whitespace-nowrap ${isCompact ? 'py-1' : 'py-1.5'}`}>
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium border whitespace-nowrap ${getStatusColor(row.status)}`}>
+                          {row.status}
                         </span>
-                      )}
-                    </td>
-                    <td className={`px-3 py-1.5 text-center overflow-hidden ${getColWidth('invoice')}`}>
-                      {(isFinance || isAdmin) ? (
-                        <select
-                          value={row.invoice_status || 'Not'}
-                          onChange={(e) => handleInvoiceStatus(row.id, e.target.value)}
-                          className={`text-[10px] font-medium px-1 py-0.5 rounded-md border cursor-pointer outline-none transition-all w-full max-w-[64px] mx-auto block ${
+                      </td>
+                    )}
+
+                    {/* Timeline */}
+                    {visibleCols.timeline && (
+                      <td className={`px-2 text-center overflow-hidden ${isCompact ? 'py-1' : 'py-1.5'}`}>
+                        {row.status === '-' ? (
+                          <div className="text-center text-surface-400 dark:text-surface-600 font-medium">—</div>
+                        ) : row.stop_email ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleToggleStopEmail(row.id, row.stop_email); }}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 text-[9px] font-semibold cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
+                            title="Automated emails stopped for this client. Click to resume."
+                          >
+                            <MailX className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                            <span>Stopped</span>
+                          </button>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1 w-full flex-nowrap">
+                            <div className="flex justify-center gap-0.5 flex-nowrap">
+                              {['30','20','15','10','5','3'].map(day => {
+                                const sent = row[`day_${day}_sent`] === 'Yes';
+                                return (
+                                  <div 
+                                    key={day} 
+                                    title={`${day} Day Reminder: ${sent ? 'Sent' : 'Pending'}`}
+                                    className={`w-3 h-3 rounded-full flex items-center justify-center text-[7px] font-bold ${sent ? 'bg-green-500 text-white' : 'bg-surface-200 dark:bg-surface-700 text-surface-400'}`}
+                                  >
+                                    {sent && <MailCheck className="w-2 h-2" />}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {(isAdmin || isSales) && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleToggleStopEmail(row.id, row.stop_email); }}
+                                className="p-0.5 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded text-surface-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+                                title="Click to stop automated emails for this client"
+                              >
+                                <MailX className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    )}
+
+                    {/* Confirmation / Renewed */}
+                    {visibleCols.renewed && (
+                      <td className={`px-1.5 text-center overflow-hidden ${isCompact ? 'py-1' : 'py-1.5'}`}>
+                        {((isSales || isAdmin) && !(row.renewal_confirmation === 'renewed' && row.days_left !== null && row.days_left !== undefined && row.days_left > 30)) ? (
+                          <select
+                            value={row.renewal_confirmation || 'pending'}
+                            onChange={(e) => handleRenewalConfirmation(row.id, e.target.value)}
+                            className={`text-[10px] font-medium px-1 py-0.5 rounded-lg border cursor-pointer outline-none transition-all w-full truncate ${
+                              (row.renewal_confirmation === 'reminder_sent' || row.renewal_confirmation === 'awaiting_with_vendor') ? 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-900/20 dark:text-sky-400' :
+                              (row.renewal_confirmation === 'quote_sent' || row.renewal_confirmation === 'quotation_confirmation') ? 'bg-indigo-50 text-indigo-700 border-indigo-300 dark:bg-indigo-900/20 dark:text-indigo-400' :
+                              row.renewal_confirmation === 'awaiting_client_approval' ? 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900/20 dark:text-amber-400' :
+                              row.renewal_confirmation === 'renewed' ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/20 dark:text-emerald-400' :
+                              row.renewal_confirmation === 'lost' ? 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-900/20 dark:text-rose-400' :
+                              (row.renewal_confirmation === 'cancelled' || row.renewal_confirmation === 'service_discontinued') ? 'bg-red-50 text-red-700 border-red-300 dark:bg-red-900/20 dark:text-red-400' :
+                              'bg-surface-100 text-surface-500 border-surface-300 dark:bg-surface-700 dark:text-surface-200'
+                            }`}
+                          >
+                            <option value="pending" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Pending</option>
+                            <option value="reminder_sent" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Reminder Sent</option>
+                            <option value="quote_sent" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Quote Sent</option>
+                            <option value="awaiting_client_approval" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Awaiting Client Approval</option>
+                            <option value="renewed" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Renewed</option>
+                            <option value="lost" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Lost</option>
+                            <option value="cancelled" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Cancelled</option>
+                          </select>
+                        ) : (
+                          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium border inline-block truncate max-w-full ${getRenewalConfirmationBadge(row.renewal_confirmation).color}`}>
+                            {getRenewalConfirmationBadge(row.renewal_confirmation).label}
+                          </span>
+                        )}
+                      </td>
+                    )}
+
+                    {/* Invoice */}
+                    {visibleCols.invoice && (
+                      <td className={`px-1.5 text-center overflow-hidden ${isCompact ? 'py-1' : 'py-1.5'}`}>
+                        {(isSales || isAdmin) ? (
+                          <select
+                            value={row.invoice_status || 'Not'}
+                            onChange={(e) => handleInvoiceStatus(row.id, e.target.value)}
+                            className={`text-[10px] font-medium px-1 py-0.5 rounded-md border cursor-pointer outline-none transition-all w-full max-w-[64px] mx-auto block ${
+                              row.invoice_status === 'Sent'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/20 dark:text-emerald-400'
+                                : 'bg-surface-100 text-surface-500 border-surface-300 dark:bg-surface-700 dark:text-surface-200'
+                            }`}
+                          >
+                            <option value="Not" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Not</option>
+                            <option value="Sent" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Sent</option>
+                          </select>
+                        ) : (
+                          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-medium border w-full max-w-[64px] mx-auto block text-center truncate ${
                             row.invoice_status === 'Sent'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/20 dark:text-emerald-400'
-                              : 'bg-surface-100 text-surface-500 border-surface-300 dark:bg-surface-700 dark:text-surface-200'
-                          }`}
-                        >
-                          <option value="Not" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Not</option>
-                          <option value="Sent" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Sent</option>
-                        </select>
-                      ) : (
-                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-medium border w-full max-w-[64px] mx-auto block text-center truncate ${
-                          row.invoice_status === 'Sent'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
-                            : 'bg-surface-100 text-surface-500 border-surface-200 dark:bg-surface-700 dark:text-surface-300 dark:border-surface-600'
-                        }`}>
-                          {row.invoice_status === 'Sent' ? 'Sent' : 'Not'}
-                        </span>
-                      )}
-                    </td>
-                    <td className={`px-3 py-1.5 text-center overflow-hidden ${getColWidth('payment')}`}>
-                      {(isFinance || isAdmin) ? (
-                        <select
-                          value={row.payment_status || 'No'}
-                          onChange={(e) => handlePaymentStatus(row.id, e.target.value)}
-                          className={`text-[10px] font-medium px-1 py-0.5 rounded-md border cursor-pointer outline-none transition-all w-full max-w-[64px] mx-auto block ${
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
+                              : 'bg-surface-100 text-surface-500 border-surface-200 dark:bg-surface-700 dark:text-surface-300 dark:border-surface-600'
+                          }`}>
+                            {row.invoice_status === 'Sent' ? 'Sent' : 'Not'}
+                          </span>
+                        )}
+                      </td>
+                    )}
+
+                    {/* Payment */}
+                    {visibleCols.payment && (
+                      <td className={`px-1.5 text-center overflow-hidden ${isCompact ? 'py-1' : 'py-1.5'}`}>
+                        {(isSales || isAdmin) ? (
+                          <select
+                            value={row.payment_status || 'No'}
+                            onChange={(e) => handlePaymentStatus(row.id, e.target.value)}
+                            className={`text-[10px] font-medium px-1 py-0.5 rounded-md border cursor-pointer outline-none transition-all w-full max-w-[64px] mx-auto block ${
+                              row.payment_status === 'Yes'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/20 dark:text-emerald-400'
+                                : 'bg-surface-100 text-surface-500 border-surface-300 dark:bg-surface-700 dark:text-surface-200'
+                            }`}
+                          >
+                            <option value="No" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">No</option>
+                            <option value="Yes" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Yes</option>
+                          </select>
+                        ) : (
+                          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-medium border w-full max-w-[64px] mx-auto block text-center truncate ${
                             row.payment_status === 'Yes'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/20 dark:text-emerald-400'
-                              : 'bg-surface-100 text-surface-500 border-surface-300 dark:bg-surface-700 dark:text-surface-200'
-                          }`}
-                        >
-                          <option value="No" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">No</option>
-                          <option value="Yes" className="bg-white dark:bg-surface-800 text-zinc-900 dark:text-white">Yes</option>
-                        </select>
-                      ) : (
-                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-medium border w-full max-w-[64px] mx-auto block text-center truncate ${
-                          row.payment_status === 'Yes'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
-                            : 'bg-surface-100 text-surface-500 border-surface-200 dark:bg-surface-700 dark:text-surface-300 dark:border-surface-600'
-                        }`}>
-                          {row.payment_status === 'Yes' ? 'Yes' : 'No'}
-                        </span>
-                      )}
-                    </td>
-                    {!isFinance && (
-                      <td className={`px-3 py-1.5 text-center overflow-hidden ${getColWidth('actions')}`}>
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'
+                              : 'bg-surface-100 text-surface-500 border-surface-200 dark:bg-surface-700 dark:text-surface-300 dark:border-surface-600'
+                          }`}>
+                            {row.payment_status === 'Yes' ? 'Yes' : 'No'}
+                          </span>
+                        )}
+                      </td>
+                    )}
+                    {/* Actions */}
+                    {visibleCols.actions && (
+                      <td className={`px-1.5 py-1.5 text-center overflow-hidden ${isCompact ? 'py-1' : 'py-1.5'}`}>
                         <div className="flex items-center justify-center gap-1">
                           {isSales && (
                             <>
@@ -1431,8 +2228,9 @@ export default function RenewalsList() {
                       </td>
                     )}
                     
-                    {isAdmin && (
-                      <td className={`px-3 py-1.5 text-center overflow-hidden ${getColWidth('approvals')}`}>
+                    {/* Approvals */}
+                    {isAdmin && visibleCols.approvals && (
+                      <td className={`px-1.5 py-1.5 text-center overflow-hidden ${isCompact ? 'py-1' : 'py-1.5'}`}>
                         {row.edit_status === 'requested' && (
                           <button 
                             onClick={() => handleApproveEdit(row.id)}
@@ -1444,33 +2242,37 @@ export default function RenewalsList() {
                         )}
                       </td>
                     )}
-                    <td className={`px-3 py-1.5 text-right overflow-hidden ${getColWidth('bal')}`}>
-                      {row.invoice_status === 'Sent' && row.invoice_value !== null && row.invoice_value !== undefined ? (
-                        (() => {
-                          const valueVal = parseFloat(row.value) || 0;
-                          const paymentAmt = row.payment_status === 'Yes' ? (parseFloat(row.payment_amount) || 0) : 0;
-                          const balanceVal = valueVal - paymentAmt;
-                          const percentPaid = valueVal > 0 ? Math.round((paymentAmt / valueVal) * 100) : 0;
-                          return (
-                            <div className="flex flex-col items-end space-y-0.5 w-full ml-auto text-right leading-none">
-                              <div className="text-[10px] text-surface-500 dark:text-surface-400 whitespace-nowrap">
-                                Inv: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(row.invoice_value)}</span>
-                              </div>
-                              <div className="text-[10px] text-surface-500 dark:text-surface-400 whitespace-nowrap mt-0.5">
-                                Bal: <span className="font-semibold text-surface-700 dark:text-surface-200">{formatCurrency(balanceVal)}</span>
-                              </div>
-                              {valueVal > 0 && (
-                                <div className="text-[9px] text-surface-400 dark:text-surface-500 font-mono mt-0.5 whitespace-nowrap">
-                                  {percentPaid}% Paid
+
+                    {/* Invoice / Bal */}
+                    {visibleCols.bal && (
+                      <td className={`px-1.5 py-1.5 text-right overflow-hidden ${isCompact ? 'py-1' : 'py-1.5'}`}>
+                        {row.invoice_status === 'Sent' && row.invoice_value !== null && row.invoice_value !== undefined ? (
+                          (() => {
+                            const valueVal = parseFloat(row.value) || 0;
+                            const paymentAmt = row.payment_status === 'Yes' ? (parseFloat(row.payment_amount) || 0) : 0;
+                            const balanceVal = valueVal - paymentAmt;
+                            const percentPaid = valueVal > 0 ? Math.round((paymentAmt / valueVal) * 100) : 0;
+                            return (
+                              <div className="flex flex-col items-end space-y-0.5 w-full ml-auto text-right leading-none">
+                                <div className="text-[10px] text-surface-500 dark:text-surface-400 whitespace-nowrap">
+                                  Inv: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(row.invoice_value)}</span>
                                 </div>
-                              )}
-                            </div>
-                          );
-                        })()
-                      ) : (
-                        <span className="text-surface-400 dark:text-surface-600 block text-center">—</span>
-                      )}
-                    </td>
+                                <div className="text-[10px] text-surface-500 dark:text-surface-400 whitespace-nowrap mt-0.5">
+                                  Bal: <span className="font-semibold text-surface-700 dark:text-surface-200">{formatCurrency(balanceVal)}</span>
+                                </div>
+                                {valueVal > 0 && (
+                                  <div className="text-[9px] text-surface-400 dark:text-surface-500 font-mono mt-0.5 whitespace-nowrap">
+                                    {percentPaid}% Paid
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <span className="text-surface-400 dark:text-surface-600 block text-center">—</span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -1774,10 +2576,82 @@ export default function RenewalsList() {
               </button>
               <button 
                 type="button" 
-                onClick={confirmDeleteBatch}
+                onClick={handleExecuteBulkDelete}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
               >
                 Yes, Delete All Selected
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {showBulkStatusModal && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-surface-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-surface-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-surface-200 dark:border-surface-700 flex flex-col">
+            <div className="px-6 py-4 border-b border-surface-200 dark:border-surface-700 flex justify-between items-center bg-surface-50 dark:bg-surface-900/50">
+              <div>
+                <h2 className="text-lg font-bold text-surface-900 dark:text-white flex items-center gap-2">
+                  <Edit3 className="w-5 h-5 text-brand-600" /> Bulk Status Update
+                </h2>
+                <p className="text-xs text-surface-500 mt-0.5">Updating {selectedIds.length} selected renewal(s)</p>
+              </div>
+              <button onClick={() => setShowBulkStatusModal(false)} className="p-2 text-surface-400 hover:text-surface-600 rounded-full hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300 mb-1">Renewal Status</label>
+                <select 
+                  value={bulkStatusValue} 
+                  onChange={(e) => setBulkStatusValue(e.target.value)}
+                  className="input-field w-full py-2 text-xs bg-white dark:bg-surface-800 text-zinc-900 dark:text-white"
+                >
+                  <option value="">-- No Change --</option>
+                  <option value="Active">Active</option>
+                  <option value="Pending Renewal">Pending Renewal</option>
+                  <option value="Renewed">Renewed</option>
+                  <option value="Expired">Expired</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300 mb-1">Renewal Confirmation</label>
+                <select 
+                  value={bulkConfirmationValue} 
+                  onChange={(e) => setBulkConfirmationValue(e.target.value)}
+                  className="input-field w-full py-2 text-xs bg-white dark:bg-surface-800 text-zinc-900 dark:text-white"
+                >
+                  <option value="">-- No Change --</option>
+                  <option value="pending">Pending</option>
+                  <option value="reminder_sent">Reminder Sent</option>
+                  <option value="quote_sent">Quote Sent</option>
+                  <option value="awaiting_client_approval">Awaiting Client Approval</option>
+                  <option value="renewed">Renewed</option>
+                  <option value="lost">Lost</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900/50 flex justify-end gap-3">
+              <button 
+                type="button" 
+                onClick={() => setShowBulkStatusModal(false)} 
+                className="px-4 py-2 border border-surface-300 dark:border-surface-700 rounded-lg text-xs font-semibold text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                onClick={handleExecuteBulkStatus}
+                disabled={!bulkStatusValue && !bulkConfirmationValue}
+                className="btn-primary px-4 py-2 text-xs font-semibold disabled:opacity-50 cursor-pointer"
+              >
+                Apply Bulk Update
               </button>
             </div>
           </div>

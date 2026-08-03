@@ -16,7 +16,7 @@ async function seed() {
       const adminPassword = await bcrypt.hash('admin123', salt);
 
       const users = [
-        ['ranjithkumar.v@marslab.work', 'ranjithkumar.v@marslab.work', financePassword, 'Ranjith Kumar', 'finance', '#3b82f6'],
+        ['ranjithkumar.v@marslab.work', 'ranjithkumar.v@marslab.work', salesPassword, 'Ranjith Kumar', 'sales', '#3b82f6'],
         ['sakthivel.k@marslab.work', 'sakthivel.k@marslab.work', salesPassword, 'Sakthivel K', 'sales', '#10b981'],
         ['sameerulrahman.f@marslab.work', 'sameerulrahman.f@marslab.work', adminPassword, 'Sameerul Rahman', 'admin', '#f59e0b']
       ];
@@ -30,7 +30,7 @@ async function seed() {
 
       console.log('Users seeded successfully!');
       console.log('Login credentials:');
-      console.log('- Finance: ranjithkumar.v@marslab.work / finance123');
+      console.log('- Sales: ranjithkumar.v@marslab.work / sales123');
       console.log('- Sales: sakthivel.k@marslab.work / sales123');
       console.log('- Admin: sameerulrahman.f@marslab.work / admin123');
     } else {

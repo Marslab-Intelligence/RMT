@@ -554,14 +554,14 @@ export default function EmailAutomation() {
                       {/* Date Group Table Content */}
                       {!isCollapsed && (
                         <div className="overflow-x-auto">
-                          <table className="w-full text-left text-xs whitespace-nowrap">
+                          <table className="w-full text-left text-xs">
                             <thead className="bg-surface-50/30 dark:bg-surface-900/20 border-b border-surface-200/40 dark:border-surface-700/30 text-surface-500">
                               <tr>
-                                <th className="px-4 py-2.5 font-semibold uppercase tracking-wider">Time</th>
-                                <th className="px-4 py-2.5 font-semibold uppercase tracking-wider">Client Name & Service</th>
-                                <th className="px-4 py-2.5 font-semibold uppercase tracking-wider">Email Type</th>
-                                <th className="px-4 py-2.5 font-semibold uppercase tracking-wider">Recipient</th>
-                                <th className="px-4 py-2.5 font-semibold uppercase tracking-wider">Status</th>
+                                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider whitespace-nowrap">Time</th>
+                                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider">Client Name & Service</th>
+                                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider">Email Type</th>
+                                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider">Recipient</th>
+                                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-right pr-4">Status</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-surface-200/40 dark:divide-surface-700/30">
@@ -569,34 +569,34 @@ export default function EmailAutomation() {
                                 const badge = formatEmailTypeBadge(log.email_type);
                                 return (
                                   <tr key={log.id} className="hover:bg-surface-50/40 dark:hover:bg-surface-700/20 transition-colors">
-                                    <td className="px-4 py-3.5 text-surface-600 dark:text-surface-400 font-medium">
+                                    <td className="px-3 py-3 text-surface-600 dark:text-surface-400 font-medium whitespace-nowrap">
                                       {formatDateTime(log.sent_at)}
                                     </td>
-                                    <td className="px-4 py-3.5">
+                                    <td className="px-3 py-3 max-w-[160px] truncate">
                                       <div className="flex flex-col">
-                                        <span className="font-bold text-surface-950 dark:text-white flex items-center gap-1.5">
+                                        <span className="font-bold text-surface-950 dark:text-white flex items-center gap-1.5 truncate">
                                           {log.client_name}
                                           {!log.renewal_id && log.client_name !== 'System / Automation' && (
-                                            <span className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded font-medium border border-amber-500/30" title="Client deleted from renewals page, log preserved">
-                                              Deleted Client
+                                            <span className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded font-medium border border-amber-500/30 shrink-0" title="Client deleted from renewals page, log preserved">
+                                              Deleted
                                             </span>
                                           )}
                                         </span>
                                         {log.service && (
-                                          <span className="text-[10px] text-surface-500 dark:text-surface-400">{log.service}</span>
+                                          <span className="text-[10px] text-surface-500 dark:text-surface-400 truncate">{log.service}</span>
                                         )}
                                       </div>
                                     </td>
-                                    <td className="px-4 py-3.5">
+                                    <td className="px-3 py-3 whitespace-nowrap">
                                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.color}`}>
                                         {badge.label}
                                       </span>
                                     </td>
-                                    <td className="px-4 py-3.5 text-surface-700 dark:text-surface-300 font-medium max-w-xs truncate" title={log.recipient_email}>
+                                    <td className="px-3 py-3 text-surface-700 dark:text-surface-300 font-medium max-w-[200px] truncate" title={log.recipient_email}>
                                       {log.recipient_email}
                                     </td>
-                                    <td className="px-4 py-3.5">
-                                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                                    <td className="px-3 py-3 text-right pr-4 whitespace-nowrap">
+                                      <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border ${
                                         log.status === 'sent'
                                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800'
                                           : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800'
@@ -671,14 +671,14 @@ export default function EmailAutomation() {
                       {/* Month Table Content */}
                       {!isCollapsed && (
                         <div className="overflow-x-auto">
-                          <table className="w-full text-left text-xs whitespace-nowrap">
+                          <table className="w-full text-left text-xs">
                             <thead className="bg-surface-50/30 dark:bg-surface-900/20 border-b border-surface-200/40 dark:border-surface-700/30 text-surface-500">
                               <tr>
-                                <th className="px-4 py-2.5 font-semibold uppercase tracking-wider">Date & Time</th>
-                                <th className="px-4 py-2.5 font-semibold uppercase tracking-wider">Client Name & Service</th>
-                                <th className="px-4 py-2.5 font-semibold uppercase tracking-wider">Email Type</th>
-                                <th className="px-4 py-2.5 font-semibold uppercase tracking-wider">Recipient</th>
-                                <th className="px-4 py-2.5 font-semibold uppercase tracking-wider">Status</th>
+                                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider whitespace-nowrap">Date & Time</th>
+                                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider">Client Name & Service</th>
+                                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider">Email Type</th>
+                                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider">Recipient</th>
+                                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-right pr-4">Status</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-surface-200/40 dark:divide-surface-700/30">
@@ -686,34 +686,34 @@ export default function EmailAutomation() {
                                 const badge = formatEmailTypeBadge(log.email_type);
                                 return (
                                   <tr key={log.id} className="hover:bg-surface-50/40 dark:hover:bg-surface-700/20 transition-colors">
-                                    <td className="px-4 py-3.5 text-surface-600 dark:text-surface-400 font-medium">
+                                    <td className="px-3 py-3 text-surface-600 dark:text-surface-400 font-medium whitespace-nowrap">
                                       {formatDateTime(log.sent_at)}
                                     </td>
-                                    <td className="px-4 py-3.5">
+                                    <td className="px-3 py-3 max-w-[160px] truncate">
                                       <div className="flex flex-col">
-                                        <span className="font-bold text-surface-950 dark:text-white flex items-center gap-1.5">
+                                        <span className="font-bold text-surface-950 dark:text-white flex items-center gap-1.5 truncate">
                                           {log.client_name}
                                           {!log.renewal_id && log.client_name !== 'System / Automation' && (
-                                            <span className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded font-medium border border-amber-500/30" title="Client deleted from renewals page, log preserved">
-                                              Deleted Client
+                                            <span className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded font-medium border border-amber-500/30 shrink-0" title="Client deleted from renewals page, log preserved">
+                                              Deleted
                                             </span>
                                           )}
                                         </span>
                                         {log.service && (
-                                          <span className="text-[10px] text-surface-500 dark:text-surface-400">{log.service}</span>
+                                          <span className="text-[10px] text-surface-500 dark:text-surface-400 truncate">{log.service}</span>
                                         )}
                                       </div>
                                     </td>
-                                    <td className="px-4 py-3.5">
+                                    <td className="px-3 py-3 whitespace-nowrap">
                                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.color}`}>
                                         {badge.label}
                                       </span>
                                     </td>
-                                    <td className="px-4 py-3.5 text-surface-700 dark:text-surface-300 font-medium max-w-xs truncate" title={log.recipient_email}>
+                                    <td className="px-3 py-3 text-surface-700 dark:text-surface-300 font-medium max-w-[200px] truncate" title={log.recipient_email}>
                                       {log.recipient_email}
                                     </td>
-                                    <td className="px-4 py-3.5">
-                                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                                    <td className="px-3 py-3 text-right pr-4 whitespace-nowrap">
+                                      <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border ${
                                         log.status === 'sent'
                                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800'
                                           : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800'
@@ -739,14 +739,14 @@ export default function EmailAutomation() {
           {groupView === 'flat' && (
             <div className="card overflow-hidden bg-white/45 dark:bg-stone-900/25 border border-surface-200/50 dark:border-surface-700/30 backdrop-blur-xl rounded-2xl shadow-sm">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs whitespace-nowrap">
+                <table className="w-full text-left text-xs">
                   <thead className="bg-surface-50/50 dark:bg-surface-900/40 border-b border-surface-200 dark:border-surface-700">
                     <tr>
-                      <th className="px-4 py-3.5 font-semibold text-surface-500 uppercase tracking-wider">Date & Time</th>
-                      <th className="px-4 py-3.5 font-semibold text-surface-500 uppercase tracking-wider">Client Name & Service</th>
-                      <th className="px-4 py-3.5 font-semibold text-surface-500 uppercase tracking-wider">Email Type</th>
-                      <th className="px-4 py-3.5 font-semibold text-surface-500 uppercase tracking-wider">Recipient</th>
-                      <th className="px-4 py-3.5 font-semibold text-surface-500 uppercase tracking-wider">Status</th>
+                      <th className="px-3 py-3 font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Date & Time</th>
+                      <th className="px-3 py-3 font-semibold text-surface-500 uppercase tracking-wider">Client Name & Service</th>
+                      <th className="px-3 py-3 font-semibold text-surface-500 uppercase tracking-wider">Email Type</th>
+                      <th className="px-3 py-3 font-semibold text-surface-500 uppercase tracking-wider">Recipient</th>
+                      <th className="px-3 py-3 font-semibold text-surface-500 uppercase tracking-wider text-right pr-4">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-200/50 dark:divide-surface-700/40">
@@ -759,34 +759,34 @@ export default function EmailAutomation() {
                         const badge = formatEmailTypeBadge(log.email_type);
                         return (
                           <tr key={log.id} className="hover:bg-surface-50/40 dark:hover:bg-surface-700/20 transition-colors">
-                            <td className="px-4 py-4 text-surface-600 dark:text-surface-400 font-medium">
+                            <td className="px-3 py-3 text-surface-600 dark:text-surface-400 font-medium whitespace-nowrap">
                               {formatDateTime(log.sent_at)}
                             </td>
-                            <td className="px-4 py-4">
+                            <td className="px-3 py-3 max-w-[160px] truncate">
                               <div className="flex flex-col">
-                                <span className="font-bold text-surface-950 dark:text-white flex items-center gap-1.5">
+                                <span className="font-bold text-surface-950 dark:text-white flex items-center gap-1.5 truncate">
                                   {log.client_name}
                                   {!log.renewal_id && log.client_name !== 'System / Automation' && (
-                                    <span className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded font-medium border border-amber-500/30" title="Client deleted from renewals page, log preserved">
-                                      Deleted Client
+                                    <span className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded font-medium border border-amber-500/30 shrink-0" title="Client deleted from renewals page, log preserved">
+                                      Deleted
                                     </span>
                                   )}
                                 </span>
                                 {log.service && (
-                                  <span className="text-[10px] text-surface-500 dark:text-surface-400">{log.service}</span>
+                                  <span className="text-[10px] text-surface-500 dark:text-surface-400 truncate">{log.service}</span>
                                 )}
                               </div>
                             </td>
-                            <td className="px-4 py-4">
+                            <td className="px-3 py-3 whitespace-nowrap">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.color}`}>
                                 {badge.label}
                               </span>
                             </td>
-                            <td className="px-4 py-4 text-surface-700 dark:text-surface-300 font-medium max-w-xs truncate" title={log.recipient_email}>
+                            <td className="px-3 py-3 text-surface-700 dark:text-surface-300 font-medium max-w-[200px] truncate" title={log.recipient_email}>
                               {log.recipient_email}
                             </td>
-                            <td className="px-4 py-4">
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                            <td className="px-3 py-3 text-right pr-4 whitespace-nowrap">
+                              <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border ${
                                 log.status === 'sent'
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800'
                                   : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800'

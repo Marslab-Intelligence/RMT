@@ -26,7 +26,7 @@ export const initDb = async () => {
         email VARCHAR(255) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         full_name VARCHAR(255) NOT NULL,
-        role VARCHAR(50) NOT NULL CHECK(role IN ('finance', 'sales', 'admin')),
+        role VARCHAR(50) NOT NULL CHECK(role IN ('sales', 'admin')),
         avatar_color VARCHAR(50) DEFAULT '#6366f1',
         otp_code VARCHAR(6),
         otp_expires_at TIMESTAMP,
@@ -110,7 +110,7 @@ export const initDb = async () => {
         id SERIAL PRIMARY KEY,
         renewal_id INTEGER REFERENCES renewals(id) ON DELETE CASCADE,
         recipient_email VARCHAR(255) NOT NULL,
-        recipient_type VARCHAR(50) NOT NULL CHECK(recipient_type IN ('client', 'sales', 'admin', 'finance')),
+        recipient_type VARCHAR(50) NOT NULL CHECK(recipient_type IN ('client', 'sales', 'admin')),
         email_type VARCHAR(255) NOT NULL,
         subject VARCHAR(255) NOT NULL,
         status VARCHAR(50) DEFAULT 'sent' CHECK(status IN ('sent', 'failed', 'queued')),
@@ -214,7 +214,14 @@ export const initDb = async () => {
       ALTER TABLE renewals ADD COLUMN IF NOT EXISTS profit NUMERIC(15,2) DEFAULT 0;
       ALTER TABLE renewals ADD COLUMN IF NOT EXISTS vendor VARCHAR(255) DEFAULT '';
       ALTER TABLE renewals ADD COLUMN IF NOT EXISTS entity VARCHAR(255) DEFAULT '';
-      ALTER TABLE renewals ADD COLUMN IF NOT EXISTS quotation_number VARCHAR(255) DEFAULT '';
+      ALTER TABLE renewals ADD COLUMN IF NOT EXISTS invoice_type VARCHAR(50) DEFAULT 'Invoice';
+
+      ALTER TABLE renewals DROP CONSTRAINT IF EXISTS renewals_renewal_confirmation_check;
+      ALTER TABLE trash_renewals DROP CONSTRAINT IF EXISTS trash_renewals_renewal_confirmation_check;
+
+      UPDATE renewals SET renewal_confirmation = 'quote_sent' WHERE renewal_confirmation = 'quotation_confirmation';
+      UPDATE renewals SET renewal_confirmation = 'reminder_sent' WHERE renewal_confirmation = 'awaiting_with_vendor';
+      UPDATE renewals SET renewal_confirmation = 'cancelled' WHERE renewal_confirmation = 'service_discontinued';
 
       ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS invoice_status VARCHAR(20) DEFAULT 'Not';
       ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS plan_period VARCHAR(50) DEFAULT 'yearly_plan';
@@ -241,6 +248,7 @@ export const initDb = async () => {
       ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS vendor VARCHAR(255) DEFAULT '';
       ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS entity VARCHAR(255) DEFAULT '';
       ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS quotation_number VARCHAR(255) DEFAULT '';
+      ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS invoice_type VARCHAR(50) DEFAULT 'Invoice';
     `);
 
     // Create GPS tracking tables
@@ -315,6 +323,19 @@ export const initDb = async () => {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
     `);
 
+    // Migrate existing finance users and constraints
+    await pool.query(`
+      UPDATE users SET role = 'sales' WHERE role = 'finance';
+      ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+      ALTER TABLE users ADD CONSTRAINT users_role_check CHECK(role IN ('sales', 'admin'));
+
+      UPDATE email_logs SET recipient_type = 'sales' WHERE recipient_type = 'finance';
+      ALTER TABLE email_logs DROP CONSTRAINT IF EXISTS email_logs_recipient_type_check;
+      ALTER TABLE email_logs ADD CONSTRAINT email_logs_recipient_type_check CHECK(recipient_type IN ('client', 'sales', 'admin'));
+
+      UPDATE notifications SET role = 'sales' WHERE role = 'finance';
+    `);
+
     // Create automation settings & log tables
     await pool.query(`
       CREATE TABLE IF NOT EXISTS automation_settings (
@@ -332,13 +353,70 @@ export const initDb = async () => {
         performed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS product_pricing (
+        id SERIAL PRIMARY KEY,
+        vendor VARCHAR(255) NOT NULL,
+        product_name VARCHAR(255) NOT NULL,
+        service_category VARCHAR(255) DEFAULT 'Software & Services',
+        list_price NUMERIC(15,2) DEFAULT 0,
+        erp_price NUMERIC(15,2) DEFAULT 0,
+        sales_cost NUMERIC(15,2) DEFAULT 0,
+        coupon_discount_percent NUMERIC(5,2) DEFAULT 0,
+        description TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       INSERT INTO automation_settings (key, value)
       VALUES ('email_automation', 'start')
       ON CONFLICT (key) DO NOTHING;
     `);
 
+    // Seed product pricing catalog directly from client renewal records if empty or sync missing entries
+    await pool.query(`
+      INSERT INTO product_pricing (vendor, product_name, service_category, list_price, erp_price, sales_cost, coupon_discount_percent, description)
+      SELECT 
+        r.vendor,
+        r.product AS product_name,
+        COALESCE(NULLIF(r.service, ''), 'Software & Services') AS service_category,
+        ROUND(COALESCE(NULLIF(AVG(r.sales_cost), 0), NULLIF(AVG(r.value), 0), 1000) * 1.15, 2) AS list_price,
+        0.00 AS erp_price,
+        ROUND(COALESCE(NULLIF(AVG(r.purchase_cost), 0), NULLIF(AVG(r.sales_cost), 0), 0), 2) AS sales_cost,
+        10.00 AS coupon_discount_percent,
+        CONCAT('Synced from client renewals (Service Plan: ', COALESCE(r.service, 'General'), ')') AS description
+      FROM renewals r
+      WHERE r.vendor IS NOT NULL AND r.vendor != '' AND r.product IS NOT NULL AND r.product != ''
+        AND NOT EXISTS (
+          SELECT 1 FROM product_pricing p 
+          WHERE LOWER(p.vendor) = LOWER(r.vendor) AND LOWER(p.product_name) = LOWER(r.product)
+        )
+      GROUP BY r.vendor, r.product, r.service;
+
+      UPDATE product_pricing
+      SET erp_price = 0.00;
+
+      UPDATE product_pricing p
+      SET sales_cost = sub.avg_cost
+      FROM (
+        SELECT 
+          LOWER(r.vendor) AS vendor_clean, 
+          LOWER(r.product) AS product_clean, 
+          ROUND(COALESCE(NULLIF(AVG(r.purchase_cost), 0), NULLIF(AVG(r.sales_cost), 0), 0), 2) AS avg_cost
+        FROM renewals r
+        WHERE r.vendor IS NOT NULL AND r.vendor != '' 
+          AND r.product IS NOT NULL AND r.product != '' 
+          AND (r.purchase_cost > 0 OR r.sales_cost > 0)
+        GROUP BY LOWER(r.vendor), LOWER(r.product)
+      ) sub
+      WHERE LOWER(p.vendor) = sub.vendor_clean 
+        AND LOWER(p.product_name) = sub.product_clean
+        AND (p.sales_cost IS NULL OR p.sales_cost = 0);
+    `);
+    console.log('✅ Product Pricing Catalog synced with default ERP price = 0.00.');
+
     // Synchronize PostgreSQL ID sequences to prevent duplicate key constraint violations
     await pool.query(`
+      SELECT setval(pg_get_serial_sequence('product_pricing', 'id'), COALESCE((SELECT MAX(id) FROM product_pricing), 0) + 1, false);
       SELECT setval(pg_get_serial_sequence('automation_logs', 'id'), COALESCE((SELECT MAX(id) FROM automation_logs), 0) + 1, false);
       SELECT setval(pg_get_serial_sequence('notifications', 'id'), COALESCE((SELECT MAX(id) FROM notifications), 0) + 1, false);
       SELECT setval(pg_get_serial_sequence('email_logs', 'id'), COALESCE((SELECT MAX(id) FROM email_logs), 0) + 1, false);

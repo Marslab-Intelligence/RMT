@@ -90,10 +90,10 @@ async function processRenewals() {
         if (renewal.status !== 'Expired') {
           await db.query(`UPDATE renewals SET status = 'Expired', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [renewal.id]);
           
-          // Notification to Finance
+          // Notification to Admin/Sales
           await db.query(`
             INSERT INTO notifications (role, title, message, type)
-            VALUES ('finance', 'Renewal Expired', $1, 'error')
+            VALUES ('sales', 'Renewal Expired', $1, 'error')
           `, [`${renewal.client_name}'s ${renewal.service} renewal has expired.`]);
 
           // Notification to Sales (CST team)
@@ -165,7 +165,10 @@ async function processRenewals() {
       ) || null;
 
       if (currentTier) {
-        const template = clientReminderEmail(emailData);
+        if (renewal.stop_email) {
+          console.log(`   🚫 Email stopped for client: ${renewal.client_name} (${renewal.service}). Skipping reminder.`);
+        } else {
+          const template = clientReminderEmail(emailData);
 
         // Send to Client Email from renewals@sidcorptech.net with All Sales/CST Team CC'd
         const clientResult = await sendEmail({
@@ -205,11 +208,10 @@ async function processRenewals() {
         // Create notification
         await db.query(`
           INSERT INTO notifications (role, title, message, type)
-          VALUES ('finance', 'Email Sent', $1, 'info')
+          VALUES ('sales', 'Email Sent', $1, 'info')
         `, [`${currentTier.days}-day reminder sent for ${renewal.client_name} (${renewal.service}).`]);
 
         const cliqMsg = `📧 *Client Reminder Sent* (${currentTier.days} Days Remaining)\n*Client ID:* ${renewal.unique_id}\n*Client:* ${renewal.client_name}\n*Service:* ${renewal.service}\n*Renewal Date:* ${formatDate(renewal.renewal_date)}\n*Email Sent To:* ${renewal.client_email}\n*CC:* ${salesEmails}`;
-        await sendCliqNotification(cliqMsg, false);
         await sendCliqNotification(cliqMsg, true);
 
         try {
@@ -223,6 +225,7 @@ async function processRenewals() {
         }
 
         console.log(`   ✅ ${currentTier.days}-day reminder complete for ${renewal.client_name}`);
+        }
       }
 
       // ==========================================

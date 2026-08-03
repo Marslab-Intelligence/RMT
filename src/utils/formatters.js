@@ -6,6 +6,27 @@ export const formatCurrency = (value) => {
   }).format(value);
 };
 
+export const formatCompactCurrency = (value) => {
+  if (value === null || value === undefined || isNaN(value)) return '₹0';
+  const val = Number(value);
+  if (val === 0) return '₹0';
+  const absVal = Math.abs(val);
+  const sign = val < 0 ? '-' : '';
+
+  if (absVal >= 10000000) {
+    return `${sign}₹${(absVal / 10000000).toFixed(1).replace(/\.0$/, '')}Cr`;
+  }
+  if (absVal >= 100000) {
+    return `${sign}₹${(absVal / 100000).toFixed(1).replace(/\.0$/, '')}L`;
+  }
+  if (absVal >= 1000) {
+    return `${sign}₹${(absVal / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+  }
+  return `${sign}₹${absVal}`;
+};
+
+export const formatINR = formatCurrency;
+
 export const formatDate = (dateString) => {
   if (!dateString) return '';
   const date = new Date(dateString);

@@ -60,7 +60,7 @@ export default function Settings() {
           <button className="w-full flex items-center gap-3 px-4 py-3 bg-brand-50 text-brand-700 dark:bg-brand-900/20 dark:text-brand-400 rounded-lg font-medium text-sm transition-colors text-left">
             <User className="w-5 h-5" /> Profile & Security
           </button>
-          {user?.role === 'finance' && (
+          {user?.role === 'admin' && (
             <button className="w-full flex items-center gap-3 px-4 py-3 text-surface-600 hover:bg-surface-50 dark:text-surface-400 dark:hover:bg-surface-800 rounded-lg font-medium text-sm transition-colors text-left">
               <SettingsIcon className="w-5 h-5" /> System Config
             </button>
@@ -114,7 +114,7 @@ export default function Settings() {
           </div>
 
           {/* Admin System Tools */}
-          {user?.role === 'finance' && (
+          {user?.role === 'admin' && (
             <div className="card p-6 border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-900/10">
               <h2 className="text-lg font-bold text-surface-900 dark:text-white mb-2 flex items-center gap-2">
                 <SettingsIcon className="w-5 h-5 text-red-500" /> System Utilities

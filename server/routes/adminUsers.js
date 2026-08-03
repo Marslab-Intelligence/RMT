@@ -11,7 +11,7 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
-const VALID_ROLES = ['admin', 'finance', 'sales'];
+const VALID_ROLES = ['admin', 'sales'];
 const AVATAR_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6'];
 
 // GET /api/admin/users
@@ -35,7 +35,7 @@ router.post('/', authenticateToken, adminOnly, async (req, res) => {
     return res.status(400).json({ error: 'Email, full name, and role are required.' });
   }
   if (!VALID_ROLES.includes(role)) {
-    return res.status(400).json({ error: 'Invalid role. Must be admin, finance, or sales.' });
+    return res.status(400).json({ error: 'Invalid role. Must be admin or sales.' });
   }
 
   try {

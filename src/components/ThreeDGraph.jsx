@@ -1,13 +1,36 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import * as THREE from 'three';
 import { formatCurrency } from '../utils/formatters';
 
-export default function ThreeDGraph({ profit, loss }) {
+export const background = '#3b6978';
+export const background2 = '#204051';
+export const accentColor = '#edffea';
+export const accentColorDark = '#75daad';
+
+export default function ThreeDGraph({ profit = 0, loss = 0, monthlyData = [] }) {
+  const containerRef = useRef(null);
   const mountRef = useRef(null);
   const [webglError, setWebglError] = useState(false);
+  const [hoverPos, setHoverPos] = useState(null);
+  const [containerDimensions, setContainerDimensions] = useState({ width: 800, height: 350 });
 
+  // Update container dimensions on resize
   useEffect(() => {
-    // 1. WebGL Support check
+    const updateSize = () => {
+      if (containerRef.current) {
+        setContainerDimensions({
+          width: containerRef.current.clientWidth || 800,
+          height: containerRef.current.clientHeight || 350,
+        });
+      }
+    };
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
+
+  // 1. Setup Three.js WebGL Scene (Grid Floor & Ambient Environment Only - No Cylinders)
+  useEffect(() => {
     let renderer;
     try {
       const canvas = document.createElement('canvas');
@@ -23,120 +46,70 @@ export default function ThreeDGraph({ profit, loss }) {
 
     if (!mountRef.current) return;
 
-    // 2. Setup Scene, Camera, and Renderer
     const container = mountRef.current;
-    const width = container.clientWidth || 300;
-    const height = container.clientHeight || 300;
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 350;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x0f172a, 0.015);
+    scene.fog = new THREE.FogExp2(0x204051, 0.015);
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, 5, 12);
-    camera.lookAt(0, 1.5, 0);
+    camera.position.set(0, 4.5, 11);
+    camera.lookAt(0, 1.2, 0);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFShadowMap;
     container.appendChild(renderer.domElement);
 
-    // 3. Add Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(5, 10, 7);
-    dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 1024;
-    dirLight.shadow.mapSize.height = 1024;
+    const dirLight = new THREE.DirectionalLight(0xedffea, 1.2);
+    dirLight.position.set(6, 12, 8);
     scene.add(dirLight);
 
-    const pointLight = new THREE.PointLight(0x8b5cf6, 1, 10);
-    pointLight.position.set(0, 4, 2);
-    scene.add(pointLight);
+    const cyanPointLight = new THREE.PointLight(0x75daad, 1.5, 12);
+    cyanPointLight.position.set(0, 4, 3);
+    scene.add(cyanPointLight);
 
-    // 4. Compute Heights scale
-    const maxVal = Math.max(profit, loss, 1);
-    const profitHeight = (profit / maxVal) * 4;
-    const lossHeight = (loss / maxVal) * 4;
-
-    // Create Group to hold components for auto-rotation
     const graphGroup = new THREE.Group();
     scene.add(graphGroup);
 
-    // 5. Add Grid / Base Floor
-    const gridHelper = new THREE.GridHelper(10, 10, 0x8b5cf6, 0x334155);
+    // Grid Floor with Custom Accent Color
+    const gridHelper = new THREE.GridHelper(14, 18, 0x75daad, 0x3b6978);
     gridHelper.position.y = 0;
-    scene.add(gridHelper);
+    graphGroup.add(gridHelper);
 
-    // 6. Create Profit Cylinder (Emerald Green)
-    const profitGeometry = new THREE.CylinderGeometry(0.6, 0.6, Math.max(profitHeight, 0.1), 32);
-    const profitMaterial = new THREE.MeshStandardMaterial({
-      color: 0x10b981,
-      roughness: 0.2,
-      metalness: 0.8,
-      transparent: true,
-      opacity: 0.9,
-    });
-    const profitMesh = new THREE.Mesh(profitGeometry, profitMaterial);
-    profitMesh.position.set(-1.8, Math.max(profitHeight, 0.1) / 2, 0);
-    profitMesh.castShadow = true;
-    profitMesh.receiveShadow = true;
-    graphGroup.add(profitMesh);
-
-    // Create Loss Cylinder (Rose Red)
-    const lossGeometry = new THREE.CylinderGeometry(0.6, 0.6, Math.max(lossHeight, 0.1), 32);
-    const lossMaterial = new THREE.MeshStandardMaterial({
-      color: 0xef4444,
-      roughness: 0.2,
-      metalness: 0.8,
-      transparent: true,
-      opacity: 0.9,
-    });
-    const lossMesh = new THREE.Mesh(lossGeometry, lossMaterial);
-    lossMesh.position.set(1.8, Math.max(lossHeight, 0.1) / 2, 0);
-    lossMesh.castShadow = true;
-    lossMesh.receiveShadow = true;
-    graphGroup.add(lossMesh);
-
-    // 7. Interactive animation loop
+    // Animation Loop (Smooth Grid Spin)
     let animationFrameId;
     let targetRotationY = 0;
     let currentRotationY = 0;
 
-    const handleMouseMove = (event) => {
+    const handleMouseMove3D = (event) => {
       const rect = container.getBoundingClientRect();
       const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      targetRotationY = x * 0.5;
+      targetRotationY = x * 0.3;
     };
 
-    container.addEventListener('mousemove', handleMouseMove);
+    container.addEventListener('mousemove', handleMouseMove3D);
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
 
-      // Smooth rotation towards target or passive auto-rotation
       if (Math.abs(targetRotationY) > 0.01) {
         currentRotationY += (targetRotationY - currentRotationY) * 0.05;
       } else {
-        currentRotationY += 0.005; // Passive spin
+        currentRotationY += 0.002;
       }
 
       graphGroup.rotation.y = currentRotationY;
-
-      // Small bounce / pulse animation
-      const elapsed = Date.now() * 0.001;
-      profitMesh.position.y = (Math.max(profitHeight, 0.1) / 2) + Math.sin(elapsed * 2) * 0.05;
-      lossMesh.position.y = (Math.max(lossHeight, 0.1) / 2) + Math.cos(elapsed * 2) * 0.05;
-
       renderer.render(scene, camera);
     };
 
     animate();
 
-    // 8. Handle Resizing
     const handleResize = () => {
       if (!container || !renderer) return;
       const w = container.clientWidth;
@@ -148,91 +121,202 @@ export default function ThreeDGraph({ profit, loss }) {
 
     window.addEventListener('resize', handleResize);
 
-    // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
-      if (container && handleMouseMove) {
-        container.removeEventListener('mousemove', handleMouseMove);
-      }
+      container.removeEventListener('mousemove', handleMouseMove3D);
       cancelAnimationFrame(animationFrameId);
 
-      // Dispose resources
-      profitGeometry.dispose();
-      profitMaterial.dispose();
-      lossGeometry.dispose();
-      lossMaterial.dispose();
       gridHelper.geometry.dispose();
-      if (Array.isArray(gridHelper.material)) {
-        gridHelper.material.forEach(m => m.dispose());
-      } else {
-        gridHelper.material.dispose();
-      }
+      if (Array.isArray(gridHelper.material)) gridHelper.material.forEach(m => m.dispose());
+      else gridHelper.material?.dispose();
 
       if (renderer && renderer.domElement) {
-        try {
-          container.removeChild(renderer.domElement);
-        } catch (e) {}
+        try { container.removeChild(renderer.domElement); } catch (e) {}
         renderer.dispose();
       }
     };
   }, [profit, loss]);
 
-  if (webglError) {
-    // Elegant fallback 2D UI when WebGL fails
-    const maxVal = Math.max(profit, loss, 1);
-    const profitPct = Math.min(100, Math.max(5, (profit / maxVal) * 100));
-    const lossPct = Math.min(100, Math.max(5, (loss / maxVal) * 100));
+  // Handle Mouse Hover Scanning for Interactive Crosshair
+  const handleMouseMove = useCallback((e) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setHoverPos({ x, y });
+  }, []);
 
-    return (
-      <div className="flex flex-col justify-center items-center h-full w-full bg-surface-50 dark:bg-surface-900/10 rounded-xl p-8 border border-surface-200 dark:border-surface-800">
-        <div className="flex justify-around items-end w-full max-w-sm h-48 border-b-2 border-surface-300 dark:border-surface-700 pb-2">
-          {/* Profit Bar */}
-          <div className="flex flex-col items-center w-1/3 group">
-            <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              {formatCurrency(profit)}
-            </div>
-            <div 
-              style={{ height: `${profitPct}%` }} 
-              className="w-full bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-lg transition-all duration-500 shadow-lg shadow-emerald-500/10"
-            />
-            <span className="text-xs mt-2 font-semibold text-surface-600 dark:text-surface-400">Profit</span>
-          </div>
+  const handleMouseLeave = useCallback(() => {
+    setHoverPos(null);
+  }, []);
 
-          {/* Loss Bar */}
-          <div className="flex flex-col items-center w-1/3 group">
-            <div className="text-xs font-bold text-rose-600 dark:text-rose-400 mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              {formatCurrency(loss)}
-            </div>
-            <div 
-              style={{ height: `${lossPct}%` }} 
-              className="w-full bg-gradient-to-t from-rose-600 to-rose-400 rounded-t-lg transition-all duration-500 shadow-lg shadow-rose-500/10"
-            />
-            <span className="text-xs mt-2 font-semibold text-surface-600 dark:text-surface-400">Loss</span>
-          </div>
-        </div>
-        <div className="mt-4 text-[10px] text-surface-400 dark:text-surface-500">
-          Showing 2D comparison fallback (WebGL disabled/unsupported)
-        </div>
-      </div>
-    );
-  }
+  // Compute smooth SVG curve path points
+  const points = useMemo(() => {
+    const data = (monthlyData && monthlyData.length > 0)
+      ? monthlyData
+      : [
+          { month: 'M1', val: profit * 0.2 },
+          { month: 'M2', val: profit * 0.45 },
+          { month: 'M3', val: profit * 0.6 },
+          { month: 'M4', val: profit * 0.8 },
+          { month: 'M5', val: profit }
+        ];
+
+    const maxV = Math.max(...data.map(d => d.val || d.revenue || 1), profit, 1);
+    const width = containerDimensions.width;
+    const height = containerDimensions.height;
+    const margin = { top: 50, right: 50, bottom: 50, left: 50 };
+    const innerW = width - margin.left - margin.right;
+    const innerH = height - margin.top - margin.bottom;
+
+    return data.map((d, i) => {
+      const v = d.val || d.revenue || 0;
+      const x = margin.left + (i / Math.max(1, data.length - 1)) * innerW;
+      const y = margin.top + innerH - (v / maxV) * innerH;
+      return { x, y, val: v, label: d.month };
+    });
+  }, [monthlyData, profit, containerDimensions]);
+
+  // SVG Smooth Path Command
+  const svgPathD = useMemo(() => {
+    if (points.length < 2) return '';
+    let d = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const curr = points[i];
+      const next = points[i + 1];
+      const cpX = (curr.x + next.x) / 2;
+      d += ` C ${cpX} ${curr.y}, ${cpX} ${next.y}, ${next.x} ${next.y}`;
+    }
+    return d;
+  }, [points]);
+
+  const svgAreaD = useMemo(() => {
+    if (points.length < 2 || !svgPathD) return '';
+    const last = points[points.length - 1];
+    const first = points[0];
+    const bottomY = containerDimensions.height - 50;
+    return `${svgPathD} L ${last.x} ${bottomY} L ${first.x} ${bottomY} Z`;
+  }, [svgPathD, points, containerDimensions.height]);
 
   return (
-    <div className="relative w-full h-full flex justify-center items-center">
-      <div ref={mountRef} className="w-full h-full min-h-[250px]" />
-      {/* Floating HUD overlay legends */}
-      <div className="absolute bottom-4 left-4 flex flex-col gap-1.5 bg-surface-900/80 dark:bg-surface-950/80 backdrop-blur-md px-3 py-2.5 rounded-lg border border-surface-800 text-[10px] text-white">
+    <div 
+      ref={containerRef}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className="relative w-full h-full min-h-[360px] overflow-hidden rounded-2xl border border-white/20 shadow-2xl transition-all duration-300"
+      style={{
+        background: `linear-gradient(135deg, ${background} 0%, ${background2} 100%)`,
+      }}
+    >
+      {/* 2D Visx-Style SVG Area & Grid Overlay */}
+      <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
+        <defs>
+          <linearGradient id="area-background-gradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={background} stopOpacity={0.8} />
+            <stop offset="100%" stopColor={background2} stopOpacity={0.95} />
+          </linearGradient>
+          <linearGradient id="area-gradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={accentColor} stopOpacity={0.4} />
+            <stop offset="100%" stopColor={accentColorDark} stopOpacity={0.05} />
+          </linearGradient>
+        </defs>
+
+        {/* Grid Lines */}
+        {[0.2, 0.4, 0.6, 0.8].map((ratio, i) => (
+          <line
+            key={`grid-row-${i}`}
+            x1="50"
+            y1={containerDimensions.height * ratio}
+            x2={containerDimensions.width - 50}
+            y2={containerDimensions.height * ratio}
+            stroke={accentColor}
+            strokeOpacity="0.15"
+            strokeDasharray="3 3"
+          />
+        ))}
+        {[0.2, 0.4, 0.6, 0.8].map((ratio, i) => (
+          <line
+            key={`grid-col-${i}`}
+            x1={containerDimensions.width * ratio}
+            y1="50"
+            x2={containerDimensions.width * ratio}
+            y2={containerDimensions.height - 50}
+            stroke={accentColor}
+            strokeOpacity="0.15"
+            strokeDasharray="3 3"
+          />
+        ))}
+
+        {/* Smooth Area Closed */}
+        {svgAreaD && (
+          <path d={svgAreaD} fill="url(#area-gradient)" />
+        )}
+
+        {/* Monotone Line Curve */}
+        {svgPathD && (
+          <path 
+            d={svgPathD} 
+            fill="none" 
+            stroke={accentColor} 
+            strokeWidth="2.5" 
+            strokeLinecap="round"
+          />
+        )}
+
+        {/* Interactive Hover Crosshair Cursor */}
+        {hoverPos && (
+          <g>
+            {/* Vertical Scanning Line */}
+            <line
+              x1={hoverPos.x}
+              y1="25"
+              x2={hoverPos.x}
+              y2={containerDimensions.height - 25}
+              stroke={accentColorDark}
+              strokeWidth="1.5"
+              strokeDasharray="4 3"
+            />
+            {/* Active Circle Node */}
+            <circle
+              cx={hoverPos.x}
+              cy={hoverPos.y}
+              r="6"
+              fill={accentColorDark}
+              stroke="#ffffff"
+              strokeWidth="2.5"
+              className="animate-pulse"
+            />
+          </g>
+        )}
+      </svg>
+
+      {/* WebGL Grid Canvas Container */}
+      <div ref={mountRef} className="absolute inset-0 w-full h-full z-0 opacity-40 pointer-events-none" />
+
+      {/* Floating HUD Tooltip Legend (Top Right) */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-3 bg-[#204051]/80 backdrop-blur-md px-4 py-2 rounded-xl border border-white/20 shadow-lg">
         <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-          <span className="font-semibold text-white">Total Profit:</span>
-          <span className="font-mono text-emerald-400">{formatCurrency(profit)}</span>
+          <div className="w-3 h-3 rounded-full bg-[#75daad] animate-pulse" />
+          <span className="text-xs font-bold text-[#edffea]">Profit:</span>
+          <span className="text-xs font-mono font-black text-white">{formatCurrency(profit)}</span>
         </div>
+        <div className="w-[1px] h-4 bg-white/20" />
         <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-          <span className="font-semibold text-white">Total Loss:</span>
-          <span className="font-mono text-rose-400">{formatCurrency(loss)}</span>
+          <div className="w-3 h-3 rounded-full bg-[#f43f5e]" />
+          <span className="text-xs font-bold text-[#edffea]">Loss (Expired):</span>
+          <span className="text-xs font-mono font-black text-rose-300">{formatCurrency(loss)}</span>
         </div>
       </div>
+
+      {/* Floating Interactive Mouse Tooltip (Visx Style) */}
+      {hoverPos && (
+        <div 
+          className="pointer-events-none absolute z-30 transform -translate-x-1/2 -translate-y-full mb-3 bg-[#204051] border border-white/40 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-xl backdrop-blur-md"
+          style={{ top: hoverPos.y - 10, left: hoverPos.x }}
+        >
+          <span className="text-[#edffea] font-mono">{formatCurrency(profit)}</span>
+        </div>
+      )}
     </div>
   );
 }

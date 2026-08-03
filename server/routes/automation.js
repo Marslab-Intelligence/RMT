@@ -64,7 +64,7 @@ router.post('/toggle', authenticateToken, requireRole('admin'), async (req, res)
     try {
       const { rows: recipients } = await db.query(`
         SELECT email FROM users 
-        WHERE role IN ('finance', 'sales') 
+        WHERE role = 'sales' 
           AND email IS NOT NULL 
           AND email != ''
       `);

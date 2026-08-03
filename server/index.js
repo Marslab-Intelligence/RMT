@@ -53,6 +53,7 @@ import webhookRoutes from './routes/webhooks.js';
 import visitRoutes from './routes/visits.js';
 import adminUsersRoutes from './routes/adminUsers.js';
 import automationRoutes from './routes/automation.js';
+import pricingRoutes from './routes/pricing.js';
 import { startScheduler } from './services/scheduler.js';
 
 dotenv.config();
@@ -71,11 +72,11 @@ try {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", 'https://unpkg.com'], // Required for Vite SPA bundles & Leaflet
+        scriptSrc: ["'self'", "'unsafe-inline'", 'https://unpkg.com', 'https://static.cloudflareinsights.com'], // Required for Vite SPA bundles, Leaflet & Cloudflare Insights
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://unpkg.com'],
         fontSrc: ["'self'", 'https://fonts.gstatic.com'],
         imgSrc: ["'self'", 'data:', 'blob:', 'https://*.tile.openstreetmap.org', 'https://tile.openstreetmap.org', 'https://unpkg.com'],
-        connectSrc: ["'self'"],
+        connectSrc: ["'self'", 'https://cloudflareinsights.com', 'https://static.cloudflareinsights.com'],
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],
         upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
@@ -186,6 +187,7 @@ app.use('/api/visits', visitRoutes);
 app.use('/api/admin/users', adminUsersRoutes);
 app.use('/api/automation', automationRoutes);
 app.use('/api/tiles', tilesRoutes);
+app.use('/api/pricing', pricingRoutes);
 
 // Client-side error telemetry — sanitized to prevent log injection
 app.post('/api/log-error', express.json({ limit: '10kb' }), (req, res) => {
@@ -220,12 +222,19 @@ if (fs.existsSync(distPath)) {
       // Prevent HTML files from being cached (so deploys are always fresh)
       if (filePath.endsWith('.html')) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      } else if (filePath.includes('/assets/')) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       }
     },
   }));
   // Catch-all 404 handler for unmatched API endpoints to prevent returning index.html HTML
   app.use('/api/*', (req, res) => {
     res.status(404).json({ error: `API route not found: ${req.originalUrl}` });
+  });
+
+  // Explicitly return 404 for missing static assets instead of serving index.html HTML
+  app.use(['/assets/*', '/*.js', '/*.css', '/*.map', '/*.json', '/*.png', '/*.jpg', '/*.svg', '/*.ico', '/*.woff2'], (req, res) => {
+    res.status(404).type('text/plain').send('Asset not found');
   });
 
   app.get('*', (req, res) => {

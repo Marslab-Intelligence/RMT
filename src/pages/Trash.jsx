@@ -228,7 +228,7 @@ export default function Trash() {
             </div>
             <h3 className="text-lg font-semibold text-surface-900 dark:text-white mb-1">Trash is empty</h3>
             <p className="text-sm text-surface-500 dark:text-surface-400 max-w-sm">
-              Any records deleted by admin or finance team members will appear here.
+              Any records deleted by admin or sales team members will appear here.
             </p>
           </div>
         ) : (

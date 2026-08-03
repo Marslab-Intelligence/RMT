@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   ArrowLeft, CalendarClock, User, Mail, DollarSign, Tag, Clock, 
-  FileCheck, AlertCircle, Copy, Check, FileText, Phone, Edit3
+  FileCheck, AlertCircle, Copy, Check, FileText, Phone, Edit3, MailX, MailCheck
 } from 'lucide-react';
 import { formatCurrency, formatDate, getStatusColor, getDaysLeftColor } from '../utils/formatters';
 import toast from 'react-hot-toast';
@@ -67,6 +67,28 @@ export default function ClientDetails() {
     toast.success('Email copied to clipboard');
   };
 
+  const handleToggleStopEmail = async () => {
+    if (!client) return;
+    try {
+      const nextState = !client.stop_email;
+      const res = await fetch(`/api/renewals/${client.id}/stop-email`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ stop_email: nextState })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update email setting.');
+      
+      toast.success(data.message || `Email reminders ${nextState ? 'stopped' : 'resumed'}.`);
+      setClient(prev => ({ ...prev, stop_email: nextState }));
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -75,13 +97,21 @@ export default function ClientDetails() {
     );
   }
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/renewals');
+    }
+  };
+
   if (!client) {
     return (
       <div className="text-center py-12 card max-w-lg mx-auto mt-8">
         <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
         <h2 className="text-lg font-bold text-surface-900 dark:text-white mb-2">Client Not Found</h2>
         <p className="text-surface-500 dark:text-surface-400 mb-6">The requested renewal record could not be loaded.</p>
-        <button onClick={() => navigate('/renewals')} className="btn-primary inline-flex items-center gap-2">
+        <button onClick={handleBack} className="btn-primary inline-flex items-center gap-2">
           <ArrowLeft className="w-4 h-4" /> Back to Renewals
         </button>
       </div>
@@ -93,7 +123,7 @@ export default function ClientDetails() {
       {/* Header / Navigation */}
       <div className="flex items-center justify-between">
         <button 
-          onClick={() => navigate('/renewals')} 
+          onClick={handleBack} 
           className="btn-secondary flex items-center gap-2 py-1.5 px-3 text-xs"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Renewals
@@ -135,9 +165,21 @@ export default function ClientDetails() {
             </span>
             {client.invoice_number && (
               <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                Invoice No: #{client.invoice_number}
+                {client.invoice_type === 'Sales Order' ? 'Sales Order' : 'Invoice'} No: #{client.invoice_number}
               </span>
             )}
+            <button
+              onClick={handleToggleStopEmail}
+              className={`px-3 py-1 rounded-full text-xs font-semibold border flex items-center gap-1.5 transition-colors cursor-pointer ${
+                client.stop_email 
+                  ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700 hover:bg-amber-200' 
+                  : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100'
+              }`}
+              title={client.stop_email ? "Click to resume automated reminder emails for this client" : "Click to stop automated reminder emails for this client"}
+            >
+              {client.stop_email ? <MailX className="w-3.5 h-3.5" /> : <MailCheck className="w-3.5 h-3.5" />}
+              <span>{client.stop_email ? 'Reminders Stopped' : 'Reminders Active'}</span>
+            </button>
             <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(client.status)}`}>
               {client.status}
             </span>
@@ -163,7 +205,7 @@ export default function ClientDetails() {
                   <FileCheck className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-0.5">Invoice Number</p>
+                  <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-0.5">{client.invoice_type || 'Invoice'} Number</p>
                   <p className="text-sm font-semibold text-surface-900 dark:text-white">#{client.invoice_number}</p>
                 </div>
               </div>
@@ -309,16 +351,16 @@ export default function ClientDetails() {
       {(client.invoice_status === 'Sent' || client.invoice_number) && (
         <div className="card p-6 space-y-4">
           <h2 className="text-base font-bold text-surface-900 dark:text-white border-b border-surface-150 dark:border-surface-700 pb-2 flex items-center gap-2">
-            <FileCheck className="w-4 h-4 text-emerald-500" /> Invoice Information
+            <FileCheck className="w-4 h-4 text-emerald-500" /> {client.invoice_type || 'Invoice'} Information
           </h2>
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <div className="bg-surface-50 dark:bg-surface-900/50 p-4 rounded-xl border border-surface-100 dark:border-surface-700">
-              <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-1">Invoice Number</p>
+              <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-1">{client.invoice_type || 'Invoice'} Number</p>
               <p className="text-base font-bold text-surface-900 dark:text-white">{client.invoice_number || '-'}</p>
             </div>
             <div className="bg-surface-50 dark:bg-surface-900/50 p-4 rounded-xl border border-surface-100 dark:border-surface-700">
-              <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-1">Invoice Value</p>
+              <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-1">{client.invoice_type || 'Invoice'} Value</p>
               <p className="text-base font-bold text-surface-900 dark:text-white">
                 {client.invoice_value !== null && client.invoice_value !== undefined ? formatCurrency(client.invoice_value) : '-'}
               </p>
@@ -419,13 +461,25 @@ export default function ClientDetails() {
             </p>
           </div>
           <div className="bg-white dark:bg-surface-900/50 p-4 rounded-xl border border-surface-200/60 dark:border-surface-700">
-            <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-1">Quotation Confirmation</p>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 inline-block mt-0.5">
-              {client.renewal_confirmation === 'quotation_confirmation' ? 'Order Confirmation' :
-               client.renewal_confirmation === 'awaiting_client_approval' ? 'Awaiting Client Approval' :
-               client.renewal_confirmation === 'awaiting_with_vendor' ? 'Awaiting with Vendor' :
-               client.renewal_confirmation === 'renewed' ? 'Renewed' :
-               client.renewal_confirmation === 'service_discontinued' ? 'Discontinued' : 'Pending'}
+            <p className="text-xs text-surface-500 font-bold uppercase tracking-wider mb-1">Renewal Confirmation</p>
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border inline-block mt-0.5 ${
+              (client.renewal_confirmation === 'reminder_sent' || client.renewal_confirmation === 'awaiting_with_vendor') ? 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-400 dark:border-sky-800' :
+              (client.renewal_confirmation === 'quote_sent' || client.renewal_confirmation === 'quotation_confirmation') ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-800' :
+              client.renewal_confirmation === 'awaiting_client_approval' ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800' :
+              client.renewal_confirmation === 'renewed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800' :
+              client.renewal_confirmation === 'lost' ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800' :
+              (client.renewal_confirmation === 'cancelled' || client.renewal_confirmation === 'service_discontinued') ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800' :
+              'bg-surface-100 text-surface-600 border-surface-200 dark:bg-surface-700 dark:text-surface-300 dark:border-surface-600'
+            }`}>
+              {
+                (client.renewal_confirmation === 'reminder_sent' || client.renewal_confirmation === 'awaiting_with_vendor') ? 'Reminder Sent' :
+                (client.renewal_confirmation === 'quote_sent' || client.renewal_confirmation === 'quotation_confirmation') ? 'Quote Sent' :
+                client.renewal_confirmation === 'awaiting_client_approval' ? 'Awaiting Client Approval' :
+                client.renewal_confirmation === 'renewed' ? 'Renewed' :
+                client.renewal_confirmation === 'lost' ? 'Lost' :
+                (client.renewal_confirmation === 'cancelled' || client.renewal_confirmation === 'service_discontinued') ? 'Cancelled' :
+                'Pending'
+              }
             </span>
           </div>
           <div className="bg-white dark:bg-surface-900/50 p-4 rounded-xl border border-surface-200/60 dark:border-surface-700">

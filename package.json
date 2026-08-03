@@ -10,6 +10,11 @@
     "seed": "node server/seed.js"
   },
   "dependencies": {
+    "@react-spring/web": "^10.1.2",
+    "@visx/gradient": "^4.0.0",
+    "@visx/group": "^4.0.0",
+    "@visx/scale": "^4.0.0",
+    "@visx/shape": "^4.0.0",
     "axios": "^1.16.1",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",

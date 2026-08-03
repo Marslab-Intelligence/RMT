@@ -125,6 +125,35 @@ export default function RenewalForm({ onClose, onSuccess, editData = null }) {
     setFormData(prev => ({ ...prev, service: combined }));
   }, [selectedMainService, selectedSubServices]);
 
+  // Auto-fetch vendor-product specific sales cost when vendor and product are provided
+  useEffect(() => {
+    if (!formData.vendor || !formData.product || !token) return;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/pricing?search=${encodeURIComponent(formData.product)}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const items = await res.json();
+          const match = items.find(item => 
+            item.vendor.toLowerCase().trim() === formData.vendor.toLowerCase().trim() &&
+            item.product_name.toLowerCase().trim() === formData.product.toLowerCase().trim()
+          );
+          if (match) {
+            setFormData(prev => ({
+              ...prev,
+              sales_cost: prev.sales_cost !== '' ? prev.sales_cost : (match.erp_price || match.sales_cost || ''),
+              purchase_cost: prev.purchase_cost !== '' ? prev.purchase_cost : (match.sales_cost || '')
+            }));
+          }
+        }
+      } catch (err) {
+        // ignore fetch errors
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [formData.vendor, formData.product, token]);
+
   const handleMainServiceChange = (e) => {
     const main = e.target.value;
     setSelectedMainService(main);

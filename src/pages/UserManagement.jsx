@@ -17,16 +17,6 @@ const GROUPS = [
     pillBg: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   },
   {
-    role: 'finance',
-    label: 'Finance',
-    description: 'Finance team — handles invoicing & payment details',
-    accent: '#8b5cf6',
-    lightBg: 'bg-purple-50 dark:bg-purple-900/10',
-    border: 'border-purple-400 dark:border-purple-600',
-    badgeBg: 'bg-purple-500',
-    pillBg: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
-  },
-  {
     role: 'admin',
     label: 'Admin',
     description: 'Administrators — full read/write access to all fields',
@@ -38,7 +28,7 @@ const GROUPS = [
   },
 ];
 
-const ROLE_LABELS = { sales: 'CST / Sales', finance: 'Finance', admin: 'Admin' };
+const ROLE_LABELS = { sales: 'CST / Sales', admin: 'Admin' };
 
 function getInitials(name = '') {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) || '?';
@@ -233,7 +223,6 @@ export default function UserManagement() {
                             className="text-xs font-medium px-2 py-1.5 pr-6 rounded-lg border border-surface-200 dark:border-surface-600 bg-surface-50 dark:bg-surface-700 text-surface-700 dark:text-surface-200 cursor-pointer outline-none appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <option value="sales">CST / Sales</option>
-                            <option value="finance">Finance</option>
                             <option value="admin">Admin</option>
                           </select>
                         )}
@@ -360,7 +349,6 @@ export default function UserManagement() {
                   required
                 >
                   <option value="sales">CST / Sales</option>
-                  <option value="finance">Finance</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
