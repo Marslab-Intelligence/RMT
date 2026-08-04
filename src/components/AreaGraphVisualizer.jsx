@@ -7,7 +7,9 @@ export default function AreaGraphVisualizer({
   type = "profit", 
   totalValue = 0, 
   monthlyData = [],
-  onExpand
+  onExpand,
+  height = "h-[360px]",
+  fullScreenMode = false
 }) {
   const containerRef = useRef(null);
   const [hoverData, setHoverData] = useState(null);
@@ -43,7 +45,7 @@ export default function AreaGraphVisualizer({
     };
   }, [isProfit]);
 
-  // Update container dimensions on window resize
+  // Update container dimensions on window resize and observer updates
   useEffect(() => {
     const updateSize = () => {
       if (containerRef.current) {
@@ -54,8 +56,20 @@ export default function AreaGraphVisualizer({
       }
     };
     updateSize();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateSize();
+    });
+
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
     window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateSize);
+    };
   }, []);
 
   // Generate detailed micro-fluctuation stock-style data points (matching images 2 & 3)
@@ -159,14 +173,14 @@ export default function AreaGraphVisualizer({
   }, []);
 
   return (
-    <div className="relative w-full overflow-hidden rounded-2xl border border-white/20 shadow-2xl flex flex-col justify-between bg-[#244554] p-5 h-[360px]">
+    <div className={`relative w-full overflow-hidden rounded-2xl border border-white/20 shadow-2xl flex flex-col justify-between bg-[#244554] p-5 ${height}`}>
       {/* Card Header */}
       <div className="relative z-20 flex items-center justify-between gap-3 pb-2 border-b border-white/10">
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-base font-black text-white">{title}</h3>
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${config.badgeBorder} ${config.badgeBg} ${config.badgeText} backdrop-blur-md`}>
-              Live visx Area
+              {fullScreenMode ? 'Full Screen Analytics' : 'Live visx Area'}
             </span>
           </div>
           <p className="text-xs text-slate-300 font-semibold mt-0.5">High-frequency portfolio value timeline</p>
@@ -180,7 +194,7 @@ export default function AreaGraphVisualizer({
             </span>
           </div>
 
-          {onExpand && (
+          {!fullScreenMode && onExpand && (
             <button
               onClick={onExpand}
               className="p-2 rounded-xl bg-white/10 text-white hover:bg-white/20 border border-white/20 transition-all flex items-center gap-1.5 text-xs font-bold"

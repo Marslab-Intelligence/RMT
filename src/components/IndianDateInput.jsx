@@ -29,7 +29,8 @@ export default function IndianDateInput({ value, onChange, className = '', place
           zIndex: 10,
           border: 'none',
           outline: 'none',
-          background: 'none'
+          background: 'none',
+          colorScheme: 'dark'
         }}
         {...props}
       />

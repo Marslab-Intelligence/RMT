@@ -251,3 +251,16 @@ tr:hover td {
 button, a {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* ── Force Dark Theme on Calendar Date Picker Popup ────────────── */
+input[type="date"],
+input[type="datetime-local"],
+input[type="month"] {
+  color-scheme: dark !important;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8) brightness(1.2);
+  cursor: pointer;
+}
+
