@@ -27,20 +27,38 @@ const STATUS_COLORS = {
 };
 
 const formatEmailTypeBadge = (type) => {
-  switch (type) {
-    case '30_day_reminder': return { label: '30-Day Reminder', color: 'bg-blue-200/90 text-[#0a2540] border-blue-400 dark:bg-blue-200/90 dark:text-[#0a2540] dark:border-blue-400 font-extrabold' };
-    case '20_day_reminder': return { label: '20-Day Reminder', color: 'bg-indigo-200/90 text-[#1e1b4b] border-indigo-400 dark:bg-indigo-200/90 dark:text-[#1e1b4b] dark:border-indigo-400 font-extrabold' };
-    case '15_day_reminder': return { label: '15-Day Reminder', color: 'bg-amber-200/90 text-[#451a03] border-amber-400 dark:bg-amber-200/90 dark:text-[#451a03] dark:border-amber-400 font-extrabold' };
-    case '10_day_reminder': return { label: '10-Day Reminder', color: 'bg-orange-200/90 text-[#431407] border-orange-400 dark:bg-orange-200/90 dark:text-[#431407] dark:border-orange-400 font-extrabold' };
-    case '5_day_reminder':  return { label: '5-Day Reminder',  color: 'bg-rose-200/90 text-[#4c0519] border-rose-400 dark:bg-rose-200/90 dark:text-[#4c0519] dark:border-rose-400 font-extrabold' };
-    case '3_day_reminder':  return { label: '3-Day Reminder',  color: 'bg-red-200/90 text-[#450a0a] border-red-400 dark:bg-red-200/90 dark:text-[#450a0a] dark:border-red-400 font-extrabold' };
-    case 'sales_special_15_day': return { label: 'CST 15-Day Followup', color: 'bg-purple-200/90 text-[#3b0764] border-purple-400 dark:bg-purple-200/90 dark:text-[#3b0764] dark:border-purple-400 font-extrabold' };
-    case 'sales_special_5_day':  return { label: 'CST 5-Day Followup',  color: 'bg-pink-200/90 text-[#500724] border-pink-400 dark:bg-pink-200/90 dark:text-[#500724] dark:border-pink-400 font-extrabold' };
-    case 'sales_special_3_day':  return { label: 'CST 3-Day Followup',  color: 'bg-rose-200/90 text-[#4c0519] border-rose-400 dark:bg-rose-200/90 dark:text-[#4c0519] dark:border-rose-400 font-extrabold' };
-    case 'renewal_expired': return { label: 'Expiry Alert', color: 'bg-red-200/90 text-[#450a0a] border-red-400 dark:bg-red-200/90 dark:text-[#450a0a] dark:border-red-400 font-extrabold' };
-    case 'automation_toggle': return { label: 'Automation Toggle', color: 'bg-slate-200/90 text-black border-slate-400 dark:bg-slate-200/90 dark:text-black dark:border-slate-400 font-extrabold' };
-    case 'payment_received': return { label: 'Payment Received', color: 'bg-emerald-200/90 text-[#022c22] border-emerald-500 dark:bg-emerald-200/90 dark:text-[#022c22] dark:border-emerald-500 font-extrabold' };
-    default: return { label: type ? type.replace(/_/g, ' ') : 'General', color: 'bg-slate-200/90 text-black border-slate-400 dark:bg-slate-200/90 dark:text-black dark:border-slate-400 font-extrabold' };
+  const normalized = (type || '').toLowerCase().trim();
+
+  if (normalized.includes('payment_received') || normalized.includes('payment received')) {
+    return {
+      label: 'Payment Received',
+      color: 'bg-emerald-200 text-[#013220] border-emerald-600 font-black',
+      style: { backgroundColor: '#dcfce7', color: '#013220', borderColor: '#16a34a', fontWeight: '900' }
+    };
+  }
+
+  if (normalized.includes('renewal_status') || normalized.includes('status_update') || normalized.includes('status update') || normalized.includes('renewal status update')) {
+    return {
+      label: 'Renewal Status Update',
+      color: 'bg-slate-200 text-[#000000] border-slate-600 font-black',
+      style: { backgroundColor: '#e2e8f0', color: '#000000', borderColor: '#475569', fontWeight: '900' }
+    };
+  }
+
+  switch (normalized) {
+    case '30_day_reminder': return { label: '30-Day Reminder', color: 'bg-blue-200 text-[#002b66] border-blue-500 font-black', style: { backgroundColor: '#dbeafe', color: '#002b66', borderColor: '#2563eb', fontWeight: '900' } };
+    case '20_day_reminder': return { label: '20-Day Reminder', color: 'bg-indigo-200 text-[#1e1b4b] border-indigo-500 font-black', style: { backgroundColor: '#e0e7ff', color: '#1e1b4b', borderColor: '#4f46e5', fontWeight: '900' } };
+    case '15_day_reminder': return { label: '15-Day Reminder', color: 'bg-amber-200 text-[#451a03] border-amber-500 font-black', style: { backgroundColor: '#fef3c7', color: '#451a03', borderColor: '#d97706', fontWeight: '900' } };
+    case '10_day_reminder': return { label: '10-Day Reminder', color: 'bg-orange-200 text-[#431407] border-orange-500 font-black', style: { backgroundColor: '#ffedd5', color: '#431407', borderColor: '#ea580c', fontWeight: '900' } };
+    case '5_day_reminder':  return { label: '5-Day Reminder',  color: 'bg-rose-200 text-[#4c0519] border-rose-500 font-black', style: { backgroundColor: '#ffe4e6', color: '#4c0519', borderColor: '#e11d48', fontWeight: '900' } };
+    case '3_day_reminder':  return { label: '3-Day Reminder',  color: 'bg-red-200 text-[#450a0a] border-red-500 font-black', style: { backgroundColor: '#fee2e2', color: '#450a0a', borderColor: '#ef4444', fontWeight: '900' } };
+    case 'sales_special_15_day': return { label: 'CST 15-Day Followup', color: 'bg-purple-200 text-[#3b0764] border-purple-500 font-black', style: { backgroundColor: '#f3e8ff', color: '#3b0764', borderColor: '#9333ea', fontWeight: '900' } };
+    case 'sales_special_5_day':  return { label: 'CST 5-Day Followup',  color: 'bg-pink-200 text-[#500724] border-pink-500 font-black', style: { backgroundColor: '#fce7f3', color: '#500724', borderColor: '#ec4899', fontWeight: '900' } };
+    case 'sales_special_3_day':  return { label: 'CST 3-Day Followup',  color: 'bg-rose-200 text-[#4c0519] border-rose-500 font-black', style: { backgroundColor: '#ffe4e6', color: '#4c0519', borderColor: '#e11d48', fontWeight: '900' } };
+    case 'renewal_expired': return { label: 'Expiry Alert', color: 'bg-red-200 text-[#450a0a] border-red-500 font-black', style: { backgroundColor: '#fee2e2', color: '#450a0a', borderColor: '#ef4444', fontWeight: '900' } };
+    case 'automation_toggle': return { label: 'Automation Toggle', color: 'bg-slate-200 text-[#000000] border-slate-500 font-black', style: { backgroundColor: '#e2e8f0', color: '#000000', borderColor: '#64748b', fontWeight: '900' } };
+    case 'manual_email': return { label: 'Manual Email', color: 'bg-teal-200 text-[#042f2e] border-teal-500 font-black', style: { backgroundColor: '#ccfbf1', color: '#042f2e', borderColor: '#14b8a6', fontWeight: '900' } };
+    default: return { label: type ? type.replace(/_/g, ' ') : 'General', color: 'bg-slate-200 text-[#000000] border-slate-500 font-black', style: { backgroundColor: '#e2e8f0', color: '#000000', borderColor: '#64748b', fontWeight: '900' } };
   }
 };
 
@@ -663,16 +681,22 @@ export default function Reports() {
                               )}
                             </td>
                             <td className="px-3 py-2.5 whitespace-nowrap">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.color}`}>
+                              <span
+                                className={`px-2.5 py-1 rounded text-[11px] font-black border ${badge.color}`}
+                                style={badge.style}
+                              >
                                 {badge.label}
                               </span>
                             </td>
                             <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                log.status === 'sent'
-                                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-                                  : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30'
-                              }`}>
+                              <span
+                                className="inline-block px-2.5 py-1 rounded-full text-[10px] font-black border"
+                                style={
+                                  log.status === 'sent'
+                                    ? { backgroundColor: '#dcfce7', color: '#013220', borderColor: '#16a34a', fontWeight: '900' }
+                                    : { backgroundColor: '#fee2e2', color: '#450a0a', borderColor: '#ef4444', fontWeight: '900' }
+                                }
+                              >
                                 {log.status ? log.status.toUpperCase() : 'SENT'}
                               </span>
                             </td>
