@@ -28,19 +28,19 @@ const STATUS_COLORS = {
 
 const formatEmailTypeBadge = (type) => {
   switch (type) {
-    case '30_day_reminder': return { label: '30-Day Reminder', color: 'bg-blue-100 text-blue-950 border-blue-400 dark:bg-blue-950/70 dark:text-blue-200 dark:border-blue-700/60 font-bold' };
-    case '20_day_reminder': return { label: '20-Day Reminder', color: 'bg-indigo-100 text-indigo-950 border-indigo-400 dark:bg-indigo-950/70 dark:text-indigo-200 dark:border-indigo-700/60 font-bold' };
-    case '15_day_reminder': return { label: '15-Day Reminder', color: 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950/70 dark:text-amber-200 dark:border-amber-700/60 font-bold' };
-    case '10_day_reminder': return { label: '10-Day Reminder', color: 'bg-orange-100 text-orange-950 border-orange-400 dark:bg-orange-950/70 dark:text-orange-200 dark:border-orange-700/60 font-bold' };
-    case '5_day_reminder':  return { label: '5-Day Reminder',  color: 'bg-rose-100 text-rose-950 border-rose-400 dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-700/60 font-bold' };
-    case '3_day_reminder':  return { label: '3-Day Reminder',  color: 'bg-red-100 text-red-950 border-red-400 dark:bg-red-950/70 dark:text-red-200 dark:border-red-700/60 font-bold' };
-    case 'sales_special_15_day': return { label: 'CST 15-Day Followup', color: 'bg-purple-100 text-purple-950 border-purple-400 dark:bg-purple-950/70 dark:text-purple-200 dark:border-purple-700/60 font-bold' };
-    case 'sales_special_5_day':  return { label: 'CST 5-Day Followup',  color: 'bg-pink-100 text-pink-950 border-pink-400 dark:bg-pink-950/70 dark:text-pink-200 dark:border-pink-700/60 font-bold' };
-    case 'sales_special_3_day':  return { label: 'CST 3-Day Followup',  color: 'bg-rose-100 text-rose-950 border-rose-400 dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-700/60 font-bold' };
-    case 'renewal_expired': return { label: 'Expiry Alert', color: 'bg-red-100 text-red-950 border-red-400 dark:bg-red-950/70 dark:text-red-200 dark:border-red-700/60 font-bold' };
-    case 'automation_toggle': return { label: 'Automation Toggle', color: 'bg-slate-200 text-slate-950 border-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 font-bold' };
-    case 'payment_received': return { label: 'Payment Received', color: 'bg-emerald-100 text-emerald-950 border-emerald-400 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-700/60 font-bold' };
-    default: return { label: type ? type.replace(/_/g, ' ') : 'General', color: 'bg-slate-200 text-slate-950 border-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 font-bold' };
+    case '30_day_reminder': return { label: '30-Day Reminder', color: 'bg-blue-200/90 text-[#0a2540] border-blue-400 dark:bg-blue-200/90 dark:text-[#0a2540] dark:border-blue-400 font-extrabold' };
+    case '20_day_reminder': return { label: '20-Day Reminder', color: 'bg-indigo-200/90 text-[#1e1b4b] border-indigo-400 dark:bg-indigo-200/90 dark:text-[#1e1b4b] dark:border-indigo-400 font-extrabold' };
+    case '15_day_reminder': return { label: '15-Day Reminder', color: 'bg-amber-200/90 text-[#451a03] border-amber-400 dark:bg-amber-200/90 dark:text-[#451a03] dark:border-amber-400 font-extrabold' };
+    case '10_day_reminder': return { label: '10-Day Reminder', color: 'bg-orange-200/90 text-[#431407] border-orange-400 dark:bg-orange-200/90 dark:text-[#431407] dark:border-orange-400 font-extrabold' };
+    case '5_day_reminder':  return { label: '5-Day Reminder',  color: 'bg-rose-200/90 text-[#4c0519] border-rose-400 dark:bg-rose-200/90 dark:text-[#4c0519] dark:border-rose-400 font-extrabold' };
+    case '3_day_reminder':  return { label: '3-Day Reminder',  color: 'bg-red-200/90 text-[#450a0a] border-red-400 dark:bg-red-200/90 dark:text-[#450a0a] dark:border-red-400 font-extrabold' };
+    case 'sales_special_15_day': return { label: 'CST 15-Day Followup', color: 'bg-purple-200/90 text-[#3b0764] border-purple-400 dark:bg-purple-200/90 dark:text-[#3b0764] dark:border-purple-400 font-extrabold' };
+    case 'sales_special_5_day':  return { label: 'CST 5-Day Followup',  color: 'bg-pink-200/90 text-[#500724] border-pink-400 dark:bg-pink-200/90 dark:text-[#500724] dark:border-pink-400 font-extrabold' };
+    case 'sales_special_3_day':  return { label: 'CST 3-Day Followup',  color: 'bg-rose-200/90 text-[#4c0519] border-rose-400 dark:bg-rose-200/90 dark:text-[#4c0519] dark:border-rose-400 font-extrabold' };
+    case 'renewal_expired': return { label: 'Expiry Alert', color: 'bg-red-200/90 text-[#450a0a] border-red-400 dark:bg-red-200/90 dark:text-[#450a0a] dark:border-red-400 font-extrabold' };
+    case 'automation_toggle': return { label: 'Automation Toggle', color: 'bg-slate-200/90 text-black border-slate-400 dark:bg-slate-200/90 dark:text-black dark:border-slate-400 font-extrabold' };
+    case 'payment_received': return { label: 'Payment Received', color: 'bg-emerald-200/90 text-[#022c22] border-emerald-500 dark:bg-emerald-200/90 dark:text-[#022c22] dark:border-emerald-500 font-extrabold' };
+    default: return { label: type ? type.replace(/_/g, ' ') : 'General', color: 'bg-slate-200/90 text-black border-slate-400 dark:bg-slate-200/90 dark:text-black dark:border-slate-400 font-extrabold' };
   }
 };
 
@@ -298,13 +298,13 @@ export default function Reports() {
     switch (status) {
       case 'Active':
       case 'Renewed':
-        return 'bg-emerald-100 text-emerald-950 border-emerald-400 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-700/60 font-bold';
+        return 'bg-emerald-200/90 text-[#022c22] border-emerald-500 dark:bg-emerald-200/90 dark:text-[#022c22] dark:border-emerald-500 font-extrabold';
       case 'Pending Renewal':
-        return 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950/70 dark:text-amber-200 dark:border-amber-700/60 font-bold';
+        return 'bg-amber-200/90 text-[#451a03] border-amber-500 dark:bg-amber-200/90 dark:text-[#451a03] dark:border-amber-500 font-extrabold';
       case 'Expired':
-        return 'bg-rose-100 text-rose-950 border-rose-400 dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-700/60 font-bold';
+        return 'bg-rose-200/90 text-[#4c0519] border-rose-500 dark:bg-rose-200/90 dark:text-[#4c0519] dark:border-rose-500 font-extrabold';
       default:
-        return 'bg-slate-200 text-slate-950 border-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 font-bold';
+        return 'bg-slate-200/90 text-black border-slate-400 dark:bg-slate-200/90 dark:text-black dark:border-slate-400 font-extrabold';
     }
   };
 
