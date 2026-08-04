@@ -28,19 +28,19 @@ const STATUS_COLORS = {
 
 const formatEmailTypeBadge = (type) => {
   switch (type) {
-    case '30_day_reminder': return { label: '30-Day Reminder', color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' };
-    case '20_day_reminder': return { label: '20-Day Reminder', color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' };
-    case '15_day_reminder': return { label: '15-Day Reminder', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' };
-    case '10_day_reminder': return { label: '10-Day Reminder', color: 'bg-orange-500/20 text-orange-300 border-orange-500/30' };
-    case '5_day_reminder':  return { label: '5-Day Reminder',  color: 'bg-rose-500/20 text-rose-300 border-rose-500/30' };
-    case '3_day_reminder':  return { label: '3-Day Reminder',  color: 'bg-red-600/20 text-red-300 border-red-500/30' };
-    case 'sales_special_15_day': return { label: 'CST 15-Day Followup', color: 'bg-purple-500/20 text-purple-300 border-purple-500/30' };
-    case 'sales_special_5_day':  return { label: 'CST 5-Day Followup',  color: 'bg-pink-500/20 text-pink-300 border-pink-500/30' };
-    case 'sales_special_3_day':  return { label: 'CST 3-Day Followup',  color: 'bg-rose-600/20 text-rose-300 border-rose-500/30' };
-    case 'renewal_expired': return { label: 'Expiry Alert', color: 'bg-red-500/25 text-red-300 border-red-500/40' };
-    case 'automation_toggle': return { label: 'Automation Toggle', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' };
-    case 'payment_received': return { label: 'Payment Received', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' };
-    default: return { label: type ? type.replace(/_/g, ' ') : 'General', color: 'bg-slate-500/20 text-slate-300 border-slate-500/30' };
+    case '30_day_reminder': return { label: '30-Day Reminder', color: 'bg-blue-100 text-blue-950 border-blue-400 dark:bg-blue-950/70 dark:text-blue-200 dark:border-blue-700/60 font-bold' };
+    case '20_day_reminder': return { label: '20-Day Reminder', color: 'bg-indigo-100 text-indigo-950 border-indigo-400 dark:bg-indigo-950/70 dark:text-indigo-200 dark:border-indigo-700/60 font-bold' };
+    case '15_day_reminder': return { label: '15-Day Reminder', color: 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950/70 dark:text-amber-200 dark:border-amber-700/60 font-bold' };
+    case '10_day_reminder': return { label: '10-Day Reminder', color: 'bg-orange-100 text-orange-950 border-orange-400 dark:bg-orange-950/70 dark:text-orange-200 dark:border-orange-700/60 font-bold' };
+    case '5_day_reminder':  return { label: '5-Day Reminder',  color: 'bg-rose-100 text-rose-950 border-rose-400 dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-700/60 font-bold' };
+    case '3_day_reminder':  return { label: '3-Day Reminder',  color: 'bg-red-100 text-red-950 border-red-400 dark:bg-red-950/70 dark:text-red-200 dark:border-red-700/60 font-bold' };
+    case 'sales_special_15_day': return { label: 'CST 15-Day Followup', color: 'bg-purple-100 text-purple-950 border-purple-400 dark:bg-purple-950/70 dark:text-purple-200 dark:border-purple-700/60 font-bold' };
+    case 'sales_special_5_day':  return { label: 'CST 5-Day Followup',  color: 'bg-pink-100 text-pink-950 border-pink-400 dark:bg-pink-950/70 dark:text-pink-200 dark:border-pink-700/60 font-bold' };
+    case 'sales_special_3_day':  return { label: 'CST 3-Day Followup',  color: 'bg-rose-100 text-rose-950 border-rose-400 dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-700/60 font-bold' };
+    case 'renewal_expired': return { label: 'Expiry Alert', color: 'bg-red-100 text-red-950 border-red-400 dark:bg-red-950/70 dark:text-red-200 dark:border-red-700/60 font-bold' };
+    case 'automation_toggle': return { label: 'Automation Toggle', color: 'bg-slate-200 text-slate-950 border-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 font-bold' };
+    case 'payment_received': return { label: 'Payment Received', color: 'bg-emerald-100 text-emerald-950 border-emerald-400 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-700/60 font-bold' };
+    default: return { label: type ? type.replace(/_/g, ' ') : 'General', color: 'bg-slate-200 text-slate-950 border-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 font-bold' };
   }
 };
 
@@ -298,13 +298,13 @@ export default function Reports() {
     switch (status) {
       case 'Active':
       case 'Renewed':
-        return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+        return 'bg-emerald-100 text-emerald-950 border-emerald-400 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-700/60 font-bold';
       case 'Pending Renewal':
-        return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+        return 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950/70 dark:text-amber-200 dark:border-amber-700/60 font-bold';
       case 'Expired':
-        return 'bg-rose-500/20 text-rose-300 border-rose-500/30';
+        return 'bg-rose-100 text-rose-950 border-rose-400 dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-700/60 font-bold';
       default:
-        return 'bg-slate-500/20 text-slate-300 border-slate-500/30';
+        return 'bg-slate-200 text-slate-950 border-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 font-bold';
     }
   };
 
@@ -400,15 +400,15 @@ export default function Reports() {
 
   return (
     <div className="space-y-8 animate-fade-in relative pb-12">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900/90 via-indigo-950/80 to-slate-900/90 p-6 rounded-2xl border border-white/10 shadow-2xl backdrop-blur-xl">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/80 dark:bg-gradient-to-r dark:from-slate-900/90 dark:via-indigo-950/80 dark:to-slate-900/90 p-6 rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-xl dark:shadow-2xl backdrop-blur-xl transition-all">
         <div>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-brand-500/20 text-brand-400 rounded-xl border border-brand-500/30">
+            <div className="p-2.5 bg-brand-500/10 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400 rounded-xl border border-brand-500/20 dark:border-brand-500/30">
               <BarChart3 className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-white tracking-tight">Reports & Executive Analytics</h1>
-              <p className="text-xs text-slate-400 font-medium mt-0.5">Real-time performance metrics, portfolio revenue, service distribution & system audit logs</p>
+              <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Reports & Executive Analytics</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">Real-time performance metrics, portfolio revenue, service distribution & system audit logs</p>
             </div>
           </div>
         </div>

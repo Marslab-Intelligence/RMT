@@ -132,8 +132,10 @@ try {
 // ============================================================
 const allowedOrigins = [
   process.env.FRONTEND_URL,
+  'http://localhost:3005',
   'http://localhost:3001',
   'http://localhost:3000',
+  'http://127.0.0.1:3005',
   'http://127.0.0.1:3001',
   'http://127.0.0.1:3000',
   'http://13.232.180.247:30001',

@@ -244,19 +244,19 @@ export default function EmailAutomation() {
 
   const formatEmailTypeBadge = (type) => {
     switch (type) {
-      case '30_day_reminder': return { label: '📧 30-Day Reminder', color: 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30' };
-      case '20_day_reminder': return { label: '📧 20-Day Reminder', color: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30' };
-      case '15_day_reminder': return { label: '📧 15-Day Reminder', color: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30' };
-      case '10_day_reminder': return { label: '📧 10-Day Reminder', color: 'bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30' };
-      case '5_day_reminder':  return { label: '📧 5-Day Reminder',  color: 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30' };
-      case '3_day_reminder':  return { label: '📧 3-Day Reminder',  color: 'bg-red-600/15 text-red-700 dark:text-red-300 border-red-500/30' };
-      case 'sales_special_15_day': return { label: '🚨 CST 15-Day Followup', color: 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30' };
-      case 'sales_special_5_day':  return { label: '🚨 CST 5-Day Followup',  color: 'bg-pink-500/15 text-pink-700 dark:text-pink-300 border-pink-500/30' };
-      case 'sales_special_3_day':  return { label: '🚨 CST 3-Day Followup',  color: 'bg-rose-600/15 text-rose-700 dark:text-rose-300 border-rose-500/30' };
-      case 'renewal_expired': return { label: '⚠️ Expiry Alert', color: 'bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/40' };
-      case 'automation_toggle': return { label: '⚙️ Automation Toggle', color: 'bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30' };
-      case 'payment_received': return { label: '💳 Payment Received', color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' };
-      default: return { label: type, color: 'bg-surface-500/15 text-surface-700 dark:text-surface-300 border-surface-500/30' };
+      case '30_day_reminder': return { label: '📧 30-Day Reminder', color: 'bg-blue-100 text-blue-950 border-blue-400 dark:bg-blue-950/70 dark:text-blue-200 dark:border-blue-700/60 font-bold' };
+      case '20_day_reminder': return { label: '📧 20-Day Reminder', color: 'bg-indigo-100 text-indigo-950 border-indigo-400 dark:bg-indigo-950/70 dark:text-indigo-200 dark:border-indigo-700/60 font-bold' };
+      case '15_day_reminder': return { label: '📧 15-Day Reminder', color: 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950/70 dark:text-amber-200 dark:border-amber-700/60 font-bold' };
+      case '10_day_reminder': return { label: '📧 10-Day Reminder', color: 'bg-orange-100 text-orange-950 border-orange-400 dark:bg-orange-950/70 dark:text-orange-200 dark:border-orange-700/60 font-bold' };
+      case '5_day_reminder':  return { label: '📧 5-Day Reminder',  color: 'bg-rose-100 text-rose-950 border-rose-400 dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-700/60 font-bold' };
+      case '3_day_reminder':  return { label: '📧 3-Day Reminder',  color: 'bg-red-100 text-red-950 border-red-400 dark:bg-red-950/70 dark:text-red-200 dark:border-red-700/60 font-bold' };
+      case 'sales_special_15_day': return { label: '🚨 CST 15-Day Followup', color: 'bg-purple-100 text-purple-950 border-purple-400 dark:bg-purple-950/70 dark:text-purple-200 dark:border-purple-700/60 font-bold' };
+      case 'sales_special_5_day':  return { label: '🚨 CST 5-Day Followup',  color: 'bg-pink-100 text-pink-950 border-pink-400 dark:bg-pink-950/70 dark:text-pink-200 dark:border-pink-700/60 font-bold' };
+      case 'sales_special_3_day':  return { label: '🚨 CST 3-Day Followup',  color: 'bg-rose-100 text-rose-950 border-rose-400 dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-700/60 font-bold' };
+      case 'renewal_expired': return { label: '⚠️ Expiry Alert', color: 'bg-red-100 text-red-950 border-red-400 dark:bg-red-950/70 dark:text-red-200 dark:border-red-700/60 font-bold' };
+      case 'automation_toggle': return { label: '⚙️ Automation Toggle', color: 'bg-slate-200 text-slate-950 border-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 font-bold' };
+      case 'payment_received': return { label: '💳 Payment Received', color: 'bg-emerald-100 text-emerald-950 border-emerald-400 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-700/60 font-bold' };
+      default: return { label: type ? type.replace(/_/g, ' ') : 'General', color: 'bg-slate-200 text-slate-950 border-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 font-bold' };
     }
   };
 
