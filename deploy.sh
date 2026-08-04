@@ -3,7 +3,7 @@
 set -euo pipefail
 
 PEM_KEY="/home/sameer/Documents/pem Files/marslab-Devops.pem"
-SERVER_IP="13.232.100.57"
+SERVER_IP="13.127.66.50"
 SERVER_USER="ubuntu"
 
 echo "=========================================="

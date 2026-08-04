@@ -15,7 +15,7 @@ REPO_NAME="${REPO_NAME:-dev-rmt-frontend}"
 IMAGE_TAG="${IMAGE_TAG:-version7}"
 LOCAL_IMAGE="${LOCAL_IMAGE:-renewal-management-system-app:latest}"
 
-PROD_HOST="${PROD_HOST:-ubuntu@13.232.100.57}"
+PROD_HOST="${PROD_HOST:-ubuntu@13.127.66.50}"
 PROD_KEY="${PROD_KEY:-/home/sameer/Documents/pem Files/marslab-Devops.pem}"
 K8S_DEPLOYMENT="${K8S_DEPLOYMENT:-deployment/app}"
 K8S_NAMESPACE="${K8S_NAMESPACE:-default}"
