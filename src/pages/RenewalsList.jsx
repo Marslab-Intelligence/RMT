@@ -124,26 +124,27 @@ const RENEWED_OPTIONS = [
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
-const ClientFilterDropdown = ({ value, onChange, isOpen, onToggle, filterPos, filterRef, onClose, setPage }) => {
-  const [tempValue, setTempValue] = useState(value);
-  const isActive = Boolean(value && value.trim() !== '');
+const INVOICE_OPTIONS = [
+  { value: 'all', label: 'All Invoices' },
+  { value: 'Sent', label: 'Sent' },
+  { value: 'Not', label: 'Not Sent' },
+];
 
-  useEffect(() => {
-    setTempValue(value);
-  }, [value]);
+const PAYMENT_OPTIONS = [
+  { value: 'all', label: 'All Payments' },
+  { value: 'Yes', label: 'Received' },
+  { value: 'No', label: 'Pending' },
+];
 
-  const handleApply = () => {
-    onChange(tempValue.trim());
-    onClose();
-    if (setPage) setPage(1);
-  };
+const ClientFilterDropdown = ({ value = [], onChange, clientList = [], isOpen, onToggle, filterPos, filterRef, onClose, setPage }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const valueArray = Array.isArray(value) ? value : (value ? [value] : []);
+  const isActive = valueArray.length > 0;
 
-  const handleClear = () => {
-    setTempValue('');
-    onChange('');
-    onClose();
-    if (setPage) setPage(1);
-  };
+  const filteredClients = useMemo(() => {
+    if (!searchTerm.trim()) return clientList;
+    return clientList.filter(c => c.toLowerCase().includes(searchTerm.toLowerCase()));
+  }, [clientList, searchTerm]);
 
   return (
     <div className="inline-block">
@@ -156,7 +157,7 @@ const ClientFilterDropdown = ({ value, onChange, isOpen, onToggle, filterPos, fi
             ? 'text-brand-500 dark:text-brand-400 font-bold bg-brand-50 dark:bg-brand-900/30'
             : 'text-surface-300 dark:text-surface-600 hover:text-surface-500'
         }`}
-        title={isActive ? `Filtered by: "${value}"` : 'Filter Client Info'}
+        title={isActive ? `Filtered by ${valueArray.length} client(s)` : 'Filter Client Info'}
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
@@ -167,40 +168,80 @@ const ClientFilterDropdown = ({ value, onChange, isOpen, onToggle, filterPos, fi
         <div 
           ref={filterRef}
           style={{ position: 'fixed', top: `${filterPos.top}px`, left: `${filterPos.left}px`, zIndex: 99999 }}
-          className="bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-2xl min-w-[220px] p-3 animate-in fade-in slide-in-from-top-1 duration-150"
+          className="bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-2xl min-w-[240px] max-w-[300px] max-h-80 overflow-hidden flex flex-col p-3 animate-in fade-in slide-in-from-top-1 duration-150"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="text-xs font-semibold text-surface-700 dark:text-surface-300 mb-2">
-            Filter Client Info
+          <div className="flex items-center justify-between mb-2 pb-1 border-b border-surface-100 dark:border-surface-700">
+            <span className="text-xs font-semibold text-surface-700 dark:text-surface-300">
+              Filter Client Info
+            </span>
+            {valueArray.length > 0 && (
+              <button
+                type="button"
+                onClick={() => { onChange([]); if (setPage) setPage(1); }}
+                className="text-[11px] text-rose-500 hover:underline font-medium cursor-pointer"
+              >
+                Clear ({valueArray.length})
+              </button>
+            )}
           </div>
-          <div className="relative mb-3">
+
+          <div className="relative mb-2">
             <input
               type="text"
-              value={tempValue}
-              onChange={(e) => setTempValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleApply(); }}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search client name..."
               autoFocus
               className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
             />
             <Search className="w-3.5 h-3.5 text-surface-400 absolute left-2.5 top-2.5" />
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={handleClear}
-              className="px-2.5 py-1 text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors cursor-pointer"
+
+          <div className="overflow-y-auto custom-scrollbar flex-1 max-h-48 space-y-0.5 pr-0.5">
+            <label
+              onClick={() => { onChange([]); if (setPage) setPage(1); }}
+              className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded cursor-pointer transition-colors ${
+                valueArray.length === 0
+                  ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-semibold'
+                  : 'text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
+              }`}
             >
-              Clear
-            </button>
-            <button
-              type="button"
-              onClick={handleApply}
-              className="px-3 py-1 text-xs font-medium bg-brand-600 hover:bg-brand-700 text-white rounded-lg transition-colors shadow-sm cursor-pointer"
-            >
-              Apply
-            </button>
+              <span>All Clients</span>
+            </label>
+
+            {filteredClients.map((clientName) => {
+              const isSelected = valueArray.includes(clientName);
+              return (
+                <label
+                  key={clientName}
+                  onClick={() => {
+                    let nextArr = [...valueArray];
+                    if (isSelected) {
+                      nextArr = nextArr.filter(c => c !== clientName);
+                    } else {
+                      nextArr.push(clientName);
+                    }
+                    onChange(nextArr);
+                    if (setPage) setPage(1);
+                  }}
+                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded cursor-pointer transition-colors ${
+                    isSelected
+                      ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-semibold'
+                      : 'text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    readOnly
+                    className="rounded border-surface-300 dark:border-surface-600 text-brand-600 focus:ring-brand-500 h-3.5 w-3.5 cursor-pointer accent-brand-600"
+                  />
+                  <span className="truncate">{clientName}</span>
+                </label>
+              );
+            })}
           </div>
         </div>,
         document.body
@@ -209,8 +250,10 @@ const ClientFilterDropdown = ({ value, onChange, isOpen, onToggle, filterPos, fi
   );
 };
 
-const FilterDropdown = ({ col, value, onChange, options, isOpen, onToggle, filterPos, filterRef, onClose, setPage }) => {
-  const isActive = value !== 'all';
+const FilterDropdown = ({ col, value = [], onChange, options = [], isOpen, onToggle, filterPos, filterRef, onClose, setPage, title = '' }) => {
+  const valueArray = Array.isArray(value) ? value : (value && value !== 'all' ? [value] : []);
+  const isActive = valueArray.length > 0;
+
   return (
     <div className="inline-block">
       <button
@@ -222,7 +265,7 @@ const FilterDropdown = ({ col, value, onChange, options, isOpen, onToggle, filte
             ? 'text-brand-500 dark:text-brand-400 font-bold bg-brand-50 dark:bg-brand-900/30'
             : 'text-surface-300 dark:text-surface-600 hover:text-surface-500'
         }`}
-        title={isActive ? 'Filter active' : 'Filter'}
+        title={isActive ? `Filter active (${valueArray.length})` : 'Filter'}
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
@@ -232,11 +275,33 @@ const FilterDropdown = ({ col, value, onChange, options, isOpen, onToggle, filte
         <div 
           ref={filterRef}
           style={{ position: 'fixed', top: `${filterPos.top}px`, left: `${filterPos.left}px`, zIndex: 99999 }}
-          className="bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-2xl w-max min-w-[140px] max-w-[280px] max-h-72 overflow-y-auto custom-scrollbar py-1 animate-in fade-in slide-in-from-top-1 duration-150"
+          className="bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-2xl w-max min-w-[170px] max-w-[280px] max-h-72 overflow-y-auto custom-scrollbar py-1 animate-in fade-in slide-in-from-top-1 duration-150 select-none"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          {options.map((opt, i) => {
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-surface-100 dark:border-surface-700/60 mb-1">
+            <button
+              type="button"
+              onClick={() => { onChange([]); if (setPage) setPage(1); }}
+              className={`text-xs font-medium cursor-pointer transition-colors ${
+                valueArray.length === 0 
+                  ? 'text-brand-600 dark:text-brand-400 font-semibold' 
+                  : 'text-surface-600 dark:text-surface-400 hover:text-brand-600'
+              }`}
+            >
+              All {title || 'Options'}
+            </button>
+            {valueArray.length > 0 && (
+              <button
+                type="button"
+                onClick={() => { onChange([]); if (setPage) setPage(1); }}
+                className="text-[11px] text-rose-500 hover:underline font-medium cursor-pointer"
+              >
+                Clear ({valueArray.length})
+              </button>
+            )}
+          </div>
+          {options.filter(opt => opt.value !== 'all').map((opt, i) => {
             if (opt.isHeader) {
               return (
                 <div key={`header-${i}`} className="px-3 pt-2 pb-1 text-[10px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-wider border-t border-surface-150 dark:border-surface-700/60 first:border-0 first:pt-1 whitespace-nowrap">
@@ -244,19 +309,34 @@ const FilterDropdown = ({ col, value, onChange, options, isOpen, onToggle, filte
                 </div>
               );
             }
+            const isSelected = valueArray.includes(opt.value);
             return (
-              <button
+              <label
                 key={opt.value}
-                type="button"
-                onClick={() => { onChange(opt.value); onClose(); if (setPage) setPage(1); }}
-                className={`w-full text-left px-3 py-1.5 text-xs whitespace-nowrap transition-colors cursor-pointer ${
-                  value === opt.value
+                onClick={() => {
+                  let nextArr = [...valueArray];
+                  if (isSelected) {
+                    nextArr = nextArr.filter(v => v !== opt.value);
+                  } else {
+                    nextArr.push(opt.value);
+                  }
+                  onChange(nextArr);
+                  if (setPage) setPage(1);
+                }}
+                className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs whitespace-nowrap transition-colors cursor-pointer ${
+                  isSelected
                     ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-semibold'
                     : 'text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
                 }`}
               >
-                {opt.label}
-              </button>
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  readOnly
+                  className="rounded border-surface-300 dark:border-surface-600 text-brand-600 focus:ring-brand-500 h-3.5 w-3.5 cursor-pointer accent-brand-600"
+                />
+                <span>{opt.label}</span>
+              </label>
             );
           })}
         </div>,
@@ -278,13 +358,49 @@ export default function RenewalsList() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
-  // Column filters initialized from searchParams so direct links and back button work seamlessly
-  const [dateRangeFilter, setDateRangeFilter] = useState(searchParams.get('dateRange') || 'all');
-  const [valueFilter, setValueFilter] = useState(searchParams.get('valueRange') || 'all');
-  const [statusColFilter, setStatusColFilter] = useState(searchParams.get('statusCol') || 'all');
-  const [renewedFilter, setRenewedFilter] = useState(searchParams.get('renewalConfirmation') || 'all');
-  const [clientFilter, setClientFilter] = useState(searchParams.get('clientName') || '');
-  const [serviceFilter, setServiceFilter] = useState(searchParams.get('serviceName') || 'all');
+  
+  // Column multi-select filters initialized from searchParams so direct links and back button work seamlessly
+  const [dateRangeFilter, setDateRangeFilter] = useState(() => {
+    const d = searchParams.get('dateRange');
+    if (!d || d === 'all') return [];
+    return d.split(',').filter(Boolean);
+  });
+  const [valueFilter, setValueFilter] = useState(() => {
+    const v = searchParams.get('valueRange');
+    if (!v || v === 'all') return [];
+    return v.split(',').filter(Boolean);
+  });
+  const [statusColFilter, setStatusColFilter] = useState(() => {
+    const s = searchParams.get('statusCol');
+    if (!s || s === 'all') return [];
+    return s.split(',').filter(Boolean);
+  });
+  const [renewedFilter, setRenewedFilter] = useState(() => {
+    const r = searchParams.get('renewalConfirmation');
+    if (!r || r === 'all') return [];
+    return r.split(',').filter(Boolean);
+  });
+  const [invoiceFilter, setInvoiceFilter] = useState(() => {
+    const i = searchParams.get('invoiceStatus');
+    if (!i || i === 'all') return [];
+    return i.split(',').filter(Boolean);
+  });
+  const [paymentFilter, setPaymentFilter] = useState(() => {
+    const p = searchParams.get('paymentStatus');
+    if (!p || p === 'all') return [];
+    return p.split(',').filter(Boolean);
+  });
+  const [clientFilter, setClientFilter] = useState(() => {
+    const c = searchParams.get('clientName');
+    if (!c || c === 'all') return [];
+    return c.split(',').filter(Boolean);
+  });
+  const [serviceFilter, setServiceFilter] = useState(() => {
+    const s = searchParams.get('serviceName');
+    if (!s || s === 'all') return [];
+    return s.split(',').filter(Boolean);
+  });
+
   const [openFilterCol, setOpenFilterCol] = useState(null); // which column dropdown is open
   const [filterPos, setFilterPos] = useState({ top: 0, left: 0 });
   const filterRef = useRef(null);
@@ -297,23 +413,37 @@ export default function RenewalsList() {
     const status = searchParams.get('status') || 'all';
     if (status !== statusFilter) setStatusFilter(status);
 
-    const dateRange = searchParams.get('dateRange') || 'all';
-    if (dateRange !== dateRangeFilter) setDateRangeFilter(dateRange);
+    const d = searchParams.get('dateRange') || 'all';
+    const dateArr = d === 'all' ? [] : d.split(',').filter(Boolean);
+    if (JSON.stringify(dateArr) !== JSON.stringify(dateRangeFilter)) setDateRangeFilter(dateArr);
 
-    const valRange = searchParams.get('valueRange') || 'all';
-    if (valRange !== valueFilter) setValueFilter(valRange);
+    const v = searchParams.get('valueRange') || 'all';
+    const valArr = v === 'all' ? [] : v.split(',').filter(Boolean);
+    if (JSON.stringify(valArr) !== JSON.stringify(valueFilter)) setValueFilter(valArr);
 
     const stCol = searchParams.get('statusCol') || 'all';
-    if (stCol !== statusColFilter) setStatusColFilter(stCol);
+    const stColArr = stCol === 'all' ? [] : stCol.split(',').filter(Boolean);
+    if (JSON.stringify(stColArr) !== JSON.stringify(statusColFilter)) setStatusColFilter(stColArr);
 
     const renConf = searchParams.get('renewalConfirmation') || 'all';
-    if (renConf !== renewedFilter) setRenewedFilter(renConf);
+    const renArr = renConf === 'all' ? [] : renConf.split(',').filter(Boolean);
+    if (JSON.stringify(renArr) !== JSON.stringify(renewedFilter)) setRenewedFilter(renArr);
+
+    const inv = searchParams.get('invoiceStatus') || 'all';
+    const invArr = inv === 'all' ? [] : inv.split(',').filter(Boolean);
+    if (JSON.stringify(invArr) !== JSON.stringify(invoiceFilter)) setInvoiceFilter(invArr);
+
+    const pay = searchParams.get('paymentStatus') || 'all';
+    const payArr = pay === 'all' ? [] : pay.split(',').filter(Boolean);
+    if (JSON.stringify(payArr) !== JSON.stringify(paymentFilter)) setPaymentFilter(payArr);
 
     const clientN = searchParams.get('clientName') || '';
-    if (clientN !== clientFilter) setClientFilter(clientN);
+    const clientArr = clientN === '' ? [] : clientN.split(',').filter(Boolean);
+    if (JSON.stringify(clientArr) !== JSON.stringify(clientFilter)) setClientFilter(clientArr);
 
     const servN = searchParams.get('serviceName') || 'all';
-    if (servN !== serviceFilter) setServiceFilter(servN);
+    const servArr = servN === 'all' ? [] : servN.split(',').filter(Boolean);
+    if (JSON.stringify(servArr) !== JSON.stringify(serviceFilter)) setServiceFilter(servArr);
   }, [searchParams]);
 
   // Sync URL searchParams when local state filters change
@@ -321,12 +451,31 @@ export default function RenewalsList() {
     const params = new URLSearchParams();
     if (filters.search) params.set('search', filters.search);
     if (filters.statusFilter && filters.statusFilter !== 'all') params.set('status', filters.statusFilter);
-    if (filters.dateRangeFilter && filters.dateRangeFilter !== 'all') params.set('dateRange', filters.dateRangeFilter);
-    if (filters.valueFilter && filters.valueFilter !== 'all') params.set('valueRange', filters.valueFilter);
-    if (filters.statusColFilter && filters.statusColFilter !== 'all') params.set('statusCol', filters.statusColFilter);
-    if (filters.renewedFilter && filters.renewedFilter !== 'all') params.set('renewalConfirmation', filters.renewedFilter);
-    if (filters.clientFilter) params.set('clientName', filters.clientFilter);
-    if (filters.serviceFilter && filters.serviceFilter !== 'all') params.set('serviceName', filters.serviceFilter);
+
+    if (Array.isArray(filters.dateRangeFilter) && filters.dateRangeFilter.length > 0) {
+      params.set('dateRange', filters.dateRangeFilter.join(','));
+    }
+    if (Array.isArray(filters.valueFilter) && filters.valueFilter.length > 0) {
+      params.set('valueRange', filters.valueFilter.join(','));
+    }
+    if (Array.isArray(filters.statusColFilter) && filters.statusColFilter.length > 0) {
+      params.set('statusCol', filters.statusColFilter.join(','));
+    }
+    if (Array.isArray(filters.renewedFilter) && filters.renewedFilter.length > 0) {
+      params.set('renewalConfirmation', filters.renewedFilter.join(','));
+    }
+    if (Array.isArray(filters.invoiceFilter) && filters.invoiceFilter.length > 0) {
+      params.set('invoiceStatus', filters.invoiceFilter.join(','));
+    }
+    if (Array.isArray(filters.paymentFilter) && filters.paymentFilter.length > 0) {
+      params.set('paymentStatus', filters.paymentFilter.join(','));
+    }
+    if (Array.isArray(filters.clientFilter) && filters.clientFilter.length > 0) {
+      params.set('clientName', filters.clientFilter.join(','));
+    }
+    if (Array.isArray(filters.serviceFilter) && filters.serviceFilter.length > 0) {
+      params.set('serviceName', filters.serviceFilter.join(','));
+    }
 
     if (params.toString() !== searchParams.toString()) {
       setSearchParams(params, { replace: true });
@@ -341,10 +490,12 @@ export default function RenewalsList() {
       valueFilter,
       statusColFilter,
       renewedFilter,
+      invoiceFilter,
+      paymentFilter,
       clientFilter,
       serviceFilter
     });
-  }, [search, statusFilter, dateRangeFilter, valueFilter, statusColFilter, renewedFilter, clientFilter, serviceFilter, updateUrlFilters]);
+  }, [search, statusFilter, dateRangeFilter, valueFilter, statusColFilter, renewedFilter, invoiceFilter, paymentFilter, clientFilter, serviceFilter, updateUrlFilters]);
   
   // Update URL and local state when status changes
   const handleStatusChange = (newStatus) => {
@@ -653,6 +804,14 @@ export default function RenewalsList() {
     setNewRenewalDate(`${day}/${month}/${year}`);
   };
 
+  const clientList = useMemo(() => {
+    const set = new Set();
+    renewals.forEach(r => {
+      if (r.client_name && r.client_name.trim()) set.add(r.client_name.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [renewals]);
+
   const fetchRenewals = async (silent = false) => {
     if (!token) return;
     if (!silent) setLoading(true);
@@ -660,7 +819,16 @@ export default function RenewalsList() {
     try {
       const qSent = searchParams.get('quotesSent') || '';
       const pFollow = searchParams.get('pendingFollowup') || '';
-      const res = await fetch(`/api/renewals?page=1&limit=10000&search=${search}&status=${statusColFilter !== 'all' ? statusColFilter : statusFilter}&dateRange=${dateRangeFilter}&valueRange=${valueFilter}&renewalConfirmation=${renewedFilter}&clientName=${encodeURIComponent(clientFilter)}&serviceName=${encodeURIComponent(serviceFilter)}&quotesSent=${qSent}&pendingFollowup=${pFollow}`, {
+      const servParam = Array.isArray(serviceFilter) && serviceFilter.length > 0 ? serviceFilter.join(',') : 'all';
+      const statusColParam = Array.isArray(statusColFilter) && statusColFilter.length > 0 ? statusColFilter.join(',') : (statusFilter !== 'all' ? statusFilter : 'all');
+      const dateParam = Array.isArray(dateRangeFilter) && dateRangeFilter.length > 0 ? dateRangeFilter.join(',') : 'all';
+      const valParam = Array.isArray(valueFilter) && valueFilter.length > 0 ? valueFilter.join(',') : 'all';
+      const renParam = Array.isArray(renewedFilter) && renewedFilter.length > 0 ? renewedFilter.join(',') : 'all';
+      const invParam = Array.isArray(invoiceFilter) && invoiceFilter.length > 0 ? invoiceFilter.join(',') : 'all';
+      const payParam = Array.isArray(paymentFilter) && paymentFilter.length > 0 ? paymentFilter.join(',') : 'all';
+      const clientParam = Array.isArray(clientFilter) ? (clientFilter.length > 0 ? clientFilter.join(',') : '') : (clientFilter || '');
+
+      const res = await fetch(`/api/renewals?page=1&limit=10000&search=${encodeURIComponent(search)}&status=${encodeURIComponent(statusColParam)}&dateRange=${encodeURIComponent(dateParam)}&valueRange=${encodeURIComponent(valParam)}&renewalConfirmation=${encodeURIComponent(renParam)}&clientName=${encodeURIComponent(clientParam)}&serviceName=${encodeURIComponent(servParam)}&invoiceStatus=${encodeURIComponent(invParam)}&paymentStatus=${encodeURIComponent(payParam)}&quotesSent=${qSent}&pendingFollowup=${pFollow}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -683,6 +851,7 @@ export default function RenewalsList() {
         toast.error(errMsg);
       }
     } catch (err) {
+      console.error('Error fetching renewals:', err);
       toast.error('Network or server connection error');
     } finally {
       if (!silent) setLoading(false);
@@ -700,7 +869,7 @@ export default function RenewalsList() {
     return () => {
       window.removeEventListener('rmt_renewals_updated', handleRealTimeUpdate);
     };
-  }, [page, search, statusFilter, dateRangeFilter, valueFilter, statusColFilter, renewedFilter, clientFilter, serviceFilter, token]);
+  }, [page, search, statusFilter, dateRangeFilter, valueFilter, statusColFilter, renewedFilter, invoiceFilter, paymentFilter, clientFilter, serviceFilter, token]);
 
   const confirmDeleteBatch = async () => {
     try {
@@ -1734,6 +1903,7 @@ export default function RenewalsList() {
                         filterRef={filterRef} 
                         onClose={() => setOpenFilterCol(null)} 
                         setPage={setPage} 
+                        title="Services"
                       />
                     </div>
                     <div onMouseDown={(e) => handleResizeMouseDown('service', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
@@ -1778,6 +1948,7 @@ export default function RenewalsList() {
                         filterRef={filterRef} 
                         onClose={() => setOpenFilterCol(null)} 
                         setPage={setPage} 
+                        title="Dates"
                       />
                     </div>
                     <div onMouseDown={(e) => handleResizeMouseDown('date', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
@@ -1806,6 +1977,7 @@ export default function RenewalsList() {
                         filterRef={filterRef} 
                         onClose={() => setOpenFilterCol(null)} 
                         setPage={setPage} 
+                        title="Values"
                       />
                     </div>
                     <div onMouseDown={(e) => handleResizeMouseDown('value', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
@@ -1834,6 +2006,7 @@ export default function RenewalsList() {
                         filterRef={filterRef} 
                         onClose={() => setOpenFilterCol(null)} 
                         setPage={setPage} 
+                        title="Statuses"
                       />
                     </div>
                     <div onMouseDown={(e) => handleResizeMouseDown('status', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
@@ -1873,6 +2046,7 @@ export default function RenewalsList() {
                         filterRef={filterRef} 
                         onClose={() => setOpenFilterCol(null)} 
                         setPage={setPage} 
+                        title="Confirmations"
                       />
                     </div>
                     <div onMouseDown={(e) => handleResizeMouseDown('renewed', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
@@ -1882,7 +2056,7 @@ export default function RenewalsList() {
                 {/* Invoice */}
                 {visibleCols.invoice && (
                   <th 
-                    style={{ width: `${colWidths.invoice || 85}px`, minWidth: `${colWidths.invoice || 85}px` }} 
+                    style={{ width: `${colWidths.invoice || 95}px`, minWidth: `${colWidths.invoice || 95}px` }} 
                     className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold text-center border-r border-surface-200/50 dark:border-surface-700/50 group select-none`}
                   >
                     <div className="flex items-center justify-center gap-1 h-5">
@@ -1890,6 +2064,19 @@ export default function RenewalsList() {
                         <span>Invoice</span>
                         {sortCol === 'invoice_status' ? (sortDir === 'asc' ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
                       </button>
+                      <FilterDropdown 
+                        col="invoice" 
+                        value={invoiceFilter} 
+                        onChange={setInvoiceFilter} 
+                        options={INVOICE_OPTIONS} 
+                        isOpen={openFilterCol === 'invoice'} 
+                        onToggle={(e) => toggleFilter('invoice', e)} 
+                        filterPos={filterPos} 
+                        filterRef={filterRef} 
+                        onClose={() => setOpenFilterCol(null)} 
+                        setPage={setPage} 
+                        title="Invoices"
+                      />
                     </div>
                     <div onMouseDown={(e) => handleResizeMouseDown('invoice', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
                   </th>
@@ -1898,7 +2085,7 @@ export default function RenewalsList() {
                 {/* Payment */}
                 {visibleCols.payment && (
                   <th 
-                    style={{ width: `${colWidths.payment || 85}px`, minWidth: `${colWidths.payment || 85}px` }} 
+                    style={{ width: `${colWidths.payment || 95}px`, minWidth: `${colWidths.payment || 95}px` }} 
                     className={`relative px-2 ${isCompact ? 'py-1' : 'py-2'} font-semibold text-center border-r border-surface-200/50 dark:border-surface-700/50 group select-none`}
                   >
                     <div className="flex items-center justify-center gap-1 h-5">
@@ -1906,6 +2093,19 @@ export default function RenewalsList() {
                         <span>Payment</span>
                         {sortCol === 'payment_status' ? (sortDir === 'asc' ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
                       </button>
+                      <FilterDropdown 
+                        col="payment" 
+                        value={paymentFilter} 
+                        onChange={setPaymentFilter} 
+                        options={PAYMENT_OPTIONS} 
+                        isOpen={openFilterCol === 'payment'} 
+                        onToggle={(e) => toggleFilter('payment', e)} 
+                        filterPos={filterPos} 
+                        filterRef={filterRef} 
+                        onClose={() => setOpenFilterCol(null)} 
+                        setPage={setPage} 
+                        title="Payments"
+                      />
                     </div>
                     <div onMouseDown={(e) => handleResizeMouseDown('payment', e)} className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-500/80 z-30" />
                   </th>

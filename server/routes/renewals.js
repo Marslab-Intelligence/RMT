@@ -93,7 +93,7 @@ router.get('/', authenticateToken, async (req, res) => {
         AND (renewal_date - CURRENT_DATE) > 30
     `);
 
-    const { search, status, sort, order, page = 1, limit = 50, dateRange, valueRange, renewalConfirmation, clientName, serviceName, quotesSent, pendingFollowup } = req.query;
+    const { search, status, sort, order, page = 1, limit = 50, dateRange, valueRange, renewalConfirmation, clientName, serviceName, invoiceStatus, paymentStatus, quotesSent, pendingFollowup } = req.query;
     let query = 'SELECT * FROM renewals WHERE 1=1';
     const params = [];
     let paramIndex = 1;
@@ -130,29 +130,92 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 
     if (clientName && clientName !== 'all' && clientName.trim() !== '') {
-      query += ` AND client_name ILIKE $${paramIndex++}`;
-      params.push(`%${clientName.trim()}%`);
-    }
-
-    if (serviceName && serviceName !== 'all' && serviceName.trim() !== '') {
-      query += ` AND service ILIKE $${paramIndex++}`;
-      params.push(`%${serviceName.trim()}%`);
-    }
-
-    if (status && status !== 'all') {
-      if (status === 'Renewed') {
-        query += ` AND (status = 'Renewed' OR renewal_confirmation = 'renewed')`;
-      } else if (status === 'Active') {
-        query += ` AND status = 'Active' AND (renewal_confirmation IS NULL OR renewal_confirmation != 'renewed')`;
-      } else {
-        query += ` AND status = $${paramIndex++}`;
-        params.push(status);
+      const clients = clientName.split(',').map(c => c.trim()).filter(Boolean);
+      if (clients.length === 1) {
+        query += ` AND client_name ILIKE $${paramIndex++}`;
+        params.push(`%${clients[0]}%`);
+      } else if (clients.length > 1) {
+        const clientConds = clients.map(c => {
+          params.push(`%${c}%`);
+          return `client_name ILIKE $${paramIndex++}`;
+        });
+        query += ` AND (${clientConds.join(' OR ')})`;
       }
     }
 
-    if (renewalConfirmation && renewalConfirmation !== 'all') {
-      query += ` AND (renewal_confirmation = $${paramIndex++} OR (renewal_confirmation IS NULL AND $${paramIndex - 1} = 'pending'))`;
-      params.push(renewalConfirmation);
+    if (serviceName && serviceName !== 'all' && serviceName.trim() !== '') {
+      const services = serviceName.split(',').map(s => s.trim()).filter(Boolean);
+      if (services.length === 1) {
+        query += ` AND service ILIKE $${paramIndex++}`;
+        params.push(`%${services[0]}%`);
+      } else if (services.length > 1) {
+        const serviceConditions = services.map(s => {
+          params.push(`%${s}%`);
+          return `service ILIKE $${paramIndex++}`;
+        });
+        query += ` AND (${serviceConditions.join(' OR ')})`;
+      }
+    }
+
+    if (status && status !== 'all' && status.trim() !== '') {
+      const statuses = status.split(',').map(s => s.trim()).filter(Boolean);
+      if (statuses.length > 0) {
+        const statusConds = statuses.map(st => {
+          if (st === 'Renewed') {
+            return `(status = 'Renewed' OR renewal_confirmation = 'renewed')`;
+          } else if (st === 'Active') {
+            return `(status = 'Active' AND (renewal_confirmation IS NULL OR renewal_confirmation != 'renewed'))`;
+          } else {
+            params.push(st);
+            return `status = $${paramIndex++}`;
+          }
+        });
+        query += ` AND (${statusConds.join(' OR ')})`;
+      }
+    }
+
+    if (renewalConfirmation && renewalConfirmation !== 'all' && renewalConfirmation.trim() !== '') {
+      const confirmations = renewalConfirmation.split(',').map(c => c.trim()).filter(Boolean);
+      if (confirmations.length > 0) {
+        const confConds = confirmations.map(c => {
+          if (c === 'pending') {
+            return `(renewal_confirmation = 'pending' OR renewal_confirmation IS NULL)`;
+          } else {
+            params.push(c);
+            return `renewal_confirmation = $${paramIndex++}`;
+          }
+        });
+        query += ` AND (${confConds.join(' OR ')})`;
+      }
+    }
+
+    if (invoiceStatus && invoiceStatus !== 'all' && invoiceStatus.trim() !== '') {
+      const invTokens = invoiceStatus.split(',').map(i => i.trim()).filter(Boolean);
+      if (invTokens.length > 0) {
+        const invConds = invTokens.map(t => {
+          if (t === 'Sent') {
+            return `(invoice_status = 'Sent' OR (invoice_number IS NOT NULL AND invoice_number != ''))`;
+          } else {
+            return `(invoice_status = 'Not' OR invoice_status IS NULL OR invoice_number IS NULL OR invoice_number = '')`;
+          }
+        });
+        query += ` AND (${invConds.join(' OR ')})`;
+      }
+    }
+
+    if (paymentStatus && paymentStatus !== 'all' && paymentStatus.trim() !== '') {
+      const payTokens = paymentStatus.split(',').map(p => p.trim()).filter(Boolean);
+      if (payTokens.length > 0) {
+        const payConds = payTokens.map(t => {
+          if (t === 'Yes') {
+            params.push('Yes');
+            return `payment_status = $${paramIndex++}`;
+          } else {
+            return `(payment_status = 'No' OR payment_status IS NULL)`;
+          }
+        });
+        query += ` AND (${payConds.join(' OR ')})`;
+      }
     }
 
     if (quotesSent === 'true') {
@@ -163,66 +226,82 @@ router.get('/', authenticateToken, async (req, res) => {
       query += ` AND follow_up_status != 'Completed' AND status IN ('Active','Pending Renewal') AND (renewal_confirmation IS NULL OR renewal_confirmation != 'renewed')`;
     }
 
-    // Date range filter
-    if (dateRange && dateRange !== 'all') {
+    // Date range filter (supports multi-select comma-separated date range tokens)
+    if (dateRange && dateRange !== 'all' && dateRange.trim() !== '') {
+      const dateTokens = dateRange.split(',').map(d => d.trim()).filter(Boolean);
+      const dateConds = [];
       const now = new Date();
       now.setHours(0, 0, 0, 0);
       const today = now.toISOString().split('T')[0];
-      if (dateRange === 'expired') {
-        query += ` AND renewal_date < $${paramIndex++}`;
-        params.push(today);
-      } else if (dateRange === 'today') {
-        query += ` AND renewal_date = $${paramIndex++}`;
-        params.push(today);
-      } else if (dateRange === 'next7') {
-        const end = new Date(now); end.setDate(end.getDate() + 7);
-        query += ` AND renewal_date >= $${paramIndex++} AND renewal_date <= $${paramIndex++}`;
-        params.push(today, end.toISOString().split('T')[0]);
-      } else if (dateRange === 'next30') {
-        const end = new Date(now); end.setDate(end.getDate() + 30);
-        query += ` AND renewal_date >= $${paramIndex++} AND renewal_date <= $${paramIndex++}`;
-        params.push(today, end.toISOString().split('T')[0]);
-      } else if (dateRange === 'next60') {
-        const end = new Date(now); end.setDate(end.getDate() + 60);
-        query += ` AND renewal_date >= $${paramIndex++} AND renewal_date <= $${paramIndex++}`;
-        params.push(today, end.toISOString().split('T')[0]);
-      } else if (dateRange === 'next90') {
-        const end = new Date(now); end.setDate(end.getDate() + 90);
-        query += ` AND renewal_date >= $${paramIndex++} AND renewal_date <= $${paramIndex++}`;
-        params.push(today, end.toISOString().split('T')[0]);
-      } else if (dateRange === 'this_month') {
-        query += ` AND renewal_date >= DATE_TRUNC('month', CURRENT_DATE) AND renewal_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'`;
-      } else if (dateRange === 'next_month') {
-        query += ` AND renewal_date >= DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month' AND renewal_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '2 month'`;
-      } else if (dateRange === 'prev_month') {
-        query += ` AND renewal_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month' AND renewal_date < DATE_TRUNC('month', CURRENT_DATE)`;
-      } else if (dateRange.startsWith('m_')) {
-        const m = parseInt(dateRange.replace('m_', ''), 10);
-        if (m >= 1 && m <= 12) {
-          query += ` AND EXTRACT(MONTH FROM renewal_date) = $${paramIndex++}`;
-          params.push(m);
+
+      for (const token of dateTokens) {
+        if (token === 'expired') {
+          dateConds.push(`renewal_date < $${paramIndex++}`);
+          params.push(today);
+        } else if (token === 'today') {
+          dateConds.push(`renewal_date = $${paramIndex++}`);
+          params.push(today);
+        } else if (token === 'next7') {
+          const end = new Date(now); end.setDate(end.getDate() + 7);
+          dateConds.push(`(renewal_date >= $${paramIndex++} AND renewal_date <= $${paramIndex++})`);
+          params.push(today, end.toISOString().split('T')[0]);
+        } else if (token === 'next30') {
+          const end = new Date(now); end.setDate(end.getDate() + 30);
+          dateConds.push(`(renewal_date >= $${paramIndex++} AND renewal_date <= $${paramIndex++})`);
+          params.push(today, end.toISOString().split('T')[0]);
+        } else if (token === 'next60') {
+          const end = new Date(now); end.setDate(end.getDate() + 60);
+          dateConds.push(`(renewal_date >= $${paramIndex++} AND renewal_date <= $${paramIndex++})`);
+          params.push(today, end.toISOString().split('T')[0]);
+        } else if (token === 'next90') {
+          const end = new Date(now); end.setDate(end.getDate() + 90);
+          dateConds.push(`(renewal_date >= $${paramIndex++} AND renewal_date <= $${paramIndex++})`);
+          params.push(today, end.toISOString().split('T')[0]);
+        } else if (token === 'this_month') {
+          dateConds.push(`(renewal_date >= DATE_TRUNC('month', CURRENT_DATE) AND renewal_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')`);
+        } else if (token === 'next_month') {
+          dateConds.push(`(renewal_date >= DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month' AND renewal_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '2 month')`);
+        } else if (token === 'prev_month') {
+          dateConds.push(`(renewal_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month' AND renewal_date < DATE_TRUNC('month', CURRENT_DATE))`);
+        } else if (token.startsWith('m_')) {
+          const m = parseInt(token.replace('m_', ''), 10);
+          if (m >= 1 && m <= 12) {
+            dateConds.push(`EXTRACT(MONTH FROM renewal_date) = $${paramIndex++}`);
+            params.push(m);
+          }
+        } else if (/^\d{4}-\d{2}$/.test(token)) {
+          const [yr, mo] = token.split('-').map(Number);
+          dateConds.push(`(EXTRACT(YEAR FROM renewal_date) = $${paramIndex++} AND EXTRACT(MONTH FROM renewal_date) = $${paramIndex++})`);
+          params.push(yr, mo);
         }
-      } else if (/^\d{4}-\d{2}$/.test(dateRange)) {
-        const [yr, mo] = dateRange.split('-').map(Number);
-        query += ` AND EXTRACT(YEAR FROM renewal_date) = $${paramIndex++} AND EXTRACT(MONTH FROM renewal_date) = $${paramIndex++}`;
-        params.push(yr, mo);
+      }
+
+      if (dateConds.length > 0) {
+        query += ` AND (${dateConds.join(' OR ')})`;
       }
     }
 
-    // Value range filter
-    if (valueRange && valueRange !== 'all') {
-      if (valueRange === 'under50k') {
-        query += ` AND value < $${paramIndex++}`;
-        params.push(50000);
-      } else if (valueRange === '50k-1l') {
-        query += ` AND value >= $${paramIndex++} AND value < $${paramIndex++}`;
-        params.push(50000, 100000);
-      } else if (valueRange === '1l-5l') {
-        query += ` AND value >= $${paramIndex++} AND value < $${paramIndex++}`;
-        params.push(100000, 500000);
-      } else if (valueRange === 'above5l') {
-        query += ` AND value >= $${paramIndex++}`;
-        params.push(500000);
+    // Value range filter (supports multi-select comma-separated value tokens)
+    if (valueRange && valueRange !== 'all' && valueRange.trim() !== '') {
+      const valTokens = valueRange.split(',').map(v => v.trim()).filter(Boolean);
+      const valConds = [];
+      for (const token of valTokens) {
+        if (token === 'under50k') {
+          valConds.push(`value < $${paramIndex++}`);
+          params.push(50000);
+        } else if (token === '50k-1l') {
+          valConds.push(`(value >= $${paramIndex++} AND value < $${paramIndex++})`);
+          params.push(50000, 100000);
+        } else if (token === '1l-5l') {
+          valConds.push(`(value >= $${paramIndex++} AND value < $${paramIndex++})`);
+          params.push(100000, 500000);
+        } else if (token === 'above5l') {
+          valConds.push(`value >= $${paramIndex++}`);
+          params.push(500000);
+        }
+      }
+      if (valConds.length > 0) {
+        query += ` AND (${valConds.join(' OR ')})`;
       }
     }
 

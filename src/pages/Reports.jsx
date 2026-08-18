@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BarChart3, TrendingUp, TrendingDown, Mail, AlertCircle, CheckCircle2, Clock, 
   Activity, Zap, Users, ArrowUpRight, Maximize2, Minimize2, X, Search, Download, Filter,
-  Layers, Building2, ChevronRight, PieChart as PieIcon, ExternalLink, Calendar, Shield, ShieldAlert, ArrowRight, XCircle
+  Layers, Building2, ChevronRight, ChevronDown, PieChart as PieIcon, ExternalLink, Calendar, Shield, ShieldAlert, ArrowRight, XCircle
 } from 'lucide-react';
 import { formatCurrency, formatCompactCurrency, formatDateTime } from '../utils/formatters';
 import ThreeDGraph from '../components/ThreeDGraph';
@@ -46,18 +46,18 @@ const formatEmailTypeBadge = (type) => {
   }
 
   switch (normalized) {
-    case '30_day_reminder': return { label: '30-Day Reminder', color: 'bg-blue-200 text-[#002b66] border-blue-500 font-black', style: { backgroundColor: '#dbeafe', color: '#002b66', borderColor: '#2563eb', fontWeight: '900' } };
-    case '20_day_reminder': return { label: '20-Day Reminder', color: 'bg-indigo-200 text-[#1e1b4b] border-indigo-500 font-black', style: { backgroundColor: '#e0e7ff', color: '#1e1b4b', borderColor: '#4f46e5', fontWeight: '900' } };
-    case '15_day_reminder': return { label: '15-Day Reminder', color: 'bg-amber-200 text-[#451a03] border-amber-500 font-black', style: { backgroundColor: '#fef3c7', color: '#451a03', borderColor: '#d97706', fontWeight: '900' } };
-    case '10_day_reminder': return { label: '10-Day Reminder', color: 'bg-orange-200 text-[#431407] border-orange-500 font-black', style: { backgroundColor: '#ffedd5', color: '#431407', borderColor: '#ea580c', fontWeight: '900' } };
-    case '5_day_reminder':  return { label: '5-Day Reminder',  color: 'bg-rose-200 text-[#4c0519] border-rose-500 font-black', style: { backgroundColor: '#ffe4e6', color: '#4c0519', borderColor: '#e11d48', fontWeight: '900' } };
-    case '3_day_reminder':  return { label: '3-Day Reminder',  color: 'bg-red-200 text-[#450a0a] border-red-500 font-black', style: { backgroundColor: '#fee2e2', color: '#450a0a', borderColor: '#ef4444', fontWeight: '900' } };
-    case 'sales_special_15_day': return { label: 'CST 15-Day Followup', color: 'bg-purple-200 text-[#3b0764] border-purple-500 font-black', style: { backgroundColor: '#f3e8ff', color: '#3b0764', borderColor: '#9333ea', fontWeight: '900' } };
-    case 'sales_special_5_day':  return { label: 'CST 5-Day Followup',  color: 'bg-pink-200 text-[#500724] border-pink-500 font-black', style: { backgroundColor: '#fce7f3', color: '#500724', borderColor: '#ec4899', fontWeight: '900' } };
-    case 'sales_special_3_day':  return { label: 'CST 3-Day Followup',  color: 'bg-rose-200 text-[#4c0519] border-rose-500 font-black', style: { backgroundColor: '#ffe4e6', color: '#4c0519', borderColor: '#e11d48', fontWeight: '900' } };
-    case 'renewal_expired': return { label: 'Expiry Alert', color: 'bg-red-200 text-[#450a0a] border-red-500 font-black', style: { backgroundColor: '#fee2e2', color: '#450a0a', borderColor: '#ef4444', fontWeight: '900' } };
+    case '30_day_reminder': return { label: '30-Day Reminder', color: 'bg-blue-200 text-[#000000] border-blue-500 font-black', style: { backgroundColor: '#dbeafe', color: '#000000', borderColor: '#2563eb', fontWeight: '900' } };
+    case '20_day_reminder': return { label: '20-Day Reminder', color: 'bg-indigo-200 text-[#000000] border-indigo-500 font-black', style: { backgroundColor: '#e0e7ff', color: '#000000', borderColor: '#4f46e5', fontWeight: '900' } };
+    case '15_day_reminder': return { label: '15-Day Reminder', color: 'bg-amber-200 text-[#000000] border-amber-500 font-black', style: { backgroundColor: '#fef3c7', color: '#000000', borderColor: '#d97706', fontWeight: '900' } };
+    case '10_day_reminder': return { label: '10-Day Reminder', color: 'bg-orange-200 text-[#000000] border-orange-500 font-black', style: { backgroundColor: '#ffedd5', color: '#000000', borderColor: '#ea580c', fontWeight: '900' } };
+    case '5_day_reminder':  return { label: '5-Day Reminder',  color: 'bg-rose-200 text-[#000000] border-rose-500 font-black', style: { backgroundColor: '#ffe4e6', color: '#000000', borderColor: '#e11d48', fontWeight: '900' } };
+    case '3_day_reminder':  return { label: '3-Day Reminder',  color: 'bg-red-200 text-[#000000] border-red-500 font-black', style: { backgroundColor: '#fee2e2', color: '#000000', borderColor: '#ef4444', fontWeight: '900' } };
+    case 'sales_special_15_day': return { label: 'CST 15-Day Followup', color: 'bg-purple-200 text-[#000000] border-purple-500 font-black', style: { backgroundColor: '#f3e8ff', color: '#000000', borderColor: '#9333ea', fontWeight: '900' } };
+    case 'sales_special_5_day':  return { label: 'CST 5-Day Followup',  color: 'bg-pink-200 text-[#000000] border-pink-500 font-black', style: { backgroundColor: '#fce7f3', color: '#000000', borderColor: '#ec4899', fontWeight: '900' } };
+    case 'sales_special_3_day':  return { label: 'CST 3-Day Followup',  color: 'bg-rose-200 text-[#000000] border-rose-500 font-black', style: { backgroundColor: '#ffe4e6', color: '#000000', borderColor: '#e11d48', fontWeight: '900' } };
+    case 'renewal_expired': return { label: 'Expiry Alert', color: 'bg-red-200 text-[#000000] border-red-500 font-black', style: { backgroundColor: '#fee2e2', color: '#000000', borderColor: '#ef4444', fontWeight: '900' } };
     case 'automation_toggle': return { label: 'Automation Toggle', color: 'bg-slate-200 text-[#000000] border-slate-500 font-black', style: { backgroundColor: '#e2e8f0', color: '#000000', borderColor: '#64748b', fontWeight: '900' } };
-    case 'manual_email': return { label: 'Manual Email', color: 'bg-teal-200 text-[#042f2e] border-teal-500 font-black', style: { backgroundColor: '#ccfbf1', color: '#042f2e', borderColor: '#14b8a6', fontWeight: '900' } };
+    case 'manual_email': return { label: 'Manual Email', color: 'bg-teal-200 text-[#013220] border-teal-500 font-black', style: { backgroundColor: '#ccfbf1', color: '#013220', borderColor: '#14b8a6', fontWeight: '900' } };
     default: return { label: type ? type.replace(/_/g, ' ') : 'General', color: 'bg-slate-200 text-[#000000] border-slate-500 font-black', style: { backgroundColor: '#e2e8f0', color: '#000000', borderColor: '#64748b', fontWeight: '900' } };
   }
 };
@@ -98,8 +98,10 @@ export default function Reports() {
   // Modal Full Screen State
   const [activeModal, setActiveModal] = useState(null);
   const [modalSearchTerm, setModalSearchTerm] = useState('');
-  const [modalCategoryFilter, setModalCategoryFilter] = useState('All');
-  const [modalStatusFilter, setModalStatusFilter] = useState('All');
+  const [modalCategoryFilter, setModalCategoryFilter] = useState([]);
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [modalStatusFilter, setModalStatusFilter] = useState([]);
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [modalDateFilter, setModalDateFilter] = useState('All');
   const [modalStartDate, setModalStartDate] = useState('');
   const [modalEndDate, setModalEndDate] = useState('');
@@ -227,10 +229,11 @@ export default function Reports() {
         (item.service && item.service.toLowerCase().includes(modalSearchTerm.toLowerCase())) ||
         (item.vendor && item.vendor.toLowerCase().includes(modalSearchTerm.toLowerCase()));
 
-      const matchCategory = modalCategoryFilter === 'All' || 
-        (item.service && item.service.toLowerCase().includes(modalCategoryFilter.toLowerCase()));
+      const matchCategory = modalCategoryFilter.length === 0 || 
+        (item.service && modalCategoryFilter.includes(item.service));
 
-      const matchStatus = modalStatusFilter === 'All' || item.status === modalStatusFilter;
+      const matchStatus = modalStatusFilter.length === 0 || 
+        (item.status && modalStatusFilter.includes(item.status));
 
       let matchDate = true;
       if (modalDateFilter !== 'All' && item.expiry_date) {
@@ -374,8 +377,9 @@ export default function Reports() {
 
   const openModal = (type) => {
     setModalSearchTerm('');
-    setModalCategoryFilter('All');
-    setModalStatusFilter('All');
+    setModalCategoryFilter([]);
+    setCategoryDropdownOpen(false);
+    setModalStatusFilter([]);
     setModalDateFilter('All');
     setModalStartDate('');
     setModalEndDate('');
@@ -864,34 +868,162 @@ export default function Reports() {
                   </div>
                 )}
 
-                {/* Category Dropdown */}
-                <div className="flex items-center gap-1.5">
+                {/* Multi-Select Category Dropdown */}
+                <div className="relative flex items-center gap-1.5">
                   <Filter className="w-4 h-4 text-slate-400" />
-                  <select
-                    value={modalCategoryFilter}
-                    onChange={(e) => setModalCategoryFilter(e.target.value)}
-                    className="px-3 py-2 bg-slate-900 border border-white/20 rounded-xl text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                  <button
+                    onClick={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
+                    className="px-3 py-2 bg-slate-900 border border-white/20 rounded-xl text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer flex items-center gap-2 min-w-[140px] justify-between"
                   >
-                    {availableModalCategories.map(cat => (
-                      <option key={cat} value={cat}>{cat === 'All' ? 'All Services' : cat}</option>
-                    ))}
-                  </select>
+                    <span className="truncate max-w-[200px]">
+                      {modalCategoryFilter.length === 0 
+                        ? 'All Services' 
+                        : modalCategoryFilter.length === 1 
+                          ? modalCategoryFilter[0] 
+                          : `${modalCategoryFilter.length} Services`}
+                    </span>
+                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${categoryDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {categoryDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-[10]" onClick={() => setCategoryDropdownOpen(false)} />
+                      <div className="absolute top-full left-0 mt-1.5 z-[20] bg-slate-900 border border-white/20 rounded-xl shadow-2xl shadow-black/40 min-w-[220px] max-h-[320px] overflow-y-auto custom-scrollbar py-1.5">
+                        {/* Select All / Clear */}
+                        <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
+                          <button
+                            onClick={() => { setModalCategoryFilter([]); }}
+                            className={`text-[11px] font-bold transition-colors ${
+                              modalCategoryFilter.length === 0 ? 'text-brand-400' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            All Services
+                          </button>
+                          {modalCategoryFilter.length > 0 && (
+                            <button
+                              onClick={() => setModalCategoryFilter([])}
+                              className="text-[10px] text-rose-400 hover:text-rose-300 font-bold"
+                            >
+                              Clear ({modalCategoryFilter.length})
+                            </button>
+                          )}
+                        </div>
+                        {availableModalCategories.filter(c => c !== 'All').map(cat => {
+                          const isSelected = modalCategoryFilter.includes(cat);
+                          return (
+                            <div
+                              key={cat}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isSelected) {
+                                  setModalCategoryFilter(modalCategoryFilter.filter(c => c !== cat));
+                                } else {
+                                  setModalCategoryFilter([...modalCategoryFilter, cat]);
+                                }
+                              }}
+                              className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-all hover:bg-white/5 ${
+                                isSelected ? 'bg-brand-500/10' : ''
+                              }`}
+                            >
+                              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${
+                                isSelected 
+                                  ? 'bg-brand-500 border-brand-500' 
+                                  : 'border-slate-500 hover:border-slate-300'
+                              }`}>
+                                {isSelected && (
+                                  <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                              <span className={`text-xs font-semibold ${
+                                isSelected ? 'text-white' : 'text-slate-300'
+                              }`}>{cat}</span>
+                              <span className="ml-auto text-[10px] text-slate-500 font-mono">
+                                {serviceRecords.filter(r => r.service === cat).length}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
 
-                {/* Status Dropdown Filter */}
-                <div className="flex items-center gap-1.5">
+                {/* Multi-Select Status Dropdown Filter */}
+                <div className="relative flex items-center gap-1.5">
                   <Shield className="w-4 h-4 text-slate-400" />
-                  <select
-                    value={modalStatusFilter}
-                    onChange={(e) => setModalStatusFilter(e.target.value)}
-                    className="px-3 py-2 bg-slate-900 border border-white/20 rounded-xl text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                  <button
+                    onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
+                    className="px-3 py-2 bg-slate-900 border border-white/20 rounded-xl text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer flex items-center gap-2 min-w-[130px] justify-between"
                   >
-                    <option value="All">All Statuses</option>
-                    <option value="Active">Active</option>
-                    <option value="Pending Renewal">Pending Renewal</option>
-                    <option value="Renewed">Renewed</option>
-                    <option value="Expired">Expired</option>
-                  </select>
+                    <span className="truncate max-w-[180px]">
+                      {modalStatusFilter.length === 0 
+                        ? 'All Statuses' 
+                        : modalStatusFilter.length === 1 
+                          ? modalStatusFilter[0] 
+                          : `${modalStatusFilter.length} Statuses`}
+                    </span>
+                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${statusDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {statusDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-[10]" onClick={() => setStatusDropdownOpen(false)} />
+                      <div className="absolute top-full left-0 mt-1.5 z-[20] bg-slate-900 border border-white/20 rounded-xl shadow-2xl shadow-black/40 min-w-[200px] max-h-[300px] overflow-y-auto custom-scrollbar py-1.5">
+                        <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between">
+                          <button
+                            onClick={() => { setModalStatusFilter([]); }}
+                            className={`text-[11px] font-bold transition-colors ${
+                              modalStatusFilter.length === 0 ? 'text-brand-400' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            All Statuses
+                          </button>
+                          {modalStatusFilter.length > 0 && (
+                            <button
+                              onClick={() => setModalStatusFilter([])}
+                              className="text-[10px] text-rose-400 hover:text-rose-300 font-bold"
+                            >
+                              Clear ({modalStatusFilter.length})
+                            </button>
+                          )}
+                        </div>
+                        {['Active', 'Pending Renewal', 'Renewed', 'Expired'].map(st => {
+                          const isSelected = modalStatusFilter.includes(st);
+                          return (
+                            <div
+                              key={st}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isSelected) {
+                                  setModalStatusFilter(modalStatusFilter.filter(s => s !== st));
+                                } else {
+                                  setModalStatusFilter([...modalStatusFilter, st]);
+                                }
+                              }}
+                              className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-all hover:bg-white/5 ${
+                                isSelected ? 'bg-brand-500/10' : ''
+                              }`}
+                            >
+                              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${
+                                isSelected 
+                                  ? 'bg-brand-500 border-brand-500' 
+                                  : 'border-slate-500 hover:border-slate-300'
+                              }`}>
+                                {isSelected && (
+                                  <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                              <span className={`text-xs font-semibold ${
+                                isSelected ? 'text-white' : 'text-slate-300'
+                              }`}>{st}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Renewal Date Dropdown & Calendar Range Filter */}
@@ -1329,8 +1461,8 @@ export default function Reports() {
       )}
 
       {/* Month Client Drilldown Modal */}
-      {selectedMonthDrilldown && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+      {selectedMonthDrilldown && createPortal(
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
           <div className="bg-slate-900 border border-white/20 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
             {/* Header */}
             <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-slate-900/90">
@@ -1425,7 +1557,8 @@ export default function Reports() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Client Full Details Modal */}
