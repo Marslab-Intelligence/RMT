@@ -1,15 +1,19 @@
 {
   "name": "renewal-management-system",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "start": "NODE_ENV=production node server/index.js",
     "dev": "npm run build && npm start",
     "build": "vite build",
-    "seed": "node server/seed.js"
+    "deploy": "./push.sh",
+    "watch-deploy": "node watch-deploy.js",
+    "seed": "node server/seed.js",
+    "test": "node --test test/**/*.test.js"
   },
   "dependencies": {
+    "@google/genai": "^2.18.0",
     "@react-spring/web": "^10.1.2",
     "@visx/gradient": "^4.0.0",
     "@visx/group": "^4.0.0",

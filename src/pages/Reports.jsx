@@ -335,12 +335,20 @@ export default function Reports() {
 
     const enriched = monthlyData.map(m => {
       const rev = parseFloat(m.revenue) || 0;
-      const estProfit = Math.round(rev * 0.72);
+      const profit = parseFloat(m.profit) || 0;
+      // Share of the month's revenue that actually has a profit figure recorded.
+      // Where this is low the margin below is understated, so the UI flags it
+      // instead of presenting a partial number as though it were complete.
+      const revWithProfit = parseFloat(m.revenueWithProfit) || 0;
+      const coverage = rev > 0 ? revWithProfit / rev : 0;
       return {
         month: m.month,
         count: m.count || 0,
         revenue: rev,
-        profit: estProfit
+        profit,
+        margin: rev > 0 ? (profit / rev) * 100 : 0,
+        coverage,
+        profitIncomplete: rev > 0 && coverage < 0.99
       };
     });
 
@@ -353,14 +361,23 @@ export default function Reports() {
     });
 
     const totalRev = enriched.reduce((acc, m) => acc + m.revenue, 0);
+    const totalProfit = enriched.reduce((acc, m) => acc + m.profit, 0);
     const avgRev = enriched.length > 0 ? totalRev / enriched.length : 0;
+    const avgMargin = totalRev > 0 ? (totalProfit / totalRev) * 100 : 0;
+    const anyProfitIncomplete = enriched.some(m => m.profitIncomplete);
 
     return {
       enriched,
       peakMonth,
       riskMonth,
       avgRev,
-      totalRev
+      totalRev,
+      totalProfit,
+      avgMargin,
+      anyProfitIncomplete,
+      // Was referenced by the "Tracked Period" tile but never returned, so it
+      // rendered as "undefined Months".
+      totalTrackedMonths: enriched.length
     };
   }, [monthlyData]);
 
@@ -1244,7 +1261,13 @@ export default function Reports() {
                           {formatCurrency(monthlyAnalysis.peakMonth?.revenue || 0)} <span className="text-[10px] text-slate-400 font-medium">(Rev)</span>
                         </p>
                         <p className="text-xs text-slate-400 mt-1">
-                          Est. Profit: <strong className="text-white">{formatCurrency(monthlyAnalysis.peakMonth?.profit || 0)}</strong> across {monthlyAnalysis.peakMonth?.count || 0} contracts.
+                          Profit: <strong className="text-white">{formatCurrency(monthlyAnalysis.peakMonth?.profit || 0)}</strong>
+                          {monthlyAnalysis.peakMonth?.revenue > 0 && (
+                            <span className="text-slate-400"> ({monthlyAnalysis.peakMonth.margin.toFixed(1)}% margin)</span>
+                          )} across {monthlyAnalysis.peakMonth?.count || 0} contracts.
+                          {monthlyAnalysis.peakMonth?.profitIncomplete && (
+                            <span className="text-amber-400" title="Some contracts in this month have no profit recorded, so this figure is understated."> Partial data.</span>
+                          )}
                         </p>
                         <div className="mt-2.5 pt-2 border-t border-emerald-500/20 flex items-center justify-between text-[11px] font-bold text-emerald-400 group-hover:text-white transition-colors">
                           <span>View {monthlyAnalysis.peakMonth?.count || 0} Related Clients</span>
@@ -1267,7 +1290,13 @@ export default function Reports() {
                           {formatCurrency(monthlyAnalysis.riskMonth?.revenue || 0)} <span className="text-[10px] text-slate-400 font-medium">(Rev)</span>
                         </p>
                         <p className="text-xs text-slate-400 mt-1">
-                          Est. Profit: <strong className="text-white">{formatCurrency(monthlyAnalysis.riskMonth?.profit || 0)}</strong> ({monthlyAnalysis.riskMonth?.count || 0} active renewals).
+                          Profit: <strong className="text-white">{formatCurrency(monthlyAnalysis.riskMonth?.profit || 0)}</strong>
+                          {monthlyAnalysis.riskMonth?.revenue > 0 && (
+                            <span className="text-slate-400"> ({monthlyAnalysis.riskMonth.margin.toFixed(1)}% margin)</span>
+                          )} across {monthlyAnalysis.riskMonth?.count || 0} active renewals.
+                          {monthlyAnalysis.riskMonth?.profitIncomplete && (
+                            <span className="text-amber-400" title="Some contracts in this month have no profit recorded, so this figure is understated."> Partial data.</span>
+                          )}
                         </p>
                         <div className="mt-2.5 pt-2 border-t border-rose-500/20 flex items-center justify-between text-[11px] font-bold text-rose-400 group-hover:text-white transition-colors">
                           <span>View {monthlyAnalysis.riskMonth?.count || 0} Related Clients</span>
@@ -1288,6 +1317,17 @@ export default function Reports() {
                         <p className="text-xs text-slate-400 mt-1">
                           Total Forecasted Portfolio: <strong className="text-white">{formatCurrency(monthlyAnalysis.totalRev)}</strong>
                         </p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Total Profit: <strong className="text-white">{formatCurrency(monthlyAnalysis.totalProfit)}</strong>
+                          {monthlyAnalysis.totalRev > 0 && (
+                            <span className="text-indigo-300"> ({monthlyAnalysis.avgMargin.toFixed(1)}% margin)</span>
+                          )}
+                        </p>
+                        {monthlyAnalysis.anyProfitIncomplete && (
+                          <p className="text-[11px] text-amber-400 mt-1.5 leading-snug">
+                            Some contracts have no profit recorded — margins shown are understated, not estimated.
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -1547,7 +1587,29 @@ export default function Reports() {
             <div className="px-6 py-3.5 border-t border-white/10 bg-slate-900/90 flex justify-between items-center text-xs text-slate-300">
               <div className="flex items-center gap-4">
                 <span>Total Portfolio Revenue: <strong className="text-emerald-400 font-mono font-bold text-sm ml-1">{formatCurrency(monthDrilldownClients.reduce((acc, c) => acc + (parseFloat(c.value) || 0), 0))}</strong></span>
-                <span>Est. Net Profit: <strong className="text-indigo-400 font-mono font-bold text-sm ml-1">{formatCurrency(monthDrilldownClients.reduce((acc, c) => acc + (parseFloat(c.profit || Math.round((c.value || 0) * 0.72)) || 0), 0))}</strong></span>
+                {(() => {
+                  /* Sum only the recorded profit. The old fallback invented a
+                     72% margin for any client without one, which silently
+                     inflated this total. Missing rows are now counted and
+                     disclosed rather than estimated. */
+                  const withProfit = monthDrilldownClients.filter(c => c.profit !== null && c.profit !== undefined && c.profit !== '');
+                  const netProfit = withProfit.reduce((acc, c) => acc + (parseFloat(c.profit) || 0), 0);
+                  const missing = monthDrilldownClients.length - withProfit.length;
+                  return (
+                    <span>
+                      Net Profit:
+                      <strong className="text-indigo-400 font-mono font-bold text-sm ml-1">{formatCurrency(netProfit)}</strong>
+                      {missing > 0 && (
+                        <span
+                          className="ml-1.5 text-[11px] text-amber-400"
+                          title={`${missing} of ${monthDrilldownClients.length} contracts have no profit recorded, so they contribute ₹0 to this total.`}
+                        >
+                          ({missing} without profit data)
+                        </span>
+                      )}
+                    </span>
+                  );
+                })()}
               </div>
               <button 
                 onClick={() => setSelectedMonthDrilldown(null)}

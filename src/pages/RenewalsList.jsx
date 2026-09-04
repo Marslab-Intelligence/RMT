@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -13,7 +13,6 @@ import RenewalForm from '../components/RenewalForm';
 import RenewActionModal from '../components/RenewActionModal';
 import ClientDetailsModal from '../components/ClientDetailsModal';
 import InvoiceDetailsModal from '../components/InvoiceDetailsModal';
-import SalesQuickEditModal from '../components/SalesQuickEditModal';
 import IndianDateInput from '../components/IndianDateInput';
 
 const normalizeHeader = (h) => {
@@ -138,13 +137,21 @@ const PAYMENT_OPTIONS = [
 
 const ClientFilterDropdown = ({ value = [], onChange, clientList = [], isOpen, onToggle, filterPos, filterRef, onClose, setPage }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const valueArray = Array.isArray(value) ? value : (value ? [value] : []);
+  const valueArray = useMemo(() => Array.isArray(value) ? value : (value ? [value] : []), [value]);
   const isActive = valueArray.length > 0;
 
   const filteredClients = useMemo(() => {
+    if (!clientList || clientList.length === 0) return [];
     if (!searchTerm.trim()) return clientList;
-    return clientList.filter(c => c.toLowerCase().includes(searchTerm.toLowerCase()));
+    const tokens = searchTerm.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    return clientList.filter(c => {
+      if (!c) return false;
+      const lower = c.toLowerCase();
+      return tokens.every(token => lower.includes(token));
+    });
   }, [clientList, searchTerm]);
+
+  const selectedSet = useMemo(() => new Set(valueArray), [valueArray]);
 
   return (
     <div className="inline-block">
@@ -168,25 +175,27 @@ const ClientFilterDropdown = ({ value = [], onChange, clientList = [], isOpen, o
         <div 
           ref={filterRef}
           style={{ position: 'fixed', top: `${filterPos.top}px`, left: `${filterPos.left}px`, zIndex: 99999 }}
-          className="bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-2xl min-w-[240px] max-w-[300px] max-h-80 overflow-hidden flex flex-col p-3 animate-in fade-in slide-in-from-top-1 duration-150"
+          className="bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-2xl min-w-[260px] max-w-[320px] max-h-96 overflow-hidden flex flex-col p-3 animate-in fade-in slide-in-from-top-1 duration-150"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Top Header */}
           <div className="flex items-center justify-between mb-2 pb-1 border-b border-surface-100 dark:border-surface-700">
-            <span className="text-xs font-semibold text-surface-700 dark:text-surface-300">
+            <span className="text-xs font-semibold text-surface-800 dark:text-surface-200">
               Filter Client Info
             </span>
             {valueArray.length > 0 && (
               <button
                 type="button"
                 onClick={() => { onChange([]); if (setPage) setPage(1); }}
-                className="text-[11px] text-rose-500 hover:underline font-medium cursor-pointer"
+                className="text-[11px] text-rose-500 hover:underline font-semibold cursor-pointer"
               >
-                Clear ({valueArray.length})
+                Clear All ({valueArray.length})
               </button>
             )}
           </div>
 
+          {/* Search Box */}
           <div className="relative mb-2">
             <input
               type="text"
@@ -194,54 +203,119 @@ const ClientFilterDropdown = ({ value = [], onChange, clientList = [], isOpen, o
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search client name..."
               autoFocus
-              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+              className="w-full pl-8 pr-7 py-1.5 text-xs rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
             />
             <Search className="w-3.5 h-3.5 text-surface-400 absolute left-2.5 top-2.5" />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2 top-2 p-0.5 text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 rounded-full"
+                title="Clear search"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </div>
 
-          <div className="overflow-y-auto custom-scrollbar flex-1 max-h-48 space-y-0.5 pr-0.5">
-            <label
-              onClick={() => { onChange([]); if (setPage) setPage(1); }}
-              className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded cursor-pointer transition-colors ${
-                valueArray.length === 0
-                  ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-semibold'
-                  : 'text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
-              }`}
-            >
-              <span>All Clients</span>
-            </label>
+          {/* Main List Container */}
+          <div className="overflow-y-auto custom-scrollbar flex-1 max-h-60 space-y-2 pr-0.5">
+            
+            {/* Pinned Selected Items Section */}
+            {valueArray.length > 0 && (
+              <div className="bg-brand-50/80 dark:bg-brand-950/40 p-2 rounded-lg border border-brand-200/60 dark:border-brand-800/40">
+                <div className="text-[10px] font-bold text-brand-700 dark:text-brand-300 uppercase tracking-wider mb-1 flex items-center justify-between">
+                  <span>Selected ({valueArray.length})</span>
+                  <button
+                    type="button"
+                    onClick={() => { onChange([]); if (setPage) setPage(1); }}
+                    className="text-[10px] text-rose-600 dark:text-rose-400 hover:underline capitalize font-normal cursor-pointer"
+                  >
+                    Deselect All
+                  </button>
+                </div>
+                <div className="space-y-0.5 max-h-24 overflow-y-auto custom-scrollbar">
+                  {valueArray.map((clientName) => (
+                    <label
+                      key={`selected-${clientName}`}
+                      onClick={() => {
+                        const nextArr = valueArray.filter(c => c !== clientName);
+                        onChange(nextArr);
+                        if (setPage) setPage(1);
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-1 text-xs rounded bg-white dark:bg-surface-800 text-brand-700 dark:text-brand-300 font-semibold cursor-pointer shadow-sm hover:bg-brand-100/50 transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={true}
+                        readOnly
+                        className="rounded border-brand-400 text-brand-600 focus:ring-brand-500 h-3.5 w-3.5 cursor-pointer accent-brand-600"
+                      />
+                      <span className="truncate">{clientName}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
-            {filteredClients.map((clientName) => {
-              const isSelected = valueArray.includes(clientName);
-              return (
-                <label
-                  key={clientName}
-                  onClick={() => {
-                    let nextArr = [...valueArray];
-                    if (isSelected) {
-                      nextArr = nextArr.filter(c => c !== clientName);
-                    } else {
-                      nextArr.push(clientName);
-                    }
-                    onChange(nextArr);
-                    if (setPage) setPage(1);
-                  }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded cursor-pointer transition-colors ${
-                    isSelected
-                      ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-semibold'
-                      : 'text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    readOnly
-                    className="rounded border-surface-300 dark:border-surface-600 text-brand-600 focus:ring-brand-500 h-3.5 w-3.5 cursor-pointer accent-brand-600"
-                  />
-                  <span className="truncate">{clientName}</span>
-                </label>
-              );
-            })}
+            {/* Results / All Clients */}
+            <div>
+              <div className="flex items-center justify-between px-1 mb-1">
+                <span className="text-[10px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-wider">
+                  {searchTerm ? `Search Results (${filteredClients.length})` : 'All Clients'}
+                </span>
+                {valueArray.length === 0 && (
+                  <span className="text-[10px] text-brand-600 dark:text-brand-400 font-semibold">
+                    All Selected
+                  </span>
+                )}
+              </div>
+
+              {filteredClients.length === 0 ? (
+                <div className="py-4 text-center text-xs text-surface-400 space-y-1">
+                  <p>No clients match "{searchTerm}"</p>
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="text-brand-600 hover:underline text-[11px] font-medium"
+                  >
+                    Clear Search
+                  </button>
+                </div>
+              ) : (
+                filteredClients.map((clientName) => {
+                  const isSelected = selectedSet.has(clientName);
+                  return (
+                    <label
+                      key={clientName}
+                      onClick={() => {
+                        let nextArr = [...valueArray];
+                        if (isSelected) {
+                          nextArr = nextArr.filter(c => c !== clientName);
+                        } else {
+                          nextArr.push(clientName);
+                        }
+                        onChange(nextArr);
+                        if (setPage) setPage(1);
+                      }}
+                      className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-brand-50/60 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-semibold'
+                          : 'text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700/50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        readOnly
+                        className="rounded border-surface-300 dark:border-surface-600 text-brand-600 focus:ring-brand-500 h-3.5 w-3.5 cursor-pointer accent-brand-600"
+                      />
+                      <span className="truncate">{clientName}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>,
         document.body
@@ -251,8 +325,28 @@ const ClientFilterDropdown = ({ value = [], onChange, clientList = [], isOpen, o
 };
 
 const FilterDropdown = ({ col, value = [], onChange, options = [], isOpen, onToggle, filterPos, filterRef, onClose, setPage, title = '' }) => {
-  const valueArray = Array.isArray(value) ? value : (value && value !== 'all' ? [value] : []);
+  const [searchTerm, setSearchTerm] = useState('');
+  const valueArray = useMemo(() => Array.isArray(value) ? value : (value && value !== 'all' ? [value] : []), [value]);
   const isActive = valueArray.length > 0;
+  const selectedSet = useMemo(() => new Set(valueArray), [valueArray]);
+
+  const filteredOptions = useMemo(() => {
+    const validOpts = options.filter(opt => opt.value !== 'all');
+    if (!searchTerm.trim()) return validOpts;
+    const term = searchTerm.toLowerCase();
+    return validOpts.filter(opt => opt.isHeader || (opt.label && opt.label.toLowerCase().includes(term)));
+  }, [options, searchTerm]);
+
+  // Lookup map for labels
+  const optionLabelMap = useMemo(() => {
+    const map = {};
+    options.forEach(opt => {
+      if (opt.value && opt.value !== 'all') {
+        map[opt.value] = opt.label || opt.value;
+      }
+    });
+    return map;
+  }, [options]);
 
   return (
     <div className="inline-block">
@@ -275,70 +369,127 @@ const FilterDropdown = ({ col, value = [], onChange, options = [], isOpen, onTog
         <div 
           ref={filterRef}
           style={{ position: 'fixed', top: `${filterPos.top}px`, left: `${filterPos.left}px`, zIndex: 99999 }}
-          className="bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-2xl w-max min-w-[170px] max-w-[280px] max-h-72 overflow-y-auto custom-scrollbar py-1 animate-in fade-in slide-in-from-top-1 duration-150 select-none"
+          className="bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-2xl w-max min-w-[210px] max-w-[320px] max-h-96 overflow-hidden flex flex-col p-3 animate-in fade-in slide-in-from-top-1 duration-150 select-none"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between px-3 py-1.5 border-b border-surface-100 dark:border-surface-700/60 mb-1">
-            <button
-              type="button"
-              onClick={() => { onChange([]); if (setPage) setPage(1); }}
-              className={`text-xs font-medium cursor-pointer transition-colors ${
-                valueArray.length === 0 
-                  ? 'text-brand-600 dark:text-brand-400 font-semibold' 
-                  : 'text-surface-600 dark:text-surface-400 hover:text-brand-600'
-              }`}
-            >
-              All {title || 'Options'}
-            </button>
+          <div className="flex items-center justify-between pb-1.5 border-b border-surface-100 dark:border-surface-700/60 mb-2">
+            <span className="text-xs font-semibold text-surface-800 dark:text-surface-200">
+              Filter {title || 'Options'}
+            </span>
             {valueArray.length > 0 && (
               <button
                 type="button"
                 onClick={() => { onChange([]); if (setPage) setPage(1); }}
-                className="text-[11px] text-rose-500 hover:underline font-medium cursor-pointer"
+                className="text-[11px] text-rose-500 hover:underline font-semibold cursor-pointer"
               >
-                Clear ({valueArray.length})
+                Clear All ({valueArray.length})
               </button>
             )}
           </div>
-          {options.filter(opt => opt.value !== 'all').map((opt, i) => {
-            if (opt.isHeader) {
-              return (
-                <div key={`header-${i}`} className="px-3 pt-2 pb-1 text-[10px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-wider border-t border-surface-150 dark:border-surface-700/60 first:border-0 first:pt-1 whitespace-nowrap">
-                  {opt.label}
+
+          {options.length > 6 && (
+            <div className="relative mb-2">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={`Search ${title || 'options'}...`}
+                autoFocus
+                className="w-full pl-7 pr-6 py-1.5 text-xs rounded-md border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+              />
+              <Search className="w-3 h-3 text-surface-400 absolute left-2 top-2.5" />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-1.5 top-2 text-surface-400 hover:text-surface-600 dark:hover:text-surface-200"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="overflow-y-auto custom-scrollbar flex-1 max-h-60 space-y-2 pr-0.5">
+            {/* Pinned Selected Items Section */}
+            {valueArray.length > 0 && (
+              <div className="bg-brand-50/80 dark:bg-brand-950/40 p-2 rounded-lg border border-brand-200/60 dark:border-brand-800/40">
+                <div className="text-[10px] font-bold text-brand-700 dark:text-brand-300 uppercase tracking-wider mb-1 flex items-center justify-between">
+                  <span>Selected ({valueArray.length})</span>
+                  <button
+                    type="button"
+                    onClick={() => { onChange([]); if (setPage) setPage(1); }}
+                    className="text-[10px] text-rose-600 dark:text-rose-400 hover:underline capitalize font-normal cursor-pointer"
+                  >
+                    Deselect All
+                  </button>
                 </div>
-              );
-            }
-            const isSelected = valueArray.includes(opt.value);
-            return (
-              <label
-                key={opt.value}
-                onClick={() => {
-                  let nextArr = [...valueArray];
-                  if (isSelected) {
-                    nextArr = nextArr.filter(v => v !== opt.value);
-                  } else {
-                    nextArr.push(opt.value);
-                  }
-                  onChange(nextArr);
-                  if (setPage) setPage(1);
-                }}
-                className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs whitespace-nowrap transition-colors cursor-pointer ${
-                  isSelected
-                    ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-semibold'
-                    : 'text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  readOnly
-                  className="rounded border-surface-300 dark:border-surface-600 text-brand-600 focus:ring-brand-500 h-3.5 w-3.5 cursor-pointer accent-brand-600"
-                />
-                <span>{opt.label}</span>
-              </label>
-            );
-          })}
+                <div className="space-y-0.5 max-h-24 overflow-y-auto custom-scrollbar">
+                  {valueArray.map((val) => (
+                    <label
+                      key={`selected-${val}`}
+                      onClick={() => {
+                        const nextArr = valueArray.filter(v => v !== val);
+                        onChange(nextArr);
+                        if (setPage) setPage(1);
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-1 text-xs rounded bg-white dark:bg-surface-800 text-brand-700 dark:text-brand-300 font-semibold cursor-pointer shadow-sm hover:bg-brand-100/50 transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={true}
+                        readOnly
+                        className="rounded border-brand-400 text-brand-600 focus:ring-brand-500 h-3.5 w-3.5 cursor-pointer accent-brand-600"
+                      />
+                      <span className="truncate">{optionLabelMap[val] || val}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              {filteredOptions.map((opt, i) => {
+                if (opt.isHeader) {
+                  return (
+                    <div key={`header-${i}`} className="px-2 pt-2 pb-1 text-[10px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-wider border-t border-surface-150 dark:border-surface-700/60 first:border-0 first:pt-0 whitespace-nowrap">
+                      {opt.label}
+                    </div>
+                  );
+                }
+                const isSelected = selectedSet.has(opt.value);
+                return (
+                  <label
+                    key={opt.value}
+                    onClick={() => {
+                      let nextArr = [...valueArray];
+                      if (isSelected) {
+                        nextArr = nextArr.filter(v => v !== opt.value);
+                      } else {
+                        nextArr.push(opt.value);
+                      }
+                      onChange(nextArr);
+                      if (setPage) setPage(1);
+                    }}
+                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs whitespace-nowrap transition-colors cursor-pointer rounded ${
+                      isSelected
+                        ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-semibold'
+                        : 'text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      readOnly
+                      className="rounded border-surface-300 dark:border-surface-600 text-brand-600 focus:ring-brand-500 h-3.5 w-3.5 cursor-pointer accent-brand-600"
+                    />
+                    <span>{opt.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         </div>,
         document.body
       )}
@@ -506,7 +657,6 @@ export default function RenewalsList() {
   // Modals
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedRenewalToEdit, setSelectedRenewalToEdit] = useState(null);
-  const [selectedRenewalForQuickEdit, setSelectedRenewalForQuickEdit] = useState(null);
   const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
   const [selectedRenewal, setSelectedRenewal] = useState(null);
   const [selectedClientDetails, setSelectedClientDetails] = useState(null);
@@ -804,13 +954,27 @@ export default function RenewalsList() {
     setNewRenewalDate(`${day}/${month}/${year}`);
   };
 
+  const [masterClientList, setMasterClientList] = useState([]);
+
+  useEffect(() => {
+    if (renewals && renewals.length > 0) {
+      setMasterClientList(prev => {
+        const set = new Set(prev);
+        renewals.forEach(r => {
+          if (r.client_name && r.client_name.trim()) set.add(r.client_name.trim());
+        });
+        return Array.from(set).sort((a, b) => a.localeCompare(b));
+      });
+    }
+  }, [renewals]);
+
   const clientList = useMemo(() => {
-    const set = new Set();
+    const set = new Set(masterClientList);
     renewals.forEach(r => {
       if (r.client_name && r.client_name.trim()) set.add(r.client_name.trim());
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [renewals]);
+  }, [renewals, masterClientList]);
 
   const fetchRenewals = async (silent = false) => {
     if (!token) return;
@@ -1004,23 +1168,6 @@ export default function RenewalsList() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const handleRequestEdit = async (id) => {
-    try {
-      const res = await fetch(`/api/renewals/${id}/request-edit`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        toast.success('Edit request sent to Admin.');
-        fetchRenewals();
-      } else {
-        toast.error('Failed to request edit.');
-      }
-    } catch (err) {
-      toast.error('Network error');
-    }
   };
 
   const handleApproveEdit = async (id) => {
@@ -1230,7 +1377,7 @@ export default function RenewalsList() {
     reader.readAsText(file);
   };
 
-  const isSales = user?.role === 'sales';
+  const isSales = user?.role === 'sales' || user?.role === 'cst';
   const isAdmin = user?.role === 'admin';
 
   const getColWidth = (colName) => {
@@ -1790,6 +1937,90 @@ export default function RenewalsList() {
         </div>
       </div>
 
+      {/* Active Filter Chips Bar */}
+      {(search || statusFilter !== 'all' || clientFilter.length > 0 || serviceFilter.length > 0 || dateRangeFilter.length > 0 || valueFilter.length > 0 || statusColFilter.length > 0 || renewedFilter.length > 0 || invoiceFilter.length > 0 || paymentFilter.length > 0) && (
+        <div className="flex items-center justify-between gap-2 px-3.5 py-2 bg-brand-50/80 dark:bg-brand-950/40 border border-brand-200/80 dark:border-brand-800/50 rounded-xl mb-3 animate-in fade-in duration-150 shadow-sm">
+          <div className="flex items-center gap-2 flex-wrap text-xs">
+            <span className="font-bold text-brand-800 dark:text-brand-300 flex items-center gap-1">
+              <Filter className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" /> Active Filters:
+            </span>
+            {search && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white dark:bg-surface-800 text-surface-800 dark:text-surface-200 border border-surface-200 dark:border-surface-700 text-[11px] shadow-sm font-medium">
+                Search: "{search}"
+                <button type="button" onClick={() => setSearch('')} className="hover:text-rose-500 transition-colors"><X className="w-3 h-3" /></button>
+              </span>
+            )}
+            {statusFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white dark:bg-surface-800 text-surface-800 dark:text-surface-200 border border-surface-200 dark:border-surface-700 text-[11px] shadow-sm font-medium">
+                Status: {statusFilter}
+                <button type="button" onClick={() => setStatusFilter('all')} className="hover:text-rose-500 transition-colors"><X className="w-3 h-3" /></button>
+              </span>
+            )}
+            {clientFilter.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-800 dark:text-brand-300 border border-brand-200 dark:border-brand-800 text-[11px] shadow-sm font-semibold">
+                Clients ({clientFilter.length})
+                <button type="button" onClick={() => setClientFilter([])} className="hover:text-rose-500 transition-colors"><X className="w-3 h-3" /></button>
+              </span>
+            )}
+            {serviceFilter.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white dark:bg-surface-800 text-surface-800 dark:text-surface-200 border border-surface-200 dark:border-surface-700 text-[11px] shadow-sm font-medium">
+                Services ({serviceFilter.length})
+                <button type="button" onClick={() => setServiceFilter([])} className="hover:text-rose-500 transition-colors"><X className="w-3 h-3" /></button>
+              </span>
+            )}
+            {dateRangeFilter.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white dark:bg-surface-800 text-surface-800 dark:text-surface-200 border border-surface-200 dark:border-surface-700 text-[11px] shadow-sm font-medium">
+                Date Range ({dateRangeFilter.length})
+                <button type="button" onClick={() => setDateRangeFilter([])} className="hover:text-rose-500 transition-colors"><X className="w-3 h-3" /></button>
+              </span>
+            )}
+            {valueFilter.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white dark:bg-surface-800 text-surface-800 dark:text-surface-200 border border-surface-200 dark:border-surface-700 text-[11px] shadow-sm font-medium">
+                Value ({valueFilter.length})
+                <button type="button" onClick={() => setValueFilter([])} className="hover:text-rose-500 transition-colors"><X className="w-3 h-3" /></button>
+              </span>
+            )}
+            {renewedFilter.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white dark:bg-surface-800 text-surface-800 dark:text-surface-200 border border-surface-200 dark:border-surface-700 text-[11px] shadow-sm font-medium">
+                Confirmation ({renewedFilter.length})
+                <button type="button" onClick={() => setRenewedFilter([])} className="hover:text-rose-500 transition-colors"><X className="w-3 h-3" /></button>
+              </span>
+            )}
+            {invoiceFilter.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white dark:bg-surface-800 text-surface-800 dark:text-surface-200 border border-surface-200 dark:border-surface-700 text-[11px] shadow-sm font-medium">
+                Invoice ({invoiceFilter.length})
+                <button type="button" onClick={() => setInvoiceFilter([])} className="hover:text-rose-500 transition-colors"><X className="w-3 h-3" /></button>
+              </span>
+            )}
+            {paymentFilter.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white dark:bg-surface-800 text-surface-800 dark:text-surface-200 border border-surface-200 dark:border-surface-700 text-[11px] shadow-sm font-medium">
+                Payment ({paymentFilter.length})
+                <button type="button" onClick={() => setPaymentFilter([])} className="hover:text-rose-500 transition-colors"><X className="w-3 h-3" /></button>
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('');
+              setStatusFilter('all');
+              setClientFilter([]);
+              setServiceFilter([]);
+              setDateRangeFilter([]);
+              setValueFilter([]);
+              setStatusColFilter([]);
+              setRenewedFilter([]);
+              setInvoiceFilter([]);
+              setPaymentFilter([]);
+              setPage(1);
+            }}
+            className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1 flex-shrink-0 cursor-pointer"
+          >
+            Clear All Filters
+          </button>
+        </div>
+      )}
+
       <div className="card overflow-hidden">
         <div 
           ref={tableContainerRef}
@@ -1869,6 +2100,7 @@ export default function RenewalsList() {
                       <ClientFilterDropdown 
                         value={clientFilter} 
                         onChange={setClientFilter} 
+                        clientList={clientList}
                         isOpen={openFilterCol === 'client'} 
                         onToggle={(e) => toggleFilter('client', e)} 
                         filterPos={filterPos} 
@@ -2373,56 +2605,24 @@ export default function RenewalsList() {
                     {visibleCols.actions && (
                       <td className={`px-1.5 py-1.5 text-center overflow-hidden ${isCompact ? 'py-1' : 'py-1.5'}`}>
                         <div className="flex items-center justify-center gap-1">
-                          {isSales && (
-                            <>
-                              <button 
-                                onClick={() => setSelectedRenewalForQuickEdit(row)}
-                                className="p-1 text-surface-500 hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
-                                title="Quick Edit (Costs & Quotation No.)"
-                              >
-                                <Edit3 className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
-                              </button>
-                              {row.edit_status === 'approved' ? (
-                                <button 
-                                  onClick={() => { setSelectedRenewalToEdit(row); setIsFormOpen(true); }}
-                                  className="p-1 text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
-                                  title="Full Edit Record"
-                                >
-                                  <Edit className="w-3.5 h-3.5" />
-                                </button>
-                              ) : row.edit_status === 'requested' ? (
-                                <span className="text-[10px] font-medium text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded">
-                                  Pending
-                                </span>
-                              ) : (
-                                <button 
-                                  onClick={() => handleRequestEdit(row.id)}
-                                  className="p-1 text-surface-500 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
-                                  title="Request Admin Access"
-                                >
-                                  <ShieldAlert className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </>
+                          {(isSales || isAdmin) && (
+                            <button 
+                              onClick={() => { setSelectedRenewalToEdit(row); setIsFormOpen(true); }}
+                              className="p-1 text-surface-500 hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
+                              title="Edit Record"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
                           )}
 
                           {isAdmin && (
-                            <>
-                              <button 
-                                onClick={() => { setSelectedRenewalToEdit(row); setIsFormOpen(true); }}
-                                className="p-1 text-surface-500 hover:text-brand-600 hover:bg-brand-50 rounded-md transition-colors"
-                                  title="Edit Record (Admin)"
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </button>
-                              <button 
-                                onClick={() => handleDelete(row.id)}
-                                className="p-1 text-surface-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                                title="Delete Record (Admin)"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </>
+                            <button 
+                              onClick={() => handleDelete(row.id)}
+                              className="p-1 text-surface-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                              title="Delete Record (Admin)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           )}
                         </div>
                       </td>
@@ -2857,16 +3057,6 @@ export default function RenewalsList() {
           </div>
         </div>,
         document.body
-      )}
-      {selectedRenewalForQuickEdit && (
-        <SalesQuickEditModal
-          client={selectedRenewalForQuickEdit}
-          onClose={() => setSelectedRenewalForQuickEdit(null)}
-          onSuccess={() => {
-            setSelectedRenewalForQuickEdit(null);
-            fetchRenewals();
-          }}
-        />
       )}
     </div>
   );

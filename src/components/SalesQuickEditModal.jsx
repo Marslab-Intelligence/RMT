@@ -5,9 +5,9 @@ import { X, Save, Lock, ShieldAlert, ShieldCheck, Send, CheckCircle2 } from 'luc
 import { formatCurrency } from '../utils/formatters';
 import toast from 'react-hot-toast';
 
-export default function SalesQuickEditModal({ client, onClose, onSuccess }) {
+export default function SalesQuickEditModal({ client, onClose, onSuccess, onOpenFullEdit }) {
   const { token } = useAuth();
-  const [saving, setSaving]       = useState(false);
+  const [saving, setSaving] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
 
@@ -216,68 +216,49 @@ export default function SalesQuickEditModal({ client, onClose, onSuccess }) {
             </form>
           </div>
 
-          {/* ══ SECTION 2: Locked Fields ══ */}
+          {/* ══ SECTION 2: Other Record Details ══ */}
           <div className="px-6 pb-5">
-            <div className="border border-dashed border-surface-300 dark:border-surface-600 rounded-xl overflow-hidden">
-              {/* Locked header */}
-              <div className="bg-surface-50 dark:bg-surface-900/60 px-4 py-3 flex items-center justify-between border-b border-dashed border-surface-300 dark:border-surface-600">
+            <div className="border border-surface-200 dark:border-surface-700 rounded-xl overflow-hidden bg-surface-50/50 dark:bg-surface-900/30">
+              {/* Header */}
+              <div className="bg-surface-100/60 dark:bg-surface-900/60 px-4 py-3 flex items-center justify-between border-b border-surface-200 dark:border-surface-700">
                 <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center flex-shrink-0">
-                    <Lock className="w-3 h-3 text-rose-500" />
+                  <div className="w-5 h-5 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-surface-700 dark:text-surface-300">All Other Fields — Admin Access Required</p>
-                    <p className="text-xs text-surface-400 mt-0.5">These fields are locked. Request admin approval to edit them.</p>
+                    <p className="text-sm font-bold text-surface-800 dark:text-surface-200">Other Record Details</p>
+                    <p className="text-xs text-surface-500 mt-0.5">Need to edit client name, dates, plan, vendor or emails? Use full edit.</p>
                   </div>
                 </div>
               </div>
 
-              {/* Locked field grid */}
+              {/* Field summary grid */}
               <div className="px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-2.5">
                 {lockedFields.map((f) => (
                   <div key={f.label} className="flex items-center gap-2 min-w-0">
-                    <Lock className="w-3 h-3 text-surface-300 dark:text-surface-600 flex-shrink-0" />
                     <div className="min-w-0">
                       <p className="text-[9px] font-bold uppercase tracking-wider text-surface-400">{f.label}</p>
-                      <p className="text-xs font-semibold text-surface-400 dark:text-surface-500 truncate">{f.value || '-'}</p>
+                      <p className="text-xs font-semibold text-surface-700 dark:text-surface-300 truncate">{f.value || '-'}</p>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Request access button */}
-              <div className="px-4 py-3 border-t border-dashed border-surface-300 dark:border-surface-600 bg-amber-50/50 dark:bg-amber-950/10">
-                {alreadyRequested ? (
-                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
-                    <ShieldAlert className="w-4 h-4 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-bold">Access request already sent</p>
-                      <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-0.5">Waiting for admin to approve. You'll be notified once approved.</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between gap-4 flex-wrap">
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                      <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
-                        Need to edit other fields? Request admin access.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleRequestAccess}
-                      disabled={requesting}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-60 flex-shrink-0"
-                    >
-                      {requesting
-                        ? <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />
-                        : <Send className="w-3.5 h-3.5" />
-                      }
-                      Request Admin Access
-                    </button>
-                  </div>
-                )}
-              </div>
+              {/* Full edit button */}
+              {onOpenFullEdit && (
+                <div className="px-4 py-3 border-t border-surface-200 dark:border-surface-700 bg-brand-50/40 dark:bg-brand-950/20 flex items-center justify-between gap-4">
+                  <p className="text-xs text-brand-700 dark:text-brand-300 font-medium">
+                    Want to edit all details for this client?
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onOpenFullEdit}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-brand-600 hover:bg-brand-700 text-white transition-colors flex-shrink-0 cursor-pointer"
+                  >
+                    Full Edit Record
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

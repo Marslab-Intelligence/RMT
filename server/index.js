@@ -59,6 +59,7 @@ import { startScheduler } from './services/scheduler.js';
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 
 // ============================================================
@@ -177,6 +178,7 @@ app.use((req, res, next) => {
 });
 
 import tilesRoutes from './routes/tiles.js';
+import agentRoutes from './routes/agent.js';
 
 // ============================================================
 // Routes
@@ -190,6 +192,7 @@ app.use('/api/admin/users', adminUsersRoutes);
 app.use('/api/automation', automationRoutes);
 app.use('/api/tiles', tilesRoutes);
 app.use('/api/pricing', pricingRoutes);
+app.use('/api/agent', agentRoutes);
 
 // Client-side error telemetry — sanitized to prevent log injection
 app.post('/api/log-error', express.json({ limit: '10kb' }), (req, res) => {
@@ -205,6 +208,18 @@ app.post('/api/log-error', express.json({ limit: '10kb' }), (req, res) => {
 // Health check — minimal, no internal details exposed
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Live Version check endpoint — return current app version with explicit no-cache headers
+app.get('/api/version', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.json({
+    version: process.env.APP_VERSION || '1.1.0',
+    buildTime: process.env.BUILD_TIMESTAMP || new Date().toISOString(),
+    features: ['Version Auto-Notification', 'Automatic Cache Busting', 'Enhanced Date Filters']
+  });
 });
 
 // ============================================================

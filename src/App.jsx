@@ -34,6 +34,8 @@ const UserManagement = safeLazy(() => import('./pages/UserManagement'));
 const EmailAutomation = safeLazy(() => import('./pages/EmailAutomation'));
 const ClientDetails = safeLazy(() => import('./pages/ClientDetails'));
 const Pricing = safeLazy(() => import('./pages/Pricing'));
+const ApprovalInbox = safeLazy(() => import('./pages/ApprovalInbox'));
+const AgentHealth = safeLazy(() => import('./pages/AgentHealth'));
 
 const PageLoader = () => (
   <div className="min-h-[60vh] w-full flex items-center justify-center">
@@ -78,6 +80,8 @@ function App() {
           <Route path="/visits" element={<ProtectedRoute><Visits /></ProtectedRoute>} />
           <Route path="/automation" element={<ProtectedRoute><EmailAutomation /></ProtectedRoute>} />
           <Route path="/pricing" element={<ProtectedRoute><Pricing /></ProtectedRoute>} />
+          <Route path="/approval-inbox" element={<ProtectedRoute><ApprovalInbox /></ProtectedRoute>} />
+          <Route path="/agent-health" element={<AdminRoute><AgentHealth /></AdminRoute>} />
           
           <Route path="/admin/users" element={<AdminRoute><UserManagement /></AdminRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />

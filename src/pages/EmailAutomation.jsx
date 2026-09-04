@@ -262,18 +262,18 @@ export default function EmailAutomation() {
     }
 
     switch (normalized) {
-      case '30_day_reminder': return { label: '📧 30-Day Reminder', color: 'bg-blue-200 text-[#002b66] border-blue-500 font-black', style: { backgroundColor: '#dbeafe', color: '#002b66', borderColor: '#2563eb', fontWeight: '900' } };
-      case '20_day_reminder': return { label: '📧 20-Day Reminder', color: 'bg-indigo-200 text-[#1e1b4b] border-indigo-500 font-black', style: { backgroundColor: '#e0e7ff', color: '#1e1b4b', borderColor: '#4f46e5', fontWeight: '900' } };
-      case '15_day_reminder': return { label: '📧 15-Day Reminder', color: 'bg-amber-200 text-[#451a03] border-amber-500 font-black', style: { backgroundColor: '#fef3c7', color: '#451a03', borderColor: '#d97706', fontWeight: '900' } };
-      case '10_day_reminder': return { label: '📧 10-Day Reminder', color: 'bg-orange-200 text-[#431407] border-orange-500 font-black', style: { backgroundColor: '#ffedd5', color: '#431407', borderColor: '#ea580c', fontWeight: '900' } };
-      case '5_day_reminder':  return { label: '📧 5-Day Reminder',  color: 'bg-rose-200 text-[#4c0519] border-rose-500 font-black', style: { backgroundColor: '#ffe4e6', color: '#4c0519', borderColor: '#e11d48', fontWeight: '900' } };
-      case '3_day_reminder':  return { label: '📧 3-Day Reminder',  color: 'bg-red-200 text-[#450a0a] border-red-500 font-black', style: { backgroundColor: '#fee2e2', color: '#450a0a', borderColor: '#ef4444', fontWeight: '900' } };
-      case 'sales_special_15_day': return { label: '🚨 CST 15-Day Followup', color: 'bg-purple-200 text-[#3b0764] border-purple-500 font-black', style: { backgroundColor: '#f3e8ff', color: '#3b0764', borderColor: '#9333ea', fontWeight: '900' } };
-      case 'sales_special_5_day':  return { label: '🚨 CST 5-Day Followup',  color: 'bg-pink-200 text-[#500724] border-pink-500 font-black', style: { backgroundColor: '#fce7f3', color: '#500724', borderColor: '#ec4899', fontWeight: '900' } };
-      case 'sales_special_3_day':  return { label: '🚨 CST 3-Day Followup',  color: 'bg-rose-200 text-[#4c0519] border-rose-500 font-black', style: { backgroundColor: '#ffe4e6', color: '#4c0519', borderColor: '#e11d48', fontWeight: '900' } };
-      case 'renewal_expired': return { label: '⚠️ Expiry Alert', color: 'bg-red-200 text-[#450a0a] border-red-500 font-black', style: { backgroundColor: '#fee2e2', color: '#450a0a', borderColor: '#ef4444', fontWeight: '900' } };
+      case '30_day_reminder': return { label: '📧 30-Day Reminder', color: 'bg-blue-200 text-[#000000] border-blue-500 font-black', style: { backgroundColor: '#dbeafe', color: '#000000', borderColor: '#2563eb', fontWeight: '900' } };
+      case '20_day_reminder': return { label: '📧 20-Day Reminder', color: 'bg-indigo-200 text-[#000000] border-indigo-500 font-black', style: { backgroundColor: '#e0e7ff', color: '#000000', borderColor: '#4f46e5', fontWeight: '900' } };
+      case '15_day_reminder': return { label: '📧 15-Day Reminder', color: 'bg-amber-200 text-[#000000] border-amber-500 font-black', style: { backgroundColor: '#fef3c7', color: '#000000', borderColor: '#d97706', fontWeight: '900' } };
+      case '10_day_reminder': return { label: '📧 10-Day Reminder', color: 'bg-orange-200 text-[#000000] border-orange-500 font-black', style: { backgroundColor: '#ffedd5', color: '#000000', borderColor: '#ea580c', fontWeight: '900' } };
+      case '5_day_reminder':  return { label: '📧 5-Day Reminder',  color: 'bg-rose-200 text-[#000000] border-rose-500 font-black', style: { backgroundColor: '#ffe4e6', color: '#000000', borderColor: '#e11d48', fontWeight: '900' } };
+      case '3_day_reminder':  return { label: '📧 3-Day Reminder',  color: 'bg-red-200 text-[#000000] border-red-500 font-black', style: { backgroundColor: '#fee2e2', color: '#000000', borderColor: '#ef4444', fontWeight: '900' } };
+      case 'sales_special_15_day': return { label: '🚨 CST 15-Day Followup', color: 'bg-purple-200 text-[#000000] border-purple-500 font-black', style: { backgroundColor: '#f3e8ff', color: '#000000', borderColor: '#9333ea', fontWeight: '900' } };
+      case 'sales_special_5_day':  return { label: '🚨 CST 5-Day Followup',  color: 'bg-pink-200 text-[#000000] border-pink-500 font-black', style: { backgroundColor: '#fce7f3', color: '#000000', borderColor: '#ec4899', fontWeight: '900' } };
+      case 'sales_special_3_day':  return { label: '🚨 CST 3-Day Followup',  color: 'bg-rose-200 text-[#000000] border-rose-500 font-black', style: { backgroundColor: '#ffe4e6', color: '#000000', borderColor: '#e11d48', fontWeight: '900' } };
+      case 'renewal_expired': return { label: '⚠️ Expiry Alert', color: 'bg-red-200 text-[#000000] border-red-500 font-black', style: { backgroundColor: '#fee2e2', color: '#000000', borderColor: '#ef4444', fontWeight: '900' } };
       case 'automation_toggle': return { label: '⚙️ Automation Toggle', color: 'bg-slate-200 text-[#000000] border-slate-500 font-black', style: { backgroundColor: '#e2e8f0', color: '#000000', borderColor: '#64748b', fontWeight: '900' } };
-      case 'manual_email': return { label: '✉️ Manual Email', color: 'bg-teal-200 text-[#042f2e] border-teal-500 font-black', style: { backgroundColor: '#ccfbf1', color: '#042f2e', borderColor: '#14b8a6', fontWeight: '900' } };
+      case 'manual_email': return { label: '✉️ Manual Email', color: 'bg-teal-200 text-[#013220] border-teal-500 font-black', style: { backgroundColor: '#ccfbf1', color: '#013220', borderColor: '#14b8a6', fontWeight: '900' } };
       default: return { label: type ? type.replace(/_/g, ' ') : 'General', color: 'bg-slate-200 text-[#000000] border-slate-500 font-black', style: { backgroundColor: '#e2e8f0', color: '#000000', borderColor: '#64748b', fontWeight: '900' } };
     }
   };

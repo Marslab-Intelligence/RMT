@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+      imagePullSecrets:
+        - name: ecr-secret
+      # Wait for postgres to be ready before starting app
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres-service 5432; do
+                echo "Waiting for postgres...";
+                sleep 2;
+              done;
+              echo "Postgres is ready!"
+      containers:
+        - name: app
+          image: 509399597950.dkr.ecr.ap-south-1.amazonaws.com/dev-rmt-frontend:version9
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3001
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3001"
+            - name: FRONTEND_URL
+              value: "https://rmt.marslabintel.com"
+
+            # Database — PGHOST points to postgres k8s service name
+            - name: PGHOST
+              value: "postgres-service"
+            - name: PGPORT
+              value: "5432"
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: PGPASSWORD
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: PGDATABASE
+
+            # JWT
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: JWT_SECRET
+            - name: REFRESH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: REFRESH_SECRET
+
+            # Zoho OAuth
+            - name: ZOHO_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: ZOHO_CLIENT_ID
+            - name: ZOHO_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: ZOHO_CLIENT_SECRET
+            - name: ZOHO_REDIRECT_URI
+              value: "https://rmt.marslabintel.com/api/auth/zoho/callback"
+            - name: ZOHO_ACCOUNTS_URL
+              value: "https://accounts.zoho.in"
+
+            # Email (Zoho SMTP)
+            - name: EMAIL_ENABLED
+              value: "true"
+            - name: SMTP_HOST
+              value: "smtp.zoho.in"
+            - name: SMTP_PORT
+              value: "587"
+            - name: SMTP_USER
+              value: "renewals@sidcorptech.net"
+            - name: SMTP_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: SMTP_PASS
+            - name: SMTP_FROM
+              value: "Renewals <renewals@sidcorptech.net>"
+
+            # Zoho Cliq Webhooks
+            - name: ZOHO_CLIQ_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: ZOHO_CLIQ_WEBHOOK_URL
+            - name: ZOHO_CLIQ_SALES_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: ZOHO_CLIQ_SALES_WEBHOOK_URL
+
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

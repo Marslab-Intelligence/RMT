@@ -8,7 +8,6 @@ import {
 import { formatCurrency, formatDate, getStatusColor, getDaysLeftColor } from '../utils/formatters';
 import toast from 'react-hot-toast';
 import RenewalForm from '../components/RenewalForm';
-import SalesQuickEditModal from '../components/SalesQuickEditModal';
 
 export default function ClientDetails() {
   const { id } = useParams();
@@ -19,15 +18,10 @@ export default function ClientDetails() {
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedSecondaryEmail, setCopiedSecondaryEmail] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isSalesQuickEditOpen, setIsSalesQuickEditOpen] = useState(false);
 
-  // Sales can open full form only if admin approved; otherwise limited 3-field modal
+  // Sales and CST can open full edit form directly
   const handleSalesEdit = () => {
-    if (client?.edit_status === 'approved') {
-      setIsFormOpen(true);
-    } else {
-      setIsSalesQuickEditOpen(true);
-    }
+    setIsFormOpen(true);
   };
 
   const fetchClient = useCallback(async () => {
@@ -51,8 +45,12 @@ export default function ClientDetails() {
   }, [id, token]);
 
   useEffect(() => {
+    if (id && (id.startsWith('dateRange=') || id.includes('='))) {
+      navigate(`/renewals?${id}`, { replace: true });
+      return;
+    }
     fetchClient();
-  }, [fetchClient]);
+  }, [id, fetchClient, navigate]);
 
   const handleCopyEmail = (email, type) => {
     if (!email) return;
@@ -129,20 +127,12 @@ export default function ClientDetails() {
           <ArrowLeft className="w-4 h-4" /> Back to Renewals
         </button>
         <div className="flex items-center gap-2">
-          {user?.role === 'sales' && (
-            <button 
-              onClick={() => setIsSalesQuickEditOpen(true)} 
-              className="btn-secondary flex items-center gap-2 py-1.5 px-3 text-xs"
-            >
-              <Edit3 className="w-4 h-4 text-brand-600 dark:text-brand-400" /> Quick Edit (Costs & Quotation)
-            </button>
-          )}
-          {(user?.role === 'admin' || client.edit_status === 'approved') && (
+          {(user?.role === 'sales' || user?.role === 'cst' || user?.role === 'admin') && (
             <button 
               onClick={() => setIsFormOpen(true)} 
               className="btn-primary flex items-center gap-2 py-1.5 px-3 text-xs"
             >
-              <Edit3 className="w-4 h-4" /> Edit Info
+              <Edit3 className="w-4 h-4" /> Edit Record
             </button>
           )}
         </div>
@@ -503,14 +493,14 @@ export default function ClientDetails() {
           <h2 className="text-base font-bold text-surface-900 dark:text-white flex items-center gap-2">
             <FileText className="w-4 h-4 text-brand-500" /> Product & Financial Details
           </h2>
-          {user?.role === 'sales' && (
+          {(user?.role === 'sales' || user?.role === 'cst' || user?.role === 'admin') && (
             <button
               id="edit-product-financial-btn"
               onClick={handleSalesEdit}
               className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-700 hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
             >
               <Edit3 className="w-3 h-3" />
-              {client?.edit_status === 'approved' ? 'Edit (Full Access)' : 'Edit'}
+              Edit Info
             </button>
           )}
         </div>
@@ -609,17 +599,6 @@ export default function ClientDetails() {
             fetchClient(); 
           }} 
           editData={client}
-        />
-      )}
-
-      {isSalesQuickEditOpen && (
-        <SalesQuickEditModal
-          client={client}
-          onClose={() => setIsSalesQuickEditOpen(false)}
-          onSuccess={() => {
-            setIsSalesQuickEditOpen(false);
-            fetchClient();
-          }}
         />
       )}
     </div>

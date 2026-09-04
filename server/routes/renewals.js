@@ -228,13 +228,14 @@ router.get('/', authenticateToken, async (req, res) => {
 
     // Date range filter (supports multi-select comma-separated date range tokens)
     if (dateRange && dateRange !== 'all' && dateRange.trim() !== '') {
-      const dateTokens = dateRange.split(',').map(d => d.trim()).filter(Boolean);
+      const rawTokens = dateRange.split(/[,_]+/).map(d => d.trim()).filter(Boolean);
       const dateConds = [];
       const now = new Date();
       now.setHours(0, 0, 0, 0);
       const today = now.toISOString().split('T')[0];
 
-      for (const token of dateTokens) {
+      for (const token of rawTokens) {
+        if (token === 'm') continue;
         if (token === 'expired') {
           dateConds.push(`renewal_date < $${paramIndex++}`);
           params.push(today);
@@ -265,6 +266,12 @@ router.get('/', authenticateToken, async (req, res) => {
           dateConds.push(`(renewal_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month' AND renewal_date < DATE_TRUNC('month', CURRENT_DATE))`);
         } else if (token.startsWith('m_')) {
           const m = parseInt(token.replace('m_', ''), 10);
+          if (m >= 1 && m <= 12) {
+            dateConds.push(`EXTRACT(MONTH FROM renewal_date) = $${paramIndex++}`);
+            params.push(m);
+          }
+        } else if (/^\d{1,2}$/.test(token)) {
+          const m = parseInt(token, 10);
           if (m >= 1 && m <= 12) {
             dateConds.push(`EXTRACT(MONTH FROM renewal_date) = $${paramIndex++}`);
             params.push(m);
@@ -527,7 +534,7 @@ router.post('/trash/delete-batch', authenticateToken, requireRole('admin'), asyn
 });
 
 // Update invoice status - Sales and Admin
-router.patch('/:id/invoice', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+router.patch('/:id/invoice', authenticateToken, requireRole('sales', 'admin', 'cst'), async (req, res) => {
   const { invoice_status, invoice_number, invoice_value, invoice_sent_date, invoice_type } = req.body;
   const docType = (invoice_type === 'Sales Order') ? 'Sales Order' : 'Invoice';
   if (!['Sent', 'Not'].includes(invoice_status)) {
@@ -584,7 +591,7 @@ router.patch('/:id/invoice', authenticateToken, requireRole('sales', 'admin'), a
 });
 
 // Toggle stop_email for a single client renewal record - Sales and Admin
-router.patch('/:id/stop-email', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+router.patch('/:id/stop-email', authenticateToken, requireRole('sales', 'admin', 'cst'), async (req, res) => {
   const { stop_email } = req.body;
   if (typeof stop_email !== 'boolean') {
     return res.status(400).json({ error: 'stop_email must be a boolean.' });
@@ -607,7 +614,7 @@ router.patch('/:id/stop-email', authenticateToken, requireRole('sales', 'admin')
 });
 
 // Batch stop/resume email for multiple client renewals - Sales and Admin
-router.post('/batch-stop-email', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+router.post('/batch-stop-email', authenticateToken, requireRole('sales', 'admin', 'cst'), async (req, res) => {
   const { ids, stop_email } = req.body;
   if (!Array.isArray(ids) || ids.length === 0 || typeof stop_email !== 'boolean') {
     return res.status(400).json({ error: 'Invalid payload. Expecting ids array and stop_email boolean.' });
@@ -627,7 +634,7 @@ router.post('/batch-stop-email', authenticateToken, requireRole('sales', 'admin'
 });
 
 // Batch update status / renewal confirmation
-router.post('/batch-update-status', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+router.post('/batch-update-status', authenticateToken, requireRole('sales', 'admin', 'cst'), async (req, res) => {
   const { ids, status, renewal_confirmation } = req.body;
   if (!Array.isArray(ids) || ids.length === 0) {
     return res.status(400).json({ error: 'Invalid payload. Expecting ids array.' });
@@ -654,7 +661,7 @@ router.post('/batch-update-status', authenticateToken, requireRole('sales', 'adm
 });
 
 // Batch send reminder emails
-router.post('/batch-send-reminder', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+router.post('/batch-send-reminder', authenticateToken, requireRole('sales', 'admin', 'cst'), async (req, res) => {
   const { ids } = req.body;
   if (!Array.isArray(ids) || ids.length === 0) {
     return res.status(400).json({ error: 'Invalid payload. Expecting ids array.' });
@@ -722,7 +729,7 @@ router.post('/batch-delete', authenticateToken, requireRole('admin'), async (req
 });
 
 // Update payment details - Sales and Admin
-router.patch('/:id/payment', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+router.patch('/:id/payment', authenticateToken, requireRole('sales', 'admin', 'cst'), async (req, res) => {
   const { payment_status, payment_amount, payment_received_date } = req.body;
   if (!['Yes', 'No'].includes(payment_status)) {
     return res.status(400).json({ error: 'Invalid payment_status. Must be "Yes" or "No".' });
@@ -938,28 +945,65 @@ router.get('/expired-no-reason', authenticateToken, async (req, res) => {
   }
 });
 
+export async function syncRenewalConfirmationStatus(id) {
+  await db.query(`
+    UPDATE renewals 
+    SET renewal_confirmation = 'pending' 
+    WHERE id = $1
+      AND renewal_confirmation = 'renewed' 
+      AND renewal_date IS NOT NULL 
+      AND (renewal_date - CURRENT_DATE) < 30
+  `, [id]);
+
+  await db.query(`
+    UPDATE renewals 
+    SET renewal_confirmation = 'renewed' 
+    WHERE id = $1
+      AND renewal_confirmation != 'renewed' 
+      AND renewal_date IS NOT NULL 
+      AND (renewal_date - CURRENT_DATE) > 30
+  `, [id]);
+}
+
+// Explicit read-only renewal fetch for agent bulk operations (no status mutations)
+router.get('/:id/readonly', authenticateToken, async (req, res) => {
+  try {
+    const paramId = req.params.id;
+    if (!paramId || (isNaN(Number(paramId)) && !/^[0-9a-fA-F-]{36}$/.test(paramId))) {
+      return res.status(400).json({ error: 'Invalid renewal ID parameter.' });
+    }
+    const { rows } = await db.query('SELECT * FROM renewals WHERE id = $1', [req.params.id]);
+    const renewal = rows[0];
+    if (!renewal) return res.status(404).json({ error: 'Renewal not found.' });
+
+    if (!renewal.renewal_date) {
+      renewal.days_left = null;
+    } else {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const renewalDate = new Date(renewal.renewal_date);
+      renewalDate.setHours(0, 0, 0, 0);
+      renewal.days_left = Math.ceil((renewalDate - today) / (1000 * 60 * 60 * 24));
+    }
+    renewal.value = parseFloat(renewal.value);
+    res.json(renewal);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch renewal.' });
+  }
+});
+
 // Get single renewal
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
-    // Auto-revert if renewed but less than 30 days left
-    await db.query(`
-      UPDATE renewals 
-      SET renewal_confirmation = 'pending' 
-      WHERE id = $1
-        AND renewal_confirmation = 'renewed' 
-        AND renewal_date IS NOT NULL 
-        AND (renewal_date - CURRENT_DATE) < 30
-    `, [req.params.id]);
+    const paramId = req.params.id;
+    if (!paramId || (isNaN(Number(paramId)) && !/^[0-9a-fA-F-]{36}$/.test(paramId))) {
+      return res.status(400).json({ error: 'Invalid renewal ID parameter.' });
+    }
 
-    // Auto-confirm if more than 30 days left
-    await db.query(`
-      UPDATE renewals 
-      SET renewal_confirmation = 'renewed' 
-      WHERE id = $1
-        AND renewal_confirmation != 'renewed' 
-        AND renewal_date IS NOT NULL 
-        AND (renewal_date - CURRENT_DATE) > 30
-    `, [req.params.id]);
+    // Only mutate status if readOnly is NOT requested
+    if (req.query.readOnly !== 'true' && req.query.readOnly !== '1') {
+      await syncRenewalConfirmationStatus(req.params.id);
+    }
 
     const { rows } = await db.query('SELECT * FROM renewals WHERE id = $1', [req.params.id]);
     const renewal = rows[0];
@@ -983,7 +1027,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // Create renewal
-router.post('/', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+router.post('/', authenticateToken, requireRole('sales', 'admin', 'cst'), async (req, res) => {
   try {
     const { 
       client_name, service, renewal_date, value, owner, client_email, sales_email, contact_number, reference_id, plan_period, plan_duration, invoice_number, quotation_number,
@@ -1281,7 +1325,7 @@ router.post('/import', authenticateToken, requireRole('admin'), async (req, res)
 });
 
 // Renew client
-router.put('/:id/renew', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+router.put('/:id/renew', authenticateToken, requireRole('sales', 'admin', 'cst'), async (req, res) => {
   try {
     const { rows } = await db.query('SELECT * FROM renewals WHERE id = $1', [req.params.id]);
     const renewal = rows[0];
@@ -1365,7 +1409,7 @@ router.put('/:id/renew', authenticateToken, requireRole('sales', 'admin'), async
 });
 
 // Update follow-up
-router.put('/:id/follow-up', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+router.put('/:id/follow-up', authenticateToken, requireRole('sales', 'admin', 'cst'), async (req, res) => {
   try {
     const { follow_up_status, follow_up_remarks } = req.body;
     const { rows } = await db.query('SELECT * FROM renewals WHERE id = $1', [req.params.id]);
@@ -1390,7 +1434,7 @@ router.put('/:id/follow-up', authenticateToken, requireRole('sales', 'admin'), a
 });
 
 // Edit renewal basic details
-router.put('/:id', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+router.put('/:id', authenticateToken, requireRole('sales', 'admin', 'cst'), async (req, res) => {
   try {
     const { 
       client_name, service, renewal_date, value, owner, client_email, sales_email, contact_number, reference_id, plan_period, plan_duration, expiry_reason, invoice_number, quotation_number,
@@ -1633,7 +1677,7 @@ router.put('/:id', authenticateToken, requireRole('sales', 'admin'), async (req,
 });
 
 // Sales & Admin: Update product cost fields and quotation_number
-router.patch('/:id/product-costs', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+router.patch('/:id/product-costs', authenticateToken, requireRole('sales', 'admin', 'cst'), async (req, res) => {
   try {
     const { quantity, purchase_cost, total_purchase_cost, sales_cost, total_sales_cost, profit, quotation_number } = req.body;
     const { rows } = await db.query('SELECT * FROM renewals WHERE id = $1', [req.params.id]);
@@ -2130,7 +2174,7 @@ router.put('/:id/approve-edit', authenticateToken, requireRole('admin'), async (
 });
 
 // Renewal Confirmation — Sales team updates renewal status
-router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admin', 'cst'), async (req, res) => {
   try {
     const { renewal_confirmation, remarks } = req.body;
     const validOptions = [
@@ -2424,7 +2468,7 @@ router.put('/:id/confirm-renewal', authenticateToken, requireRole('sales', 'admi
 });
 
 // Update expiry reason
-router.put('/:id/expiry-reason', authenticateToken, requireRole('sales', 'admin'), async (req, res) => {
+router.put('/:id/expiry-reason', authenticateToken, requireRole('sales', 'admin', 'cst'), async (req, res) => {
   try {
     const { expiry_reason } = req.body;
     if (!expiry_reason || !expiry_reason.trim()) {

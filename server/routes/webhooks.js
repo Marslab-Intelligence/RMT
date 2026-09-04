@@ -38,19 +38,27 @@ router.post('/zoho-books', async (req, res) => {
 
     const renewal = getRes.rows[0];
 
+    let paymentState = 'unknown';
+    const normalizedStatus = (status || '').toLowerCase();
+    if (normalizedStatus === 'paid') paymentState = 'paid';
+    else if (normalizedStatus === 'partially_paid') paymentState = 'partially_paid';
+    else if (normalizedStatus === 'overdue') paymentState = 'overdue';
+    else if (normalizedStatus === 'sent') paymentState = 'unpaid';
+
     // Find and update the corresponding renewal record
     const query = `
       UPDATE renewals 
       SET invoice_status = 'Sent',
-          invoice_number = $1,
-          invoice_value = $2,
-          invoice_sent_date = $3,
+          payment_state = $1,
+          invoice_number = $2,
+          invoice_value = $3,
+          invoice_sent_date = $4,
           updated_at = CURRENT_TIMESTAMP
-      WHERE unique_id = $4
+      WHERE unique_id = $5
       RETURNING *
     `;
 
-    const { rows } = await db.query(query, [invoice_number, parseFloat(total), date, rmtId]);
+    const { rows } = await db.query(query, [paymentState, invoice_number, parseFloat(total), date, rmtId]);
     const updated = rows[0];
 
     // Log to renewal_history
@@ -73,12 +81,14 @@ router.post('/zoho-books', async (req, res) => {
       VALUES ($1, 'edited', $2, $3, NULL)
     `, [updated.id, previousData, newData]);
 
-    // Insert notifications for Admin and Finance
+    // Insert notification for Admin. There used to be a second row here for
+    // role='finance' — that role was migrated away (db.js), no user can hold
+    // it anymore, and a notification for a role nobody has is permanently
+    // unreachable dead data, inserted on every single invoice sync.
     const notificationMsg = `Invoice #${invoice_number} (₹${parseFloat(total).toLocaleString('en-IN')}) has been automatically synced from Zoho Books for client "${updated.client_name}" (${updated.service}).`;
     await db.query(`
       INSERT INTO notifications (role, title, message, type, link)
-      VALUES ('admin', 'Invoice Synced via Zoho', $1, 'info', $2),
-             ('finance', 'Invoice Synced via Zoho', $1, 'info', $2)
+      VALUES ('admin', 'Invoice Synced via Zoho', $1, 'info', $2)
     `, [notificationMsg, `/renewals?search=${updated.unique_id}`]);
 
     // Send Zoho Cliq notifications

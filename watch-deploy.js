@@ -5,9 +5,11 @@ import { exec } from 'child_process';
 const WATCH_DIRS = [
   path.resolve('./src'),
   path.resolve('./server'),
+  path.resolve('./public'),
   path.resolve('./index.html'),
   path.resolve('./tailwind.config.js'),
-  path.resolve('./package.json')
+  path.resolve('./package.json'),
+  path.resolve('./Dockerfile')
 ];
 
 let debounceTimer = null;
@@ -17,24 +19,26 @@ let pendingBuild = false;
 function triggerDeploy() {
   if (isBuilding) {
     pendingBuild = true;
-    console.log('⏳ Build already in progress. Queueing next build...');
+    console.log('⏳ Build/Deploy already in progress. Queueing next build...');
     return;
   }
 
   isBuilding = true;
   pendingBuild = false;
-  console.log('\n🚀 File change detected! Triggering automatic deployment to production (13.232.180.247)...');
+  console.log('\n🚀 Code change detected in Antigravity! Executing ECR Push & Remote Deployment...');
 
   const start = Date.now();
   exec('./push.sh', (error, stdout, stderr) => {
     isBuilding = false;
     const duration = ((Date.now() - start) / 1000).toFixed(1);
 
+    if (stdout) console.log(stdout);
+
     if (error) {
       console.error(`❌ Deployment failed after ${duration}s:`, error.message);
-      console.error(stderr);
+      if (stderr) console.error(stderr);
     } else {
-      console.log(`✅ Deployment succeeded in ${duration}s!`);
+      console.log(`✅ Antigravity live deployment succeeded in ${duration}s! Server updated.`);
     }
 
     if (pendingBuild) {
@@ -55,15 +59,16 @@ function handleChange(eventType, filename) {
     return;
   }
   
-  console.log(`[${new Date().toLocaleTimeString()}] 📝 Change detected: ${filename}`);
+  console.log(`[${new Date().toLocaleTimeString()}] 📝 Code change detected: ${filename}`);
   
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     triggerDeploy();
-  }, 2000); // 2 second debounce
+  }, 2000); // 2-second debounce
 }
 
-console.log('👀 Starting file watcher for auto-deployment to production (13.232.180.247)...');
+console.log('👀 Antigravity Live Deployment Watcher Active');
+console.log('   Target Key: /home/sameer/Documents/pem Files/marslab-Devops.pem');
 WATCH_DIRS.forEach(dir => {
   if (!fs.existsSync(dir)) return;
   const isDirectory = fs.statSync(dir).isDirectory();
@@ -72,4 +77,4 @@ WATCH_DIRS.forEach(dir => {
   console.log(`   Watching: ${dir}`);
 });
 
-console.log('🤖 Auto-deploy watcher is active and listening for changes.');
+console.log('🤖 Listening for live changes in Antigravity...\n');

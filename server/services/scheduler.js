@@ -292,17 +292,91 @@ async function processRenewals() {
   console.log(`   ✅ Scheduler run complete.\n`);
 }
 
+let lastCliqSummaryDate = null;
+
+export async function sendDailyCliqSummary(force = false) {
+  const todayStr = new Date().toISOString().split('T')[0];
+  if (!force && lastCliqSummaryDate === todayStr) {
+    return; // Already sent once today
+  }
+
+  console.log(`\n🔔 [${new Date().toISOString()}] Generating Daily Renewal Summary for Zoho Cliq...`);
+  try {
+    const { rows: upcoming } = await db.query(`
+      SELECT unique_id, client_name, service, renewal_date, value, owner, status,
+             (renewal_date - CURRENT_DATE) as days_left
+      FROM renewals 
+      WHERE is_deleted = FALSE 
+        AND status IN ('Active', 'Pending Renewal')
+        AND renewal_date IS NOT NULL
+        AND (renewal_date - CURRENT_DATE) <= 30
+      ORDER BY renewal_date ASC
+      LIMIT 15
+    `);
+
+    const { rows: totals } = await db.query(`
+      SELECT 
+        COUNT(*) FILTER (WHERE status IN ('Active', 'Pending Renewal')) as total_active,
+        COUNT(*) FILTER (WHERE status IN ('Active', 'Pending Renewal') AND (renewal_date - CURRENT_DATE) <= 30) as total_expiring_soon,
+        COUNT(*) FILTER (WHERE status = 'Expired') as total_expired,
+        COALESCE(SUM(CAST(NULLIF(regexp_replace(value::text, '[^0-9.]', '', 'g'), '') AS NUMERIC)) FILTER (WHERE status IN ('Active', 'Pending Renewal')), 0) as total_value
+      FROM renewals
+      WHERE is_deleted = FALSE
+    `);
+
+    const stats = totals[0] || { total_active: 0, total_expiring_soon: 0, total_expired: 0, total_value: 0 };
+    const formattedTotalValue = Number(stats.total_value).toLocaleString('en-IN');
+
+    let msg = `📊 *Daily Renewal Status Summary*\n`;
+    msg += `• *Total Active Renewals:* ${stats.total_active}\n`;
+    msg += `• *Due in Next 30 Days:* ${stats.total_expiring_soon}\n`;
+    msg += `• *Expired Renewals:* ${stats.total_expired}\n`;
+    msg += `• *Total Active Portfolio Value:* ₹${formattedTotalValue}\n`;
+
+    if (upcoming.length > 0) {
+      msg += `\n⏰ *Upcoming Renewals (Next 30 Days):*\n`;
+      upcoming.forEach((r, idx) => {
+        const dateStr = formatDate(r.renewal_date);
+        const daysText = r.days_left < 0 ? `Expired (${Math.abs(r.days_left)}d ago)` : `${r.days_left} days left`;
+        const valText = parseFloat(r.value || 0).toLocaleString('en-IN');
+        msg += `${idx + 1}. *${r.unique_id}* | ${r.client_name} (${r.service})\n   📅 *Due:* ${dateStr} (${daysText}) | 💰 ₹${valText}\n`;
+      });
+    } else {
+      msg += `\n✅ *No renewals due in the next 30 days.*`;
+    }
+
+    // Send to both Sales and Finance Cliq channels
+    await sendCliqNotification(msg, false); // Finance channel
+    await sendCliqNotification(msg, true);  // Sales channel
+    lastCliqSummaryDate = todayStr;
+    console.log(`✅ Daily Cliq summary notification sent successfully for ${todayStr}.`);
+  } catch (err) {
+    console.error(`❌ Failed to send daily Cliq summary notification:`, err.message);
+  }
+}
+
 const FIFTEEN_MIN_MS = 15 * 60 * 1000;
 
 export function startScheduler() {
-  setTimeout(() => {
-    processRenewals();
+  setTimeout(async () => {
+    await processRenewals();
+    await sendDailyCliqSummary();
+
+    // Catch-up aware 09:05 IST Agent Daily Sweep
+    try {
+      const { runDailySweep } = await import('../agent/dailySweep.js');
+      await runDailySweep();
+    } catch (err) {
+      console.error('Error running initial agent daily sweep:', err);
+    }
+
     setInterval(() => {
       processRenewals();
+      sendDailyCliqSummary();
     }, FIFTEEN_MIN_MS);
   }, 3000);
 
-  console.log('🕐 Email scheduler started (runs on startup, then every 15 minutes)');
+  console.log('🕐 Email & AI Agent scheduler started (runs on startup, then every 15 minutes)');
 }
 
 export { processRenewals };

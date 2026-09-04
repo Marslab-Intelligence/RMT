@@ -9,14 +9,15 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     // Auto-sync missing vendor products directly from live client renewal records
     await pool.query(`
-      INSERT INTO product_pricing (vendor, product_name, service_category, list_price, erp_price, sales_cost, coupon_discount_percent, description)
+      INSERT INTO product_pricing (vendor, product_name, service_category, list_price, erp_price, purchase_cost, sales_cost, coupon_discount_percent, description)
       SELECT 
         r.vendor,
         r.product AS product_name,
         COALESCE(NULLIF(r.service, ''), 'Software & Services') AS service_category,
         ROUND(COALESCE(NULLIF(AVG(r.sales_cost), 0), NULLIF(AVG(r.value), 0), 1000) * 1.15, 2) AS list_price,
         0.00 AS erp_price,
-        ROUND(COALESCE(NULLIF(AVG(r.purchase_cost), 0), NULLIF(AVG(r.sales_cost), 0), 0), 2) AS sales_cost,
+        ROUND(COALESCE(NULLIF(AVG(r.purchase_cost), 0), 0), 2) AS purchase_cost,
+        ROUND(COALESCE(NULLIF(AVG(r.sales_cost), 0), NULLIF(AVG(r.value / NULLIF(r.quantity, 0)), 0), 0), 2) AS sales_cost,
         10.00 AS coupon_discount_percent,
         CONCAT('Synced from client renewals (Service Plan: ', COALESCE(r.service, 'General'), ')') AS description
       FROM renewals r
@@ -28,15 +29,18 @@ router.get('/', authenticateToken, async (req, res) => {
       GROUP BY r.vendor, r.product, r.service
     `);
 
-    // Update zero or uninitialized sales_cost from client renewal records for matching vendor and product
+    // Update zero or uninitialized purchase_cost and sales_cost from client renewal records for matching vendor and product
     await pool.query(`
       UPDATE product_pricing p
-      SET sales_cost = sub.avg_cost
+      SET 
+        purchase_cost = CASE WHEN sub.avg_purchase_cost > 0 THEN sub.avg_purchase_cost ELSE p.purchase_cost END,
+        sales_cost = CASE WHEN sub.avg_sales_cost > 0 THEN sub.avg_sales_cost ELSE p.sales_cost END
       FROM (
         SELECT 
           LOWER(r.vendor) AS vendor_clean, 
           LOWER(r.product) AS product_clean, 
-          ROUND(COALESCE(NULLIF(AVG(r.purchase_cost), 0), NULLIF(AVG(r.sales_cost), 0), 0), 2) AS avg_cost
+          ROUND(COALESCE(NULLIF(AVG(r.purchase_cost), 0), 0), 2) AS avg_purchase_cost,
+          ROUND(COALESCE(NULLIF(AVG(r.sales_cost), 0), 0), 2) AS avg_sales_cost
         FROM renewals r
         WHERE r.vendor IS NOT NULL AND r.vendor != '' 
           AND r.product IS NOT NULL AND r.product != '' 
@@ -44,8 +48,7 @@ router.get('/', authenticateToken, async (req, res) => {
         GROUP BY LOWER(r.vendor), LOWER(r.product)
       ) sub
       WHERE LOWER(p.vendor) = sub.vendor_clean 
-        AND LOWER(p.product_name) = sub.product_clean
-        AND (p.sales_cost IS NULL OR p.sales_cost = 0);
+        AND LOWER(p.product_name) = sub.product_clean;
     `);
 
     const { vendor, search } = req.query;
@@ -119,11 +122,12 @@ router.get('/', authenticateToken, async (req, res) => {
     query += ' GROUP BY p.id ORDER BY p.vendor ASC, p.product_name ASC';
     const result = await pool.query(query, params);
 
-    // Enrich records with calculated percent metrics
+    // Enrich records with calculated financial metrics:
+    // Profit = Sales Cost - Purchase Cost
+    // Net Margin (%) = (Profit / Sales Cost) * 100
     const items = result.rows.map(row => {
       const listPrice = parseFloat(row.list_price || 0);
       const erpPrice = parseFloat(row.erp_price || 0);
-      const salesCost = parseFloat(row.sales_cost || 0);
       const couponDiscountPct = parseFloat(row.coupon_discount_percent || 0);
 
       // Discounted Price after applying coupon discount
@@ -131,28 +135,40 @@ router.get('/', authenticateToken, async (req, res) => {
         ? listPrice * (1 - (couponDiscountPct / 100))
         : erpPrice;
 
-      // Effective Selling Price (Sales Cost)
-      const sellingPrice = erpPrice > 0 ? erpPrice : (discountedPrice > 0 ? discountedPrice : listPrice);
+      // Purchase Cost: cost to us from vendor
+      const rawPurchase = parseFloat(row.purchase_cost || 0);
+      const rawSales = parseFloat(row.sales_cost || 0);
+      const purchaseCost = rawPurchase > 0 ? rawPurchase : (rawSales > 0 ? rawSales : 0);
+
+      // Effective Sales Cost: selling price to client
+      let salesCost = erpPrice > 0 ? erpPrice : (discountedPrice > 0 ? discountedPrice : listPrice);
+      if (rawSales > 0 && rawSales !== purchaseCost) {
+        salesCost = rawSales;
+      }
+
+      // Profit = Sales Cost - Purchase Cost
+      const profitAmount = salesCost - purchaseCost;
+
+      // Net Margin (%) = (Profit / Sales Cost) * 100
+      const marginPercent = salesCost > 0 ? (profitAmount / salesCost) * 100 : 0;
 
       // Purchase Cost Percentage relative to Sales Cost
-      const salesCostPercent = sellingPrice > 0 ? (salesCost / sellingPrice) * 100 : 0;
+      const salesCostPercent = salesCost > 0 ? (purchaseCost / salesCost) * 100 : 0;
 
-      // Profit Margin & Margin Percentage based on Purchase Cost vs Sales Cost
-      const marginAmount = sellingPrice - salesCost;
-      const marginPercent = sellingPrice > 0 ? (marginAmount / sellingPrice) * 100 : 0;
-
-      // Discount Savings Percentage (List Price vs ERP Price)
-      const erpSavingsPercent = listPrice > 0 ? ((listPrice - erpPrice) / listPrice) * 100 : 0;
+      // ERP Savings Percentage
+      const erpSavingsPercent = listPrice > 0 ? ((listPrice - (erpPrice > 0 ? erpPrice : salesCost)) / listPrice) * 100 : 0;
 
       return {
         ...row,
         list_price: listPrice,
         erp_price: erpPrice,
-        sales_cost: salesCost,
+        purchase_cost: Math.round(purchaseCost * 100) / 100,
+        sales_cost: Math.round(salesCost * 100) / 100,
         coupon_discount_percent: couponDiscountPct,
         discounted_price: Math.round((erpPrice > 0 ? erpPrice : discountedPrice) * 100) / 100,
         sales_cost_percent: Math.round(salesCostPercent * 10) / 10,
-        margin_amount: Math.round(marginAmount * 100) / 100,
+        margin_amount: Math.round(profitAmount * 100) / 100,
+        profit: Math.round(profitAmount * 100) / 100,
         margin_percent: Math.round(marginPercent * 10) / 10,
         erp_savings_percent: Math.round(erpSavingsPercent * 10) / 10
       };
@@ -185,10 +201,10 @@ router.get('/analytics', authenticateToken, async (req, res) => {
     const stats = renewalStatsRes.rows[0];
     const totalRev = parseFloat(stats.total_revenue || 0);
     const totalCost = parseFloat(stats.total_purchase_cost || 0);
-    const totalProfit = parseFloat(stats.total_profit || 0);
+    const totalProfit = parseFloat(stats.total_profit || (totalRev - totalCost));
     const totalLoss = parseFloat(stats.total_loss_value || 0);
     
-    // Overall Profit Margin Percentage
+    // Overall Net Margin Percentage: (Profit / Sales Cost) * 100
     const netMarginPercent = totalRev > 0 ? (totalProfit / totalRev) * 100 : 0;
     const isProfitable = totalProfit >= 0;
 
@@ -197,8 +213,9 @@ router.get('/analytics', authenticateToken, async (req, res) => {
       SELECT 
         COALESCE(NULLIF(vendor, ''), 'Microsoft') as vendor_name,
         COUNT(*) as contract_count,
-        SUM(value) as total_value,
-        SUM(profit) as total_profit
+        SUM(CASE WHEN status IN ('Active', 'Renewed', 'Pending Renewal') THEN value ELSE 0 END) as total_value,
+        SUM(CASE WHEN status IN ('Active', 'Renewed', 'Pending Renewal') THEN total_purchase_cost ELSE 0 END) as total_purchase_cost,
+        SUM(CASE WHEN status IN ('Active', 'Renewed', 'Pending Renewal') THEN profit ELSE 0 END) as total_profit
       FROM renewals
       GROUP BY vendor_name
       ORDER BY total_value DESC;
@@ -206,7 +223,7 @@ router.get('/analytics', authenticateToken, async (req, res) => {
 
     const vendorBreakdown = vendorBreakdownRes.rows.map(v => {
       const vVal = parseFloat(v.total_value || 0);
-      const vProf = parseFloat(v.total_profit || 0);
+      const vProf = parseFloat(v.total_profit || (vVal - parseFloat(v.total_purchase_cost || 0)));
       const sharePct = totalRev > 0 ? (vVal / totalRev) * 100 : 0;
       const vMarginPct = vVal > 0 ? (vProf / vVal) * 100 : 0;
       return {
@@ -223,16 +240,18 @@ router.get('/analytics', authenticateToken, async (req, res) => {
     const catalogAvgRes = await pool.query(`
       SELECT 
         AVG(erp_price) as avg_erp_price,
+        AVG(purchase_cost) as avg_purchase_cost,
         AVG(sales_cost) as avg_sales_cost,
         AVG(coupon_discount_percent) as avg_discount
       FROM product_pricing;
     `);
     const catAvg = catalogAvgRes.rows[0];
     const avgErp = parseFloat(catAvg.avg_erp_price || 0);
-    const avgCost = parseFloat(catAvg.avg_sales_cost || 0);
-    const catalogMarginPercent = avgErp > 0 ? ((avgErp - avgCost) / avgErp) * 100 : 0;
+    const avgPur = parseFloat(catAvg.avg_purchase_cost || 0);
+    const avgSales = parseFloat(catAvg.avg_sales_cost || avgErp);
+    const catalogMarginPercent = avgSales > 0 ? ((avgSales - avgPur) / avgSales) * 100 : 0;
 
-    // Plain-English Executive Summary statement
+    // Executive Summary statement
     const executiveSummaryText = isProfitable
       ? `RMT is currently operating in PROFIT with a net margin of ${Math.round(netMarginPercent * 10) / 10}%. Total portfolio value is ₹${(totalRev / 100000).toFixed(2)} Lakhs generating ₹${(totalProfit / 100000).toFixed(2)} Lakhs in net earnings.`
       : `ATTENTION REQUIRED: RMT is currently showing higher costs than revenue with a net deficit of ₹${(Math.abs(totalProfit) / 100000).toFixed(2)} Lakhs. Review pricing discounts and expiring contracts immediately.`;
@@ -268,6 +287,7 @@ router.post('/', authenticateToken, async (req, res) => {
       service_category,
       list_price,
       erp_price,
+      purchase_cost,
       sales_cost,
       coupon_discount_percent,
       description
@@ -279,8 +299,8 @@ router.post('/', authenticateToken, async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO product_pricing 
-       (vendor, product_name, service_category, list_price, erp_price, sales_cost, coupon_discount_percent, description)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (vendor, product_name, service_category, list_price, erp_price, purchase_cost, sales_cost, coupon_discount_percent, description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         vendor,
@@ -288,6 +308,7 @@ router.post('/', authenticateToken, async (req, res) => {
         service_category || 'Software & Services',
         parseFloat(list_price || 0),
         parseFloat(erp_price || 0),
+        parseFloat(purchase_cost || 0),
         parseFloat(sales_cost || 0),
         parseFloat(coupon_discount_percent || 0),
         description || ''
@@ -311,6 +332,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
       service_category,
       list_price,
       erp_price,
+      purchase_cost,
       sales_cost,
       coupon_discount_percent,
       description
@@ -330,11 +352,12 @@ router.put('/:id', authenticateToken, async (req, res) => {
         service_category = $3,
         list_price = $4,
         erp_price = $5,
-        sales_cost = $6,
-        coupon_discount_percent = $7,
-        description = $8,
+        purchase_cost = $6,
+        sales_cost = $7,
+        coupon_discount_percent = $8,
+        description = $9,
         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $9
+       WHERE id = $10
        RETURNING *`,
       [
         vendor !== undefined ? vendor : existing.vendor,
@@ -342,6 +365,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         service_category !== undefined ? service_category : existing.service_category,
         list_price !== undefined ? parseFloat(list_price) : existing.list_price,
         erp_price !== undefined ? parseFloat(erp_price) : existing.erp_price,
+        purchase_cost !== undefined ? parseFloat(purchase_cost) : existing.purchase_cost,
         sales_cost !== undefined ? parseFloat(sales_cost) : existing.sales_cost,
         coupon_discount_percent !== undefined ? parseFloat(coupon_discount_percent) : existing.coupon_discount_percent,
         description !== undefined ? description : existing.description,

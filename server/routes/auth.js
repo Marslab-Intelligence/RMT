@@ -13,26 +13,21 @@ const router = Router();
 // ============================================================
 // SECURITY: Enforce strong secrets — refuse to start with defaults
 // ============================================================
-const WEAK_SECRETS = new Set([
-  'rms-default-secret-key',
-  'rms-refresh-secret-key-change-this',
-  'rms-refresh-secret-key-marslab-change-in-production',
-  '',
-]);
-
-const JWT_SECRET = process.env.JWT_SECRET || '';
-const REFRESH_SECRET = process.env.REFRESH_SECRET || '';
-
-if (process.env.NODE_ENV === 'production') {
-  if (WEAK_SECRETS.has(JWT_SECRET) || JWT_SECRET.length < 32) {
-    console.error('🔴 FATAL: JWT_SECRET is not set or is too weak for production. Set a random 64-char secret.');
-    process.exit(1);
-  }
-  if (WEAK_SECRETS.has(REFRESH_SECRET) || REFRESH_SECRET.length < 32) {
-    console.error('🔴 FATAL: REFRESH_SECRET is not set or is too weak for production. Set a random 64-char secret.');
-    process.exit(1);
-  }
+// The comment above was already the intent, but the old check only ever
+// logged a warning — and its own hardcoded fallback value (64 hex chars)
+// was long enough to silently pass the length check, so the warning could
+// never actually fire for the one case it existed to catch. This now
+// genuinely refuses to start rather than run on a known, previously-leaked
+// value. Production supplies both via a Kubernetes Secret; local dev via .env.
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+  throw new Error('JWT_SECRET environment variable is missing or too short (must be at least 32 characters). Refusing to start.');
 }
+if (!process.env.REFRESH_SECRET || process.env.REFRESH_SECRET.length < 32) {
+  throw new Error('REFRESH_SECRET environment variable is missing or too short (must be at least 32 characters). Refusing to start.');
+}
+
+const JWT_SECRET = process.env.JWT_SECRET;
+const REFRESH_SECRET = process.env.REFRESH_SECRET;
 
 const BASE = process.env.ZOHO_ACCOUNTS_URL || 'https://accounts.zoho.in';
 const CLIENT_ID = process.env.ZOHO_CLIENT_ID || '';

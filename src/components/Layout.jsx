@@ -4,6 +4,9 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/formatters';
+import VersionNotifier from './VersionNotifier';
+import AgentDrawer from './AgentDrawer';
+import { APP_VERSION } from '../version';
 import {
   LayoutDashboard,
   FileText,
@@ -15,6 +18,7 @@ import {
   X,
   Search,
   ShieldCheck,
+  ShieldAlert,
   Moon,
   Sun,
   Home,
@@ -196,14 +200,28 @@ export default function Layout({ children }) {
   }, []);
 
   const toggleDarkMode = () => {
-    if (isDarkMode) {
-      document.documentElement.classList.remove('dark');
-      localStorage.theme = 'light';
-      setIsDarkMode(false);
+    const applyToggle = () => {
+      document.documentElement.classList.add('theme-transitioning');
+      if (isDarkMode) {
+        document.documentElement.classList.remove('dark');
+        localStorage.theme = 'light';
+        setIsDarkMode(false);
+      } else {
+        document.documentElement.classList.add('dark');
+        localStorage.theme = 'dark';
+        setIsDarkMode(true);
+      }
+      setTimeout(() => {
+        document.documentElement.classList.remove('theme-transitioning');
+      }, 500);
+    };
+
+    if (typeof document !== 'undefined' && document.startViewTransition) {
+      document.startViewTransition(() => {
+        applyToggle();
+      });
     } else {
-      document.documentElement.classList.add('dark');
-      localStorage.theme = 'dark';
-      setIsDarkMode(true);
+      applyToggle();
     }
   };
 
@@ -518,12 +536,14 @@ export default function Layout({ children }) {
     { name: 'Renewals', path: '/renewals', icon: FileText },
     { name: 'Pricing', path: '/pricing', icon: Tag },
     { name: 'Notification Center', path: '/notifications', icon: Bell },
+    { name: 'Approval Inbox', path: '/approval-inbox', icon: ShieldCheck },
     { name: 'Email Automation', path: '/automation', icon: Mail },
     { name: user?.role === 'admin' ? 'Reports & Logs' : 'Reports', path: '/reports', icon: BarChart3 },
     { name: 'Record Details', path: '/edits-history', icon: History },
   ];
 
   if (user?.role === 'admin') {
+    navItems.push({ name: 'Guardian Health', path: '/agent-health', icon: ShieldAlert });
     navItems.push({ name: 'Trash Data', path: '/trash', icon: Trash2 });
     navItems.push({ name: 'User Management', path: '/admin/users', icon: Users });
   }
@@ -563,14 +583,24 @@ export default function Layout({ children }) {
 
   /* Hover detection zone on the left edge of the viewport (for desktop only) */
   return (
-    <div className="flex h-screen transition-colors duration-200 relative overflow-hidden bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100 dark:from-stone-900 dark:via-slate-900 dark:to-rose-950 selection:bg-indigo-500/30">
+    <div className="flex h-screen relative overflow-hidden selection:bg-indigo-500/30">
+      {/* Dynamic Version Update Notification Banner */}
+      <VersionNotifier />
+      {/* Floating AI Agent Assistant */}
+      <AgentDrawer />
+
+      {/* Light Theme Background Layer */}
+      <div className="fixed inset-0 pointer-events-none bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100 opacity-100 dark:opacity-0 transition-opacity duration-500 ease-in-out z-0" />
+
+      {/* Dark / Black Theme Background Layer */}
+      <div className="fixed inset-0 pointer-events-none bg-gradient-to-br from-stone-900 via-slate-900 to-rose-950 opacity-0 dark:opacity-100 transition-opacity duration-500 ease-in-out z-0" />
 
       {/* Decorative blobs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{zIndex: 0}}>
-        <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-amber-300/35 dark:bg-amber-700/20 blur-3xl" />
-        <div className="absolute top-1/2 right-0 w-80 h-80 rounded-full bg-orange-300/30 dark:bg-orange-800/15 blur-3xl" />
-        <div className="absolute -bottom-20 left-1/3 w-72 h-72 rounded-full bg-rose-300/30 dark:bg-rose-800/15 blur-3xl" />
-        <div className="absolute top-1/4 left-1/2 w-64 h-64 rounded-full bg-amber-200/20 dark:bg-amber-900/10 blur-3xl" />
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-amber-300/35 dark:bg-amber-700/20 blur-3xl transition-all duration-500 ease-in-out" />
+        <div className="absolute top-1/2 right-0 w-80 h-80 rounded-full bg-orange-300/30 dark:bg-orange-800/15 blur-3xl transition-all duration-500 ease-in-out" />
+        <div className="absolute -bottom-20 left-1/3 w-72 h-72 rounded-full bg-rose-300/30 dark:bg-rose-800/15 blur-3xl transition-all duration-500 ease-in-out" />
+        <div className="absolute top-1/4 left-1/2 w-64 h-64 rounded-full bg-amber-200/20 dark:bg-amber-900/10 blur-3xl transition-all duration-500 ease-in-out" />
       </div>
 
       {/* Mobile sidebar backdrop */}
@@ -597,6 +627,7 @@ export default function Layout({ children }) {
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           borderRight: isDarkMode ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(180, 150, 120, 0.25)',
+          transition: 'background-color 450ms cubic-bezier(0.4, 0, 0.2, 1), border-color 450ms cubic-bezier(0.4, 0, 0.2, 1), color 450ms cubic-bezier(0.4, 0, 0.2, 1)'
         }}
         onMouseEnter={handleSidebarMouseEnter}
         onMouseLeave={handleSidebarMouseLeave}
@@ -662,6 +693,13 @@ export default function Layout({ children }) {
           </nav>
         </div>
 
+        {/* Sidebar Footer — App Version */}
+        <div className="p-3 px-5 border-t border-black/10 dark:border-white/10 flex items-center justify-between text-xs text-surface-400">
+          <span className="font-semibold tracking-wider text-[11px] uppercase">System Version</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+            v{APP_VERSION}
+          </span>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -671,12 +709,13 @@ export default function Layout({ children }) {
       >
         {/* Top Header */}
         <header
-          className="h-16 flex items-center justify-between px-6 z-20 sticky top-0 transition-all duration-200"
+          className="h-16 flex items-center justify-between px-6 z-20 sticky top-0 transition-all duration-300"
           style={{
             background: isDarkMode ? 'rgba(20, 16, 30, 0.60)' : 'rgba(248, 240, 230, 0.60)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
             borderBottom: isDarkMode ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(180, 150, 120, 0.2)',
+            transition: 'background-color 450ms cubic-bezier(0.4, 0, 0.2, 1), border-color 450ms cubic-bezier(0.4, 0, 0.2, 1), color 450ms cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
           {/* ── LEFT: Home + Role Badge ── */}
@@ -723,16 +762,24 @@ export default function Layout({ children }) {
             {/* Theme Toggle */}
             <button
               onClick={toggleDarkMode}
-              className="flex items-center justify-center h-9 w-9 rounded-xl transition-all"
+              className="flex items-center justify-center h-9 w-9 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer"
               style={{
                 background: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
                 border: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)',
                 color: isDarkMode ? '#c4c4cc' : '#4b5563',
+                transition: 'all 450ms cubic-bezier(0.4, 0, 0.2, 1)'
               }}
               onMouseEnter={e => { e.currentTarget.style.background = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'; }}
+              title={isDarkMode ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
             >
-              {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              <div className="relative w-4 h-4 flex items-center justify-center">
+                {isDarkMode ? (
+                  <Sun className="w-4 h-4 text-amber-400 transition-transform duration-300 rotate-0 scale-100" />
+                ) : (
+                  <Moon className="w-4 h-4 text-slate-700 transition-transform duration-300 rotate-0 scale-100" />
+                )}
+              </div>
             </button>
 
             {/* Notifications */}
@@ -1264,7 +1311,6 @@ export default function Layout({ children }) {
         </div>,
         document.body
       )}
-
     </div>
   );
 }

@@ -223,6 +223,69 @@ export const initDb = async () => {
       UPDATE renewals SET renewal_confirmation = 'reminder_sent' WHERE renewal_confirmation = 'awaiting_with_vendor';
       UPDATE renewals SET renewal_confirmation = 'cancelled' WHERE renewal_confirmation = 'service_discontinued';
 
+      ALTER TABLE renewals ADD COLUMN IF NOT EXISTS payment_state VARCHAR(50) DEFAULT 'unknown';
+      -- Read by safetyGate.checkLadderCollision, which referenced this column
+      -- before it existed anywhere in the schema (always passed as a result).
+      ALTER TABLE renewals ADD COLUMN IF NOT EXISTS last_reminder_sent_date DATE;
+      ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS payment_state VARCHAR(50) DEFAULT 'unknown';
+
+      CREATE TABLE IF NOT EXISTS agent_jobs (
+        id SERIAL PRIMARY KEY,
+        job_type VARCHAR(100) NOT NULL,
+        user_id INTEGER REFERENCES users(id),
+        status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
+        payload JSONB DEFAULT '{}',
+        result JSONB DEFAULT '{}',
+        error TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        started_at TIMESTAMP,
+        completed_at TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS agent_episodes (
+        id SERIAL PRIMARY KEY,
+        renewal_id INTEGER REFERENCES renewals(id) ON DELETE SET NULL,
+        user_id INTEGER REFERENCES users(id),
+        action VARCHAR(255) NOT NULL,
+        context_snapshot JSONB DEFAULT '{}',
+        retrieved_memory JSONB DEFAULT '[]',
+        proposed_action JSONB DEFAULT '{}',
+        model_version VARCHAR(100),
+        confidence NUMERIC(5,4),
+        human_verdict VARCHAR(50) DEFAULT 'pending' CHECK(human_verdict IN ('approved', 'edited', 'rejected', 'expired', 'pending')),
+        edit_diff JSONB DEFAULT '{}',
+        rejection_reason TEXT,
+        approver_id INTEGER REFERENCES users(id),
+        delayed_outcome VARCHAR(50) DEFAULT 'pending' CHECK(delayed_outcome IN ('replied', 'ignored', 'renewed', 'churned', 'complained', 'pending')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Send idempotency: hash(renewal_id, action, date) must be unique so a
+      -- retry, a redeploy re-running the daily sweep, or (once a send path
+      -- exists) a second replica can never double-fire the same action twice
+      -- in one day. A DB constraint, not application logic, per design.
+      ALTER TABLE agent_episodes ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(64);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_episodes_idempotency ON agent_episodes(idempotency_key) WHERE idempotency_key IS NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS agent_lessons (
+        id SERIAL PRIMARY KEY,
+        scope VARCHAR(50) NOT NULL CHECK(scope IN ('template', 'client', 'segment', 'global')),
+        scope_key VARCHAR(255) NOT NULL,
+        trigger_condition JSONB NOT NULL DEFAULT '{}',
+        lesson TEXT NOT NULL,
+        evidence_episode_ids JSONB DEFAULT '[]',
+        proposed_rule_type VARCHAR(50) CHECK(proposed_rule_type IN ('prompt_hint', 'suppression', 'weight_adjust', 'validator')),
+        confidence NUMERIC(5,4) DEFAULT 0.50,
+        status VARCHAR(50) NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed', 'active', 'probation', 'retired')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Backfill payment_state based on payment_amount and invoice_value where derivable
+      UPDATE renewals SET payment_state = 'paid' WHERE payment_status = 'Yes' OR (payment_amount IS NOT NULL AND invoice_value IS NOT NULL AND payment_amount >= invoice_value AND invoice_value > 0);
+      UPDATE renewals SET payment_state = 'partially_paid' WHERE payment_amount IS NOT NULL AND invoice_value IS NOT NULL AND payment_amount > 0 AND payment_amount < invoice_value;
+      UPDATE renewals SET payment_state = 'unpaid' WHERE (payment_status = 'No' OR payment_amount = 0) AND invoice_status = 'Sent' AND payment_state = 'unknown';
+
       ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS invoice_status VARCHAR(20) DEFAULT 'Not';
       ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS plan_period VARCHAR(50) DEFAULT 'yearly_plan';
       ALTER TABLE trash_renewals ADD COLUMN IF NOT EXISTS invoice_number VARCHAR(100) DEFAULT NULL;
@@ -360,12 +423,15 @@ export const initDb = async () => {
         service_category VARCHAR(255) DEFAULT 'Software & Services',
         list_price NUMERIC(15,2) DEFAULT 0,
         erp_price NUMERIC(15,2) DEFAULT 0,
+        purchase_cost NUMERIC(15,2) DEFAULT 0,
         sales_cost NUMERIC(15,2) DEFAULT 0,
         coupon_discount_percent NUMERIC(5,2) DEFAULT 0,
         description TEXT DEFAULT '',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      ALTER TABLE product_pricing ADD COLUMN IF NOT EXISTS purchase_cost NUMERIC(15,2) DEFAULT 0;
 
       INSERT INTO automation_settings (key, value)
       VALUES ('email_automation', 'start')
@@ -374,14 +440,15 @@ export const initDb = async () => {
 
     // Seed product pricing catalog directly from client renewal records if empty or sync missing entries
     await pool.query(`
-      INSERT INTO product_pricing (vendor, product_name, service_category, list_price, erp_price, sales_cost, coupon_discount_percent, description)
+      INSERT INTO product_pricing (vendor, product_name, service_category, list_price, erp_price, purchase_cost, sales_cost, coupon_discount_percent, description)
       SELECT 
         r.vendor,
         r.product AS product_name,
         COALESCE(NULLIF(r.service, ''), 'Software & Services') AS service_category,
         ROUND(COALESCE(NULLIF(AVG(r.sales_cost), 0), NULLIF(AVG(r.value), 0), 1000) * 1.15, 2) AS list_price,
         0.00 AS erp_price,
-        ROUND(COALESCE(NULLIF(AVG(r.purchase_cost), 0), NULLIF(AVG(r.sales_cost), 0), 0), 2) AS sales_cost,
+        ROUND(COALESCE(NULLIF(AVG(r.purchase_cost), 0), 0), 2) AS purchase_cost,
+        ROUND(COALESCE(NULLIF(AVG(r.sales_cost), 0), NULLIF(AVG(r.value / NULLIF(r.quantity, 0)), 0), 0), 2) AS sales_cost,
         10.00 AS coupon_discount_percent,
         CONCAT('Synced from client renewals (Service Plan: ', COALESCE(r.service, 'General'), ')') AS description
       FROM renewals r
@@ -392,16 +459,16 @@ export const initDb = async () => {
         )
       GROUP BY r.vendor, r.product, r.service;
 
-      UPDATE product_pricing
-      SET erp_price = 0.00;
-
       UPDATE product_pricing p
-      SET sales_cost = sub.avg_cost
+      SET 
+        purchase_cost = CASE WHEN sub.avg_purchase_cost > 0 THEN sub.avg_purchase_cost ELSE p.purchase_cost END,
+        sales_cost = CASE WHEN sub.avg_sales_cost > 0 THEN sub.avg_sales_cost ELSE p.sales_cost END
       FROM (
         SELECT 
           LOWER(r.vendor) AS vendor_clean, 
           LOWER(r.product) AS product_clean, 
-          ROUND(COALESCE(NULLIF(AVG(r.purchase_cost), 0), NULLIF(AVG(r.sales_cost), 0), 0), 2) AS avg_cost
+          ROUND(COALESCE(NULLIF(AVG(r.purchase_cost), 0), 0), 2) AS avg_purchase_cost,
+          ROUND(COALESCE(NULLIF(AVG(r.sales_cost), 0), 0), 2) AS avg_sales_cost
         FROM renewals r
         WHERE r.vendor IS NOT NULL AND r.vendor != '' 
           AND r.product IS NOT NULL AND r.product != '' 
@@ -409,8 +476,7 @@ export const initDb = async () => {
         GROUP BY LOWER(r.vendor), LOWER(r.product)
       ) sub
       WHERE LOWER(p.vendor) = sub.vendor_clean 
-        AND LOWER(p.product_name) = sub.product_clean
-        AND (p.sales_cost IS NULL OR p.sales_cost = 0);
+        AND LOWER(p.product_name) = sub.product_clean;
     `);
     console.log('✅ Product Pricing Catalog synced with default ERP price = 0.00.');
 

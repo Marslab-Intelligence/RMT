@@ -175,7 +175,7 @@ export default function Pricing() {
     });
   }, [products, selectedVendor, selectedServicePlan, searchQuery]);
 
-  // Dynamic Chart Dataset computed from active filtered items
+  // Chart Data: Aggregated Sales Cost, Purchase Cost, and Profit by Vendor
   const chartVendorData = useMemo(() => {
     if (!filteredProducts || filteredProducts.length === 0) return [];
     
@@ -185,8 +185,8 @@ export default function Pricing() {
       if (!map[v]) {
         map[v] = { vendor: v, sales_cost: 0, purchase_cost: 0, profit: 0, contracts: 0 };
       }
-      const cost = parseFloat(p.sales_cost || 0);
-      const sellingPrice = parseFloat(p.erp_price > 0 ? p.erp_price : (p.discounted_price || p.list_price || 0));
+      const cost = parseFloat(p.purchase_cost || 0);
+      const sellingPrice = parseFloat(p.sales_cost > 0 ? p.sales_cost : (p.erp_price > 0 ? p.erp_price : (p.discounted_price || p.list_price || 0)));
       const prof = sellingPrice - cost;
       const clientContracts = Math.max(1, parseInt(p.active_client_contracts || 0));
 
@@ -214,6 +214,7 @@ export default function Pricing() {
       vendor: product.vendor,
       product_name: product.product_name,
       service_category: product.service_category || 'Software & Services',
+      purchase_cost: product.purchase_cost !== undefined ? product.purchase_cost : '',
       sales_cost: product.sales_cost || '',
       erp_price: product.erp_price || ''
     });
@@ -752,11 +753,11 @@ export default function Pricing() {
             </div>
           ) : (
             filteredProducts.map((p) => {
-              const purchaseCost = parseFloat(p.sales_cost || 0);
-              const sellingPrice = parseFloat(p.erp_price > 0 ? p.erp_price : (p.discounted_price || p.list_price || 0));
-              const profitAmount = sellingPrice - purchaseCost;
-              const marginPct = sellingPrice > 0 ? Math.round((profitAmount / sellingPrice) * 1000) / 10 : 0;
-              const costPct = sellingPrice > 0 ? Math.round((purchaseCost / sellingPrice) * 1000) / 10 : 0;
+              const purchaseCost = parseFloat(p.purchase_cost || 0);
+              const salesCost = parseFloat(p.sales_cost || (p.erp_price > 0 ? p.erp_price : (p.discounted_price || p.list_price || 0)));
+              const profitAmount = salesCost - purchaseCost;
+              const marginPct = salesCost > 0 ? Math.round((profitAmount / salesCost) * 1000) / 10 : 0;
+              const costPct = salesCost > 0 ? Math.round((purchaseCost / salesCost) * 1000) / 10 : 0;
 
               return (
                 <div 
@@ -796,7 +797,7 @@ export default function Pricing() {
                     </div>
                     <div>
                       <p className="text-[10px] text-surface-400 font-semibold uppercase">Sales Cost</p>
-                      <p className="text-xs font-black text-surface-900 dark:text-white mt-0.5">{formatINR(p.discounted_price)}</p>
+                      <p className="text-xs font-black text-surface-900 dark:text-white mt-0.5">{formatINR(salesCost)}</p>
                     </div>
                   </div>
 
@@ -902,11 +903,11 @@ export default function Pricing() {
                 </thead>
                 <tbody className="divide-y divide-surface-200/40 dark:divide-surface-800/40 text-xs">
                   {filteredProducts.map((p) => {
-                    const purchaseCost = parseFloat(p.sales_cost || 0);
-                    const sellingPrice = parseFloat(p.erp_price > 0 ? p.erp_price : (p.discounted_price || p.list_price || 0));
-                    const profitAmount = sellingPrice - purchaseCost;
-                    const marginPct = sellingPrice > 0 ? Math.round((profitAmount / sellingPrice) * 1000) / 10 : 0;
-                    const costPct = sellingPrice > 0 ? Math.round((purchaseCost / sellingPrice) * 1000) / 10 : 0;
+                    const purchaseCost = parseFloat(p.purchase_cost || 0);
+                    const salesCost = parseFloat(p.sales_cost || (p.erp_price > 0 ? p.erp_price : (p.discounted_price || p.list_price || 0)));
+                    const profitAmount = salesCost - purchaseCost;
+                    const marginPct = salesCost > 0 ? Math.round((profitAmount / salesCost) * 1000) / 10 : 0;
+                    const costPct = salesCost > 0 ? Math.round((purchaseCost / salesCost) * 1000) / 10 : 0;
 
                     return (
                       <tr key={p.id} className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
@@ -963,7 +964,7 @@ export default function Pricing() {
 
                         {/* Sales Cost */}
                         <td className="px-4 py-3.5 text-right font-extrabold text-surface-900 dark:text-white">
-                          {formatINR(p.discounted_price)}
+                          {formatINR(salesCost)}
                         </td>
 
                         {/* Net Margin & Profit */}
@@ -1142,25 +1143,36 @@ export default function Pricing() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block font-semibold text-surface-700 dark:text-surface-300 mb-1">Purchase Cost (₹)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.purchase_cost}
+                    onChange={(e) => setFormData({ ...formData, purchase_cost: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                    placeholder="e.g. 4000"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-surface-700 dark:text-surface-300 mb-1">Sales Cost (₹)</label>
                   <input
                     type="number"
                     step="0.01"
                     value={formData.sales_cost}
                     onChange={(e) => setFormData({ ...formData, sales_cost: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:ring-2 focus:ring-amber-500"
-                    placeholder="e.g. 5000"
+                    placeholder="e.g. 6000"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-amber-600 dark:text-amber-400 mb-1">ERP Price (₹) *</label>
+                  <label className="block font-semibold text-amber-600 dark:text-amber-400 mb-1">ERP Price (₹)</label>
                   <input
                     type="number"
                     step="0.01"
-                    required
                     value={formData.erp_price}
                     onChange={(e) => setFormData({ ...formData, erp_price: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-500/50 text-surface-900 dark:text-white font-extrabold focus:ring-2 focus:ring-amber-500"

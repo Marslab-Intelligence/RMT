@@ -3,12 +3,13 @@ import dotenv from 'dotenv';
 import db from '../db.js';
 dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET || '';
-
-// SECURITY: Refuse to start in production with default/weak JWT secret
-if (process.env.NODE_ENV === 'production' && (JWT_SECRET.length < 32 || JWT_SECRET === 'rms-default-secret-key' || JWT_SECRET === '')) {
-  console.error('🔴 FATAL: JWT_SECRET is not set or is too weak for production. Set a random 64-char secret.');
-  process.exit(1);
+// No hardcoded fallback: a leaked default here would let anyone forge a
+// valid session token. Production supplies this via a Kubernetes Secret;
+// local dev supplies it via .env — either way, a missing value is a
+// configuration error that must stop the server, not a silent downgrade.
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  throw new Error('JWT_SECRET environment variable is missing or too short (must be at least 32 characters). Refusing to start.');
 }
 
 // Keep the function signature synchronous to avoid breaking imports but use async internally if needed, or make it async.

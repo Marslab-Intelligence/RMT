@@ -51,6 +51,12 @@ COPY --from=frontend-builder --chown=node:node /app/dist ./dist
 # ----- Runtime security settings -----
 ENV NODE_ENV=production
 ENV PORT=3001
+# JWT_SECRET / REFRESH_SECRET are intentionally NOT set here — they must come
+# from the runtime environment (a Kubernetes Secret in production, .env
+# locally). Baking a fixed value into the image means anyone who can pull it
+# from ECR can read the value straight out of the image layers, and every
+# container ever run from this image shares that one token-signing key
+# regardless of what the deployment's actual secret says.
 # Prevent Node from loading arbitrary native addons
 ENV NODE_OPTIONS="--no-experimental-fetch --disable-proto=throw"
 

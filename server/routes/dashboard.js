@@ -344,22 +344,29 @@ router.get('/charts/services', authenticateToken, async (req, res) => {
 router.get('/charts/monthly', authenticateToken, async (req, res) => {
   try {
     const { rows } = await db.query(`
-      SELECT 
-        to_char(renewal_date, 'YYYY-MM') as month, 
-        COUNT(*)::int as count, 
-        COALESCE(SUM(value), 0)::float as revenue
-      FROM renewals 
-      WHERE is_deleted = false 
+      SELECT
+        to_char(renewal_date, 'YYYY-MM') as month,
+        COUNT(*)::int as count,
+        COALESCE(SUM(value), 0)::float as revenue,
+        COALESCE(SUM(profit), 0)::float as profit,
+        -- How much of this month's revenue actually carries a recorded profit
+        -- figure. The UI needs this to say whether a margin is trustworthy
+        -- rather than silently averaging over rows that have no profit set.
+        COALESCE(SUM(CASE WHEN profit IS NOT NULL THEN value ELSE 0 END), 0)::float as revenue_with_profit
+      FROM renewals
+      WHERE is_deleted = false
         AND renewal_date IS NOT NULL
         AND renewal_date <= (CURRENT_DATE + INTERVAL '12 months')::date
-      GROUP BY month 
-      ORDER BY month ASC 
+      GROUP BY month
+      ORDER BY month ASC
       LIMIT 16
     `);
     res.json(rows.map(r => ({
       month: r.month,
       count: parseInt(r.count),
-      revenue: parseFloat(r.revenue)
+      revenue: parseFloat(r.revenue),
+      profit: parseFloat(r.profit),
+      revenueWithProfit: parseFloat(r.revenue_with_profit)
     })));
   } catch (err) {
     console.error('Monthly chart fetch error:', err);
